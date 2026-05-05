@@ -58,7 +58,7 @@ export default function Login({ onLoginSuccess }) {
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <div ref={googleBtnRef} style={{ width: '100%', minHeight: 44 }}></div>
+          <div ref={googleBtnRef} style={{ width: '100%', minHeight: 44, display: 'flex', justifyContent: 'center' }}></div>
         </div>
 
         <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', opacity: 0.7 }}>

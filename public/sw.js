@@ -1,6 +1,6 @@
 // Service Worker — Task Manager PWA
 // Versión de caché: incrementar para forzar actualización
-const CACHE_NAME = 'taskmanager-v2';
+const CACHE_NAME = 'taskmanager-v3';
 
 // Recursos que se precargan en la instalación
 const PRECACHE_URLS = [
