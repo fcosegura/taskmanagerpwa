@@ -1,4 +1,5 @@
 export default {
+  // Worker Version: 2026.05.05.1
   async fetch(request, env) {
     const url = new URL(request.url);
 
