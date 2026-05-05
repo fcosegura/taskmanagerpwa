@@ -1,10 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { EVENT_COLORS } from '../constants.js';
-import { fmtDate } from '../utils.jsx';
 
 export default function EventModal({ event, onSave, onDelete, onClose }) {
   const [form, setForm] = useState(event);
-  useEffect(() => { setForm(event); }, [event]);
 
   const handleChange = (field, value) => setForm((p) => ({ ...p, [field]: value }));
 

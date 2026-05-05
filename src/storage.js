@@ -15,6 +15,35 @@ export function isValidTask(task) {
   );
 }
 
+function normalizeTask(task) {
+  return {
+    ...task,
+    subtasks: Array.isArray(task.subtasks) ? task.subtasks : [],
+    category: task.category || '',
+    date: task.date || '',
+    time: task.time || '',
+  };
+}
+
+function normalizeEvent(event) {
+  return {
+    ...event,
+    endDate: event.endDate || event.startDate,
+    color: event.color || '#2563eb',
+  };
+}
+
+function normalizeBoardNote(note) {
+  return {
+    ...note,
+    title: note.title || '',
+    text: note.text || '',
+    createdAt: note.createdAt || note.created_at || new Date().toISOString(),
+    x: typeof note.x === 'number' ? note.x : 20,
+    y: typeof note.y === 'number' ? note.y : 20,
+  };
+}
+
 export function isValidEvent(event) {
   if (!event || typeof event !== 'object') return false;
   const { id, title, startDate, endDate, color } = event;
@@ -31,7 +60,7 @@ export function isValidBoardNote(note) {
     typeof note.id === 'string' &&
     typeof note.title === 'string' &&
     typeof note.text === 'string' &&
-    typeof note.createdAt === 'string' &&
+    (typeof note.createdAt === 'string' || typeof note.created_at === 'string') &&
     (note.x === undefined || typeof note.x === 'number') &&
     (note.y === undefined || typeof note.y === 'number')
   );
@@ -45,18 +74,21 @@ export function validateBackupPayload(payload) {
   return true;
 }
 
-function loadSafeData(parsed) {
-  if (Array.isArray(parsed) && parsed.every(isValidTask)) {
-    return { tasks: parsed, boardNotes: [], events: [] };
+export function normalizeDataPayload(parsed) {
+  if (Array.isArray(parsed)) {
+    const tasks = parsed.map(normalizeTask);
+    if (tasks.every(isValidTask)) return { tasks, boardNotes: [], events: [] };
   }
-  if (parsed && typeof parsed === 'object' && Array.isArray(parsed.tasks) && parsed.tasks.every(isValidTask)) {
-    const boardNotes =
-      Array.isArray(parsed.boardNotes) && parsed.boardNotes.every(isValidBoardNote)
-        ? parsed.boardNotes
-        : [];
-    const events =
-      Array.isArray(parsed.events) && parsed.events.every(isValidEvent) ? parsed.events : [];
-    return { tasks: parsed.tasks, boardNotes, events };
+  if (parsed && typeof parsed === 'object' && Array.isArray(parsed.tasks)) {
+    const tasks = parsed.tasks.map(normalizeTask);
+    if (!tasks.every(isValidTask)) return { tasks: [], boardNotes: [], events: [] };
+    const boardNotes = Array.isArray(parsed.boardNotes)
+      ? parsed.boardNotes.map(normalizeBoardNote).filter(isValidBoardNote)
+      : [];
+    const events = Array.isArray(parsed.events)
+      ? parsed.events.map(normalizeEvent).filter(isValidEvent)
+      : [];
+    return { tasks, boardNotes, events };
   }
   return { tasks: [], boardNotes: [], events: [] };
 }
@@ -67,7 +99,7 @@ export async function loadData(token = null) {
   // 1. Siempre cargar de local primero (rápido)
   try {
     const r = localStorage.getItem(STORAGE_KEY);
-    if (r) localData = loadSafeData(JSON.parse(r));
+    if (r) localData = normalizeDataPayload(JSON.parse(r));
   } catch (e) {
     console.error("Error cargando local:", e);
   }
@@ -80,9 +112,10 @@ export async function loadData(token = null) {
       });
       if (resp.ok) {
         const cloudData = await resp.json();
+        const safeCloudData = normalizeDataPayload(cloudData);
         // Mezclar o priorizar nube (aquí podrías añadir lógica de marcas de tiempo)
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(cloudData));
-        return cloudData;
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(safeCloudData));
+        return safeCloudData;
       }
     } catch (e) {
       console.warn("Error sincronizando con la nube:", e);
@@ -96,8 +129,8 @@ export async function saveData(payload, token = null) {
   // 1. Guardar local siempre
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
-  } catch (e) {
-    // silent
+  } catch {
+    // El guardado local puede fallar por cuota o modo privado; la nube sigue siendo el respaldo.
   }
 
   // 2. Si hay token, sincronizar con la nube

@@ -1,17 +1,11 @@
-import { useState, useEffect } from 'react';
-import { STATUS, PRIORITY } from '../constants.js';
+import { useState } from 'react';
+import { STATUS } from '../constants.js';
 import { uid, fmtDate, parseDateTimeFromDescription, parseDescriptionDateResult, cleanDescriptionSegment } from '../utils.jsx';
 
 export default function TaskModal({ task, categories, onSave, onDelete, onClose }) {
   const [form, setForm] = useState({ ...task, subtasks: task.subtasks || [], category: task.category || '', time: task.time || '' });
   const [subtaskText, setSubtaskText] = useState('');
   const [newCategory, setNewCategory] = useState('');
-
-  useEffect(() => {
-    setForm({ ...task, subtasks: task.subtasks || [], category: task.category || '', time: task.time || '' });
-    setSubtaskText('');
-    setNewCategory('');
-  }, [task]);
 
   const handleDescriptionChange = (value) => {
     setForm((prev) => ({ ...prev, description: value }));

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 
 // ID de cliente de Google (Público)
 const GOOGLE_CLIENT_ID = "365692313483-g4tv5i5agl4egs67h980vn6ce977p7df.apps.googleusercontent.com";

@@ -1,3 +1,69 @@
+const VALID_STATUS = new Set(['not_done', 'started', 'in_progress', 'blocked', 'done']);
+const VALID_PRIORITY = new Set(['low', 'medium', 'high', 'critical']);
+
+function json(data, init = {}) {
+  return new Response(JSON.stringify(data), {
+    ...init,
+    headers: { 'Content-Type': 'application/json', ...(init.headers || {}) }
+  });
+}
+
+function isValidTask(task) {
+  return (
+    task &&
+    typeof task === 'object' &&
+    typeof task.id === 'string' &&
+    typeof task.description === 'string' &&
+    VALID_STATUS.has(task.status) &&
+    VALID_PRIORITY.has(task.priority) &&
+    Array.isArray(task.subtasks) &&
+    task.subtasks.every((st) => (
+      st &&
+      typeof st === 'object' &&
+      typeof st.id === 'string' &&
+      typeof st.text === 'string' &&
+      typeof st.done === 'boolean'
+    ))
+  );
+}
+
+function isValidNote(note) {
+  return (
+    note &&
+    typeof note === 'object' &&
+    typeof note.id === 'string' &&
+    typeof note.title === 'string' &&
+    typeof note.text === 'string' &&
+    (note.x === undefined || typeof note.x === 'number') &&
+    (note.y === undefined || typeof note.y === 'number')
+  );
+}
+
+function isValidEvent(event) {
+  return (
+    event &&
+    typeof event === 'object' &&
+    typeof event.id === 'string' &&
+    typeof event.title === 'string' &&
+    typeof event.startDate === 'string' &&
+    (event.endDate === undefined || event.endDate === null || typeof event.endDate === 'string') &&
+    typeof event.color === 'string'
+  );
+}
+
+function isValidPayload(payload) {
+  return (
+    payload &&
+    typeof payload === 'object' &&
+    Array.isArray(payload.tasks) &&
+    payload.tasks.every(isValidTask) &&
+    Array.isArray(payload.boardNotes) &&
+    payload.boardNotes.every(isValidNote) &&
+    Array.isArray(payload.events) &&
+    payload.events.every(isValidEvent)
+  );
+}
+
 export default {
   // Worker Version: 2026.05.05.1
   async fetch(request, env) {
@@ -7,7 +73,7 @@ export default {
     if (url.pathname.startsWith('/api/')) {
       const authHeader = request.headers.get('Authorization');
       if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        return new Response(JSON.stringify({ error: 'No autorizado' }), { status: 401 });
+        return json({ error: 'No autorizado' }, { status: 401 });
       }
 
       const token = authHeader.split(' ')[1];
@@ -16,16 +82,16 @@ export default {
       try {
         const googleResp = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${token}`);
         const info = await googleResp.json();
-        if (!googleResp.ok || info.error) return new Response(JSON.stringify({ error: 'Token inválido' }), { status: 401 });
+        if (!googleResp.ok || info.error) return json({ error: 'Token inválido' }, { status: 401 });
         
         // FIX CRÍTICO: Verificar que el token sea para TU app
         if (info.aud !== env.GOOGLE_CLIENT_ID) {
-          return new Response(JSON.stringify({ error: 'Audience mismatch' }), { status: 401 });
+          return json({ error: 'Audience mismatch' }, { status: 401 });
         }
 
         userId = info.sub;
-      } catch (err) {
-        return new Response(JSON.stringify({ error: 'Error de autenticación' }), { status: 500 });
+      } catch {
+        return json({ error: 'Error de autenticación' }, { status: 500 });
       }
 
       const path = url.pathname.replace('/api', '');
@@ -37,13 +103,21 @@ export default {
           const { results: events } = await env.DB.prepare("SELECT * FROM events WHERE user_id = ?").bind(userId).all();
           
           const parsedTasks = tasks.map(t => ({ ...t, subtasks: JSON.parse(t.subtasks || '[]') }));
-          return new Response(JSON.stringify({ tasks: parsedTasks, boardNotes: notes, events: events }), {
-            headers: { 'Content-Type': 'application/json' }
-          });
+          const parsedNotes = notes.map(({ created_at, updated_at, ...note }) => ({
+            ...note,
+            createdAt: created_at,
+            updatedAt: updated_at
+          }));
+          return json({ tasks: parsedTasks, boardNotes: parsedNotes, events });
         }
 
         if (request.method === 'POST' && path === '/sync') {
-          const { tasks, boardNotes, events } = await request.json();
+          const payload = await request.json();
+          if (!isValidPayload(payload)) {
+            return json({ error: 'Payload inválido' }, { status: 400 });
+          }
+
+          const { tasks, boardNotes, events } = payload;
           const batch = [
             env.DB.prepare("DELETE FROM tasks WHERE user_id = ?").bind(userId),
             env.DB.prepare("DELETE FROM notes WHERE user_id = ?").bind(userId),
@@ -64,10 +138,10 @@ export default {
           }
 
           await env.DB.batch(batch);
-          return new Response(JSON.stringify({ success: true }));
+          return json({ success: true });
         }
       } catch (err) {
-        return new Response(JSON.stringify({ error: err.message }), { status: 500 });
+        return json({ error: err.message }, { status: 500 });
       }
     }
 

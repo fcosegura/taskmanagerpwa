@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import { STATUS, PRIORITY, P_ORDER } from './constants.js';
+import { P_ORDER } from './constants.js';
 import { uid, toDateStr, parseDateTimeFromDescription, parseDescriptionDateResult, cleanDescriptionSegment } from './utils.jsx';
-import { loadData, saveData, validateBackupPayload, isValidTask, isValidBoardNote, isValidEvent } from './storage.js';
+import { loadData, saveData, validateBackupPayload, normalizeDataPayload } from './storage.js';
 import TasksView from './components/TasksView.jsx';
 import CalendarView from './components/CalendarView.jsx';
 import BoardView from './components/BoardView.jsx';
@@ -16,6 +16,7 @@ export default function App() {
   const [boardNotes, setBoardNotes] = useState([]);
   const [events, setEvents] = useState([]);
   const [ready, setReady] = useState(false);
+  const [hydratedToken, setHydratedToken] = useState(null);
   const [view, setView] = useState('tasks');
   const [modal, setModal] = useState(null);
   const [eventModal, setEventModal] = useState(null);
@@ -28,12 +29,16 @@ export default function App() {
   const fileInputRef = useRef(null);
 
   useEffect(() => {
+    let cancelled = false;
     loadData(userToken).then((data) => {
+      if (cancelled) return;
       setTasks(data.tasks);
       setBoardNotes(data.boardNotes);
       setEvents(data.events || []);
+      setHydratedToken(userToken || 'local');
       setReady(true);
     });
+    return () => { cancelled = true; };
   }, [userToken]);
 
   const handleLoginSuccess = (token) => {
@@ -44,14 +49,20 @@ export default function App() {
   const handleLogout = () => {
     setUserToken(null);
     localStorage.removeItem('userToken');
+    setReady(false);
+    setHydratedToken(null);
     setTasks([]);
     setBoardNotes([]);
     setEvents([]);
   };
 
   useEffect(() => {
-    if (ready) saveData({ tasks, boardNotes, events }, userToken);
-  }, [tasks, boardNotes, events, ready, userToken]);
+    if (!ready || hydratedToken !== (userToken || 'local')) return undefined;
+    const timer = window.setTimeout(() => {
+      saveData({ tasks, boardNotes, events }, userToken);
+    }, 500);
+    return () => window.clearTimeout(timer);
+  }, [tasks, boardNotes, events, ready, userToken, hydratedToken]);
 
   useEffect(() => {
     const onKeyDown = (e) => { if (e.key === 'Escape') { setModal(null); setEventModal(null); } };
@@ -88,19 +99,21 @@ export default function App() {
     reader.onload = (event) => {
       try {
         const parsed = JSON.parse(event.target.result);
-        if (Array.isArray(parsed)) {
-          if (!parsed.every(isValidTask)) throw new Error('El JSON contiene tareas con formato incorrecto.');
-          setTasks(parsed); setBoardNotes([]);
-        } else if (parsed && typeof parsed === 'object') {
-          if (!Array.isArray(parsed.tasks) || !parsed.tasks.every(isValidTask)) throw new Error('El JSON no contiene una lista válida de tareas.');
-          if (parsed.boardNotes !== undefined && (!Array.isArray(parsed.boardNotes) || !parsed.boardNotes.every(isValidBoardNote))) throw new Error('El JSON contiene notas con formato incorrecto.');
-          if (parsed.events !== undefined && (!Array.isArray(parsed.events) || !parsed.events.every(isValidEvent))) throw new Error('El JSON contiene eventos con formato incorrecto.');
-          setTasks(parsed.tasks);
-          setBoardNotes(Array.isArray(parsed.boardNotes) ? parsed.boardNotes : []);
-          setEvents(Array.isArray(parsed.events) ? parsed.events : []);
-        } else {
+        const normalized = normalizeDataPayload(parsed);
+        const hasImportShape = Array.isArray(parsed) || (parsed && typeof parsed === 'object' && Array.isArray(parsed.tasks));
+        const sourceTasks = Array.isArray(parsed) ? parsed : parsed?.tasks;
+        const sourceNotes = Array.isArray(parsed?.boardNotes) ? parsed.boardNotes : null;
+        const sourceEvents = Array.isArray(parsed?.events) ? parsed.events : null;
+        const droppedInvalidItems =
+          normalized.tasks.length !== sourceTasks?.length ||
+          (sourceNotes && normalized.boardNotes.length !== sourceNotes.length) ||
+          (sourceEvents && normalized.events.length !== sourceEvents.length);
+        if (!hasImportShape || droppedInvalidItems || !validateBackupPayload(normalized)) {
           throw new Error('El archivo JSON no tiene la estructura esperada.');
         }
+        setTasks(normalized.tasks);
+        setBoardNotes(normalized.boardNotes);
+        setEvents(normalized.events);
         setFilter('all'); setCategoryFilter('all'); setModal(null); setEventModal(null);
         setBackupMessage('Importación completada correctamente.');
       } catch (err) {
@@ -285,13 +298,13 @@ export default function App() {
 
       {modal && (
         <div onClick={(e) => e.target === e.currentTarget && setModal(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 10, display: 'flex', justifyContent: 'center', paddingTop: 70 }}>
-          <TaskModal task={modal} categories={categories} onSave={upsert} onDelete={modal.id ? () => del(modal.id) : null} onClose={() => setModal(null)} />
+          <TaskModal key={modal.id || 'new-task'} task={modal} categories={categories} onSave={upsert} onDelete={modal.id ? () => del(modal.id) : null} onClose={() => setModal(null)} />
         </div>
       )}
 
       {eventModal && (
         <div onClick={(e) => e.target === e.currentTarget && setEventModal(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 10, display: 'flex', justifyContent: 'center', paddingTop: 70 }}>
-          <EventModal event={eventModal} onSave={upsertEvent} onDelete={eventModal.id ? () => deleteEvent(eventModal.id) : null} onClose={() => setEventModal(null)} />
+          <EventModal key={eventModal.id || 'new-event'} event={eventModal} onSave={upsertEvent} onDelete={eventModal.id ? () => deleteEvent(eventModal.id) : null} onClose={() => setEventModal(null)} />
         </div>
       )}
 

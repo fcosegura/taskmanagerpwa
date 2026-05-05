@@ -5,7 +5,7 @@ function BoardNoteCard({ note, onDelete, onUpdate, onPointerDown, isDragging }) 
     <div
       onPointerDown={onPointerDown}
       style={{
-        position: 'absolute', left: note.x || 0, top: note.y || 0,
+        position: 'absolute', left: note.x ?? 0, top: note.y ?? 0,
         zIndex: isDragging ? 50 : 10,
         cursor: isDragging ? 'grabbing' : 'grab',
         background: '#fef3c7', border: '1px solid #fcd34d',
@@ -35,7 +35,7 @@ function BoardNoteCard({ note, onDelete, onUpdate, onPointerDown, isDragging }) 
         style={{ flex: 1, width: '100%', minHeight: 120, resize: 'none', border: 'none', background: 'transparent', fontSize: 13, color: '#374151', lineHeight: 1.4, outline: 'none', whiteSpace: 'pre-wrap' }}
       />
       <div style={{ fontSize: 10, color: '#6b7280', textAlign: 'right' }}>
-        {new Date(note.createdAt).toLocaleDateString()}
+        {new Date(note.createdAt || note.created_at).toLocaleDateString()}
       </div>
     </div>
   );
@@ -58,8 +58,8 @@ export default function BoardView({ notes, onAddNote, onUpdateNote, onDeleteNote
   const handlePointerMove = (e) => {
     if (!draggedId || !boardRef.current) return;
     const rect = boardRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left - dragOffset.x;
-    const y = e.clientY - rect.top - dragOffset.y;
+    const x = Math.min(Math.max(e.clientX - rect.left - dragOffset.x, 0), Math.max(rect.width - 180, 0));
+    const y = Math.max(e.clientY - rect.top - dragOffset.y, 0);
     onUpdateNote(draggedId, { x, y });
   };
 
@@ -114,15 +114,19 @@ export default function BoardView({ notes, onAddNote, onUpdateNote, onDeleteNote
             Pulsa + para crear tu primer post-it.
           </div>
         ) : notes.map((note, index) => {
-          if (note.x === undefined) note.x = (index % 2) * 200 + 20;
-          if (note.y === undefined) note.y = Math.floor(index / 2) * 200 + 20;
+          const displayNote = {
+            ...note,
+            x: note.x ?? (index % 2) * 200 + 20,
+            y: note.y ?? Math.floor(index / 2) * 200 + 20,
+            createdAt: note.createdAt || note.created_at || new Date().toISOString(),
+          };
           return (
             <BoardNoteCard
               key={note.id}
-              note={note}
+              note={displayNote}
               onDelete={onDeleteNote}
               onUpdate={onUpdateNote}
-              onPointerDown={(e) => handlePointerDown(e, note)}
+              onPointerDown={(e) => handlePointerDown(e, displayNote)}
               isDragging={draggedId === note.id}
             />
           );

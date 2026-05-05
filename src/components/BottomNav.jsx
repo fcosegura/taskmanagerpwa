@@ -1,5 +1,3 @@
-import React from 'react';
-
 export default function BottomNav({ currentView, setView }) {
   const tabs = [
     { id: 'tasks', label: 'Tareas', icon: '📋' },

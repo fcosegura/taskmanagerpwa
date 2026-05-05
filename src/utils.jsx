@@ -77,18 +77,13 @@ export function cleanDescriptionSegment(text, segment) {
   const normalized = stripDiacritics(source).toLowerCase();
   const needle = stripDiacritics(segment).toLowerCase();
   const index = normalized.indexOf(needle);
-  let cleaned = source;
-  if (index >= 0) {
-    cleaned = source.slice(0, index) + source.slice(index + segment.length);
-  } else {
-    cleaned = source.replace(new RegExp(escapeRegExp(segment), 'i'), '');
-  }
-  cleaned = cleaned.replace(/\s{2,}/g, ' ').trim();
-  cleaned = cleaned
+  const cleaned = index >= 0
+    ? source.slice(0, index) + source.slice(index + segment.length)
+    : source.replace(new RegExp(escapeRegExp(segment), 'i'), '');
+  return cleaned.replace(/\s{2,}/g, ' ').trim()
     .replace(/^(a|a las|a la|al|el|la|en|para)\s+/i, '')
     .replace(/\s+(a|a las|a la|al|el|la|en|para)$/i, '')
     .trim();
-  return cleaned;
 }
 
 export function parseDateTimeFromDescription(text) {
@@ -166,7 +161,7 @@ export function parseDateTimeFromDescription(text) {
     } else if (/hoy|día de hoy|dia de hoy|el dia de hoy|el día de hoy/.test(lower)) {
       date = toDateStr(today.getFullYear(), today.getMonth(), today.getDate());
     } else {
-      const dateMatch = lower.match(/(\d{1,2})[\/\.\-](\d{1,2})(?:[\/\.\-](\d{2,4}))?/);
+      const dateMatch = lower.match(new RegExp('(\\d{1,2})[/.-](\\d{1,2})(?:[/.-](\\d{2,4}))?'));
       if (dateMatch) {
         const day = parseInt(dateMatch[1], 10);
         const month = parseInt(dateMatch[2], 10) - 1;
