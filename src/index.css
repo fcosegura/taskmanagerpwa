@@ -1,0 +1,74 @@
+/* ── Design tokens ── */
+:root {
+  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --border-radius-md: 12px;
+  --border-radius-lg: 22px;
+  --shadow-card: 0 18px 45px rgba(15, 23, 42, 0.08);
+  --shadow-soft: 0 10px 30px rgba(15, 23, 42, 0.06);
+
+  --color-background-primary: #ffffff;
+  --color-background-secondary: #f7f8fb;
+  --color-background-tertiary: #eef3fb;
+
+  --color-text-primary: #111827;
+  --color-text-secondary: #4b5563;
+
+  --color-border-primary: #9ca3af;
+  --color-border-secondary: #d1d5db;
+  --color-border-tertiary: #e5e7eb;
+  --color-accent: #2563eb;
+  --color-accent-soft: #dbeafe;
+
+  --color-text-info: #0284c7;
+  --color-background-info: #e0f2fe;
+  --color-border-info: #7dd3fc;
+
+  --color-text-warning: #d97706;
+  --color-background-warning: #fef3c7;
+  --color-border-warning: #fde047;
+
+  --color-text-danger: #dc2626;
+  --color-background-danger: #fee2e2;
+  --color-border-danger: #fca5a5;
+
+  --color-text-success: #16a34a;
+  --color-background-success: #dcfce7;
+  --color-border-success: #86efac;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+  background: linear-gradient(180deg, #eef3fb 0%, #fdfdff 100%);
+  font-family: var(--font-sans);
+  color: var(--color-text-primary);
+  line-height: 1.5;
+}
+
+button {
+  font: inherit;
+  outline: none;
+}
+
+button:focus-visible {
+  outline: 2px solid var(--color-text-info);
+  outline-offset: 2px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}
