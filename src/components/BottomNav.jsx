@@ -8,27 +8,12 @@ export default function BottomNav({ currentView, setView }) {
   return (
     <nav 
       className="show-mobile"
-      style={{
-        position: 'fixed',
-        bottom: 0,
-        left: 0,
-        right: 0,
-        height: 'var(--nav-height)',
-        background: 'rgba(255, 255, 255, 0.85)',
-        backdropFilter: 'blur(10px)',
-        borderTop: '1px solid var(--color-border-tertiary)',
-        display: 'flex',
-        justifyContent: 'space-around',
-        alignItems: 'center',
-        paddingBottom: 'env(safe-area-inset-bottom)',
-        zIndex: 100,
-        boxShadow: '0 -4px 20px rgba(0,0,0,0.05)'
-      }}
     >
       {tabs.map((tab) => (
         <button
           key={tab.id}
           onClick={() => setView(tab.id)}
+          className={currentView === tab.id ? 'active' : ''}
           style={{
             flex: 1,
             display: 'flex',

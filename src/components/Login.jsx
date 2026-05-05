@@ -35,44 +35,26 @@ export default function Login({ onLoginSuccess }) {
   }, [onLoginSuccess]);
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      background: 'var(--color-background-tertiary)',
-      padding: 20
-    }}>
-      <div style={{
-        width: '100%',
-        maxWidth: 400,
-        background: 'var(--color-background-primary)',
-        borderRadius: 'var(--border-radius-lg)',
-        padding: 40,
-        boxShadow: 'var(--shadow-card)',
-        textAlign: 'center',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 24
-      }}>
+    <div className="login-page">
+      <div className="login-card">
         <div>
-          <div style={{ fontSize: 32, marginBottom: 8 }}>📋</div>
-          <h1 style={{ fontSize: 24, fontWeight: 800, margin: 0, color: 'var(--color-text-primary)' }}>Task Manager</h1>
-          <p style={{ fontSize: 14, color: 'var(--color-text-secondary)', marginTop: 8 }}>
+          <div className="login-mark">T</div>
+          <h1>Task Manager</h1>
+          <p>
             Sincroniza tus tareas, notas y calendario en todos tus dispositivos.
           </p>
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div className="login-actions">
           <div ref={googleBtnRef} style={{ width: '100%', minHeight: 44, display: 'flex', justifyContent: 'center' }}></div>
           {error && (
-            <div style={{ fontSize: 12, color: 'var(--color-text-danger)' }}>
+            <div className="login-error">
               {error}
             </div>
           )}
         </div>
 
-        <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', opacity: 0.7 }}>
+        <div className="login-note">
           Al iniciar sesión, tus datos se guardarán de forma segura en la nube.
         </div>
       </div>

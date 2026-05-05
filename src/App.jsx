@@ -208,6 +208,9 @@ export default function App() {
   const categoryBase = filter === 'all' ? activeTasks : tasks.filter((t) => t.status === filter);
   const categoryCounts = categoryBase.reduce((acc, t) => { if (!t.category) return acc; acc[t.category] = (acc[t.category] || 0) + 1; return acc; }, {});
   const totalVisible = baseByStatus.length;
+  const completedCount = tasks.filter((t) => t.status === 'done').length;
+  const blockedCount = tasks.filter((t) => t.status === 'blocked').length;
+  const todayCount = (tByDate[todayStr] || []).filter((t) => t.status !== 'done').length;
 
   if (authenticated === null) {
     return null;
@@ -218,76 +221,63 @@ export default function App() {
   }
 
   return (
-    <div style={{ position: 'relative', minHeight: '100vh', fontFamily: 'var(--font-sans)', background: 'var(--color-background-tertiary)', color: 'var(--color-text-primary)' }}>
+    <div className="app-shell">
       <h2 className="sr-only">Gestor de tareas con calendario</h2>
 
-      <div style={{ 
-        background: 'var(--color-background-primary)', 
-        borderBottom: '0.5px solid rgba(148,163,184,0.18)', 
-        padding: '0 20px', 
-        minHeight: 72, 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'space-between', 
-        boxShadow: 'var(--shadow-soft)',
-        position: 'sticky',
-        top: 0,
-        zIndex: 100,
-        paddingTop: 'env(safe-area-inset-top)'
-      }}>
-        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-          <button onClick={handleLogout} style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 18, padding: 4 }} title="Cerrar sesión">🚪</button>
-          <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 4 }}>
-            <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-text-primary)' }}>{view === 'board' ? 'Tablero' : 'Tareas'}</span>
-            <span className="hide-mobile" style={{ fontSize: 12, color: 'var(--color-text-secondary)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
-              {view === 'board' ? 'Notas estilo post-it' : 'Gestión de tareas y calendario'}
+      <header className="app-header">
+        <div className="brand-block">
+          <button className="icon-button subtle" onClick={handleLogout} title="Cerrar sesión" aria-label="Cerrar sesión">↩</button>
+          <div className="brand-mark" aria-hidden="true">T</div>
+          <div className="brand-copy">
+            <span className="brand-title">{view === 'calendar' ? 'Calendario' : view === 'board' ? 'Tablero' : 'Tareas'}</span>
+            <span className="brand-subtitle hide-mobile">
+              {view === 'board' ? 'Notas libres para organizar ideas' : 'Tu centro de trabajo diario'}
             </span>
           </div>
         </div>
 
-        <div className="hide-mobile" style={{ display: 'flex', gap: 3, background: 'var(--color-background-secondary)', padding: '3px', borderRadius: 'var(--border-radius-md)' }}>
+        <div className="desktop-tabs hide-mobile">
           {[['tasks', 'Tareas'], ['calendar', 'Calendario'], ['board', 'Tablero']].map(([v, l]) => (
-            <button key={v} onClick={() => setView(v)} style={{ padding: '4px 14px', border: 'none', borderRadius: 'calc(var(--border-radius-md) - 2px)', background: view === v ? 'var(--color-background-primary)' : 'transparent', color: view === v ? 'var(--color-text-primary)' : 'var(--color-text-secondary)', fontSize: 13, fontWeight: view === v ? 500 : 400, cursor: 'pointer' }}>{l}</button>
+            <button key={v} className={view === v ? 'active' : ''} onClick={() => setView(v)}>{l}</button>
           ))}
         </div>
 
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <button className="hide-mobile" type="button" onClick={downloadBackup} style={{ padding: '8px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', border: '1px solid transparent', background: 'rgba(37,99,235,0.1)', color: 'var(--color-accent)', borderRadius: '999px', transition: 'background 150ms ease' }} onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(37,99,235,0.16)')} onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(37,99,235,0.1)')}>Exportar</button>
-          <button className="hide-mobile" type="button" onClick={() => fileInputRef.current?.click()} style={{ padding: '8px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', border: '1px solid rgba(148,163,184,0.2)', background: 'var(--color-background-primary)', color: 'var(--color-text-primary)', borderRadius: '999px', transition: 'background 150ms ease' }} onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(241,245,249,0.95)')} onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--color-background-primary)')}>Importar</button>
+        <div className="header-actions">
+          <button className="ghost-button hide-mobile" type="button" onClick={downloadBackup}>Exportar</button>
+          <button className="ghost-button hide-mobile" type="button" onClick={() => fileInputRef.current?.click()}>Importar</button>
           <button type="button"
             onClick={() => view === 'board'
               ? addBoardNote({ id: uid(), title: '', text: '', createdAt: new Date().toISOString(), x: 20 + Math.random() * 40, y: 20 + Math.random() * 40 })
               : open()
             }
             aria-label={view === 'board' ? 'Crear nueva nota' : 'Crear nueva tarea'}
-            style={{ 
-              padding: '10px 18px', 
-              fontSize: 13, 
-              fontWeight: 700, 
-              cursor: 'pointer', 
-              border: 'none', 
-              background: 'linear-gradient(135deg, var(--color-accent), #3b82f6)', 
-              color: 'white', 
-              borderRadius: '999px', 
-              boxShadow: '0 18px 36px rgba(37,99,235,0.18)', 
-              transition: 'transform 150ms ease, box-shadow 150ms ease',
-              whiteSpace: 'nowrap'
-            }}
-            onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 22px 40px rgba(37,99,235,0.22)'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 18px 36px rgba(37,99,235,0.18)'; }}
+            className="primary-button"
           >
             {view === 'board' ? '+ Nota' : '+ Tarea'}
           </button>
         </div>
-      </div>
+      </header>
 
       {backupMessage && (
-        <div style={{ padding: '10px 20px', color: 'var(--color-text-secondary)', fontSize: 13 }}>{backupMessage}</div>
+        <div className="toast-message">{backupMessage}</div>
       )}
 
       <input ref={fileInputRef} type="file" accept="application/json" style={{ display: 'none' }} onChange={handleImportFile} />
 
-      <div style={{ padding: '16px 20px' }}>
+      <main className="app-main">
+        <section className="overview-panel">
+          <div>
+            <p className="eyebrow">Resumen</p>
+            <h1>{view === 'calendar' ? 'Planifica la semana' : view === 'board' ? 'Ordena tus ideas' : 'Prioriza lo importante'}</h1>
+          </div>
+          <div className="metric-strip">
+            <div><strong>{activeTasks.length}</strong><span>Activas</span></div>
+            <div><strong>{todayCount}</strong><span>Hoy</span></div>
+            <div><strong>{blockedCount}</strong><span>Bloqueadas</span></div>
+            <div><strong>{completedCount}</strong><span>Hechas</span></div>
+          </div>
+        </section>
+
         {view === 'tasks'
           ? <TasksView
               tasks={sorted} total={totalVisible} filter={filter} setFilter={setFilter}
@@ -306,16 +296,16 @@ export default function App() {
               />
             : <BoardView notes={boardNotes} onAddNote={addBoardNote} onUpdateNote={updateBoardNote} onDeleteNote={deleteBoardNote} />
         }
-      </div>
+      </main>
 
       {modal && (
-        <div onClick={(e) => e.target === e.currentTarget && setModal(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 10, display: 'flex', justifyContent: 'center', paddingTop: 70 }}>
+        <div className="modal-backdrop" onClick={(e) => e.target === e.currentTarget && setModal(null)}>
           <TaskModal key={modal.id || 'new-task'} task={modal} categories={categories} onSave={upsert} onDelete={modal.id ? () => del(modal.id) : null} onClose={() => setModal(null)} />
         </div>
       )}
 
       {eventModal && (
-        <div onClick={(e) => e.target === e.currentTarget && setEventModal(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 10, display: 'flex', justifyContent: 'center', paddingTop: 70 }}>
+        <div className="modal-backdrop" onClick={(e) => e.target === e.currentTarget && setEventModal(null)}>
           <EventModal key={eventModal.id || 'new-event'} event={eventModal} onSave={upsertEvent} onDelete={eventModal.id ? () => deleteEvent(eventModal.id) : null} onClose={() => setEventModal(null)} />
         </div>
       )}

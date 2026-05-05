@@ -1,6 +1,7 @@
 const VALID_STATUS = new Set(['not_done', 'started', 'in_progress', 'blocked', 'done']);
 const VALID_PRIORITY = new Set(['low', 'medium', 'high', 'critical']);
 const SESSION_COOKIE = '__Host-taskmanager_session';
+const LOCAL_SESSION_COOKIE = 'taskmanager_session';
 const SECURITY_HEADERS = {
   'Content-Security-Policy': [
     "default-src 'self'",
@@ -47,12 +48,22 @@ function getCookie(request, name) {
     ?.slice(name.length + 1) || '';
 }
 
-function sessionCookie(value) {
+function isLocalRequest(request) {
+  const url = new URL(request.url);
+  return url.protocol === 'http:' && ['localhost', '127.0.0.1'].includes(url.hostname);
+}
+
+function sessionCookie(value, request) {
+  if (isLocalRequest(request)) {
+    return `${LOCAL_SESSION_COOKIE}=${value}; Path=/; Max-Age=3600; HttpOnly; SameSite=Lax`;
+  }
   return `${SESSION_COOKIE}=${value}; Path=/; Max-Age=3600; HttpOnly; Secure; SameSite=Strict`;
 }
 
-function clearSessionCookie() {
-  return `${SESSION_COOKIE}=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Strict`;
+function clearSessionCookie(request) {
+  const localCookie = `${LOCAL_SESSION_COOKIE}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax`;
+  const secureCookie = `${SESSION_COOKIE}=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Strict`;
+  return isLocalRequest(request) ? localCookie : secureCookie;
 }
 
 function isValidTask(task) {
@@ -123,7 +134,7 @@ async function verifyGoogleToken(token, env) {
 }
 
 async function authenticate(request, env) {
-  const token = getCookie(request, SESSION_COOKIE);
+  const token = getCookie(request, SESSION_COOKIE) || getCookie(request, LOCAL_SESSION_COOKIE);
   return verifyGoogleToken(token, env);
 }
 
@@ -140,7 +151,7 @@ export default {
           if (!userId) return json({ error: 'Token inválido' }, { status: 401 });
           return json(
             { success: true },
-            { headers: { 'Set-Cookie': sessionCookie(credential) } }
+            { headers: { 'Set-Cookie': sessionCookie(credential, request) } }
           );
         } catch {
           return json({ error: 'Login inválido' }, { status: 400 });
@@ -150,7 +161,7 @@ export default {
       if (request.method === 'POST' && url.pathname === '/api/logout') {
         return json(
           { success: true },
-          { headers: { 'Set-Cookie': clearSessionCookie() } }
+          { headers: { 'Set-Cookie': clearSessionCookie(request) } }
         );
       }
 

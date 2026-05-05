@@ -11,6 +11,7 @@ export default function TaskRow({ task, onClick, onToggleDone }) {
 
   return (
     <div
+      className="task-card"
       onClick={onClick}
       style={{
         background: 'var(--color-background-primary)',
@@ -26,13 +27,13 @@ export default function TaskRow({ task, onClick, onToggleDone }) {
       onMouseEnter={(e) => (e.currentTarget.style.transform = 'translateY(-1px)')}
       onMouseLeave={(e) => (e.currentTarget.style.transform = 'translateY(0)')}
     >
-      <div style={{ width: 4, minHeight: 34, borderRadius: 4, background: `var(${p.tv})`, flexShrink: 0 }} />
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 14, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textDecoration: task.status === 'done' ? 'line-through' : 'none' }}>
+      <div className="priority-rail" style={{ width: 4, minHeight: 34, borderRadius: 4, background: `var(${p.tv})`, flexShrink: 0 }} />
+      <div className="task-content" style={{ flex: 1, minWidth: 0 }}>
+        <div className="task-title" style={{ fontSize: 14, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textDecoration: task.status === 'done' ? 'line-through' : 'none' }}>
           {linkifyText(task.description)}
         </div>
         {task.date && (
-          <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 2 }}>
+          <div className="task-date" style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 2 }}>
             {fmtDate(task.date)}{task.time ? ` · ${task.time}` : ''}
           </div>
         )}
@@ -52,7 +53,7 @@ export default function TaskRow({ task, onClick, onToggleDone }) {
           </div>
         )}
       </div>
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0, flexWrap: 'wrap' }}>
+      <div className="task-meta" style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0, flexWrap: 'wrap' }}>
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); onToggleDone?.(task.id); }}

@@ -3,6 +3,7 @@ import { useRef, useState } from 'react';
 function BoardNoteCard({ note, onDelete, onUpdate, onPointerDown, isDragging }) {
   return (
     <div
+      className="board-note"
       onPointerDown={onPointerDown}
       style={{
         position: 'absolute', left: note.x ?? 0, top: note.y ?? 0,
@@ -79,8 +80,8 @@ export default function BoardView({ notes, onAddNote, onUpdateNote, onDeleteNote
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, background: 'var(--color-background-primary)', borderRadius: 'var(--border-radius-lg)', padding: '16px 20px', boxShadow: 'var(--shadow-soft)' }}>
+    <div className="board-view" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div className="board-toolbar" style={{ display: 'flex', flexDirection: 'column', gap: 10, background: 'var(--color-background-primary)', borderRadius: 'var(--border-radius-lg)', padding: '16px 20px', boxShadow: 'var(--shadow-soft)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
           <div>
             <div style={{ fontSize: 16, fontWeight: 700 }}>Tablero</div>
@@ -96,6 +97,7 @@ export default function BoardView({ notes, onAddNote, onUpdateNote, onDeleteNote
       </div>
 
       <div
+        className="board-canvas"
         ref={boardRef}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}

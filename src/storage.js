@@ -132,6 +132,8 @@ export async function loadData() {
       return { ...safeCloudData, authenticated: true };
     }
     if (resp.status === 401) return { ...localData, authenticated: false };
+    console.warn("La nube respondió con error, manteniendo la sesión local:", resp.status);
+    return { ...localData, authenticated: true };
   } catch (e) {
     console.warn("Error sincronizando con la nube:", e);
   }

@@ -8,8 +8,8 @@ export default function CalendarView({ y, mo, dIM, fD, tByDate, eByDate, todaySt
   const selDs = selDay ? toDateStr(y, mo, selDay) : null;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div style={{ background: 'var(--color-background-primary)', border: '0.5px solid var(--color-border-tertiary)', borderRadius: 'var(--border-radius-lg)', padding: '16px 20px' }}>
+    <div className="calendar-view" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div className="calendar-panel" style={{ background: 'var(--color-background-primary)', border: '0.5px solid var(--color-border-tertiary)', borderRadius: 'var(--border-radius-lg)', padding: '16px 20px' }}>
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18, gap: 12 }}>
           <div>
             <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 4, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Calendario</div>
@@ -43,7 +43,7 @@ export default function CalendarView({ y, mo, dIM, fD, tByDate, eByDate, todaySt
             return (
               <div
                 key={index}
-                className="calendar-cell"
+                className={`calendar-cell${isToday ? ' today' : ''}${isSelected ? ' selected' : ''}`}
                 style={{
                   position: 'relative', minHeight: 65, padding: '8px 4px',
                   borderRadius: 12,
@@ -78,7 +78,7 @@ export default function CalendarView({ y, mo, dIM, fD, tByDate, eByDate, todaySt
         </div>
       </div>
 
-      <div style={{ background: 'var(--color-background-primary)', border: '0.5px solid var(--color-border-tertiary)', borderRadius: 'var(--border-radius-lg)', padding: '16px 20px' }}>
+      <div className="day-panel" style={{ background: 'var(--color-background-primary)', border: '0.5px solid var(--color-border-tertiary)', borderRadius: 'var(--border-radius-lg)', padding: '16px 20px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
           <div>
             <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 3 }}>Día seleccionado</div>
