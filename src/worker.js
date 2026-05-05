@@ -17,6 +17,12 @@ export default {
         const googleResp = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${token}`);
         const info = await googleResp.json();
         if (!googleResp.ok || info.error) return new Response(JSON.stringify({ error: 'Token inválido' }), { status: 401 });
+        
+        // FIX CRÍTICO: Verificar que el token sea para TU app
+        if (info.aud !== env.GOOGLE_CLIENT_ID) {
+          return new Response(JSON.stringify({ error: 'Audience mismatch' }), { status: 401 });
+        }
+
         userId = info.sub;
       } catch (err) {
         return new Response(JSON.stringify({ error: 'Error de autenticación' }), { status: 500 });
