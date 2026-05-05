@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 
 // Usamos la variable de entorno configurada en el .env
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+console.log("DEBUG: Google Client ID is:", GOOGLE_CLIENT_ID);
 
 export default function Login({ onLoginSuccess }) {
   const googleBtnRef = useRef(null);
