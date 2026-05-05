@@ -93,7 +93,25 @@ export function normalizeDataPayload(parsed) {
   return { tasks: [], boardNotes: [], events: [] };
 }
 
-export async function loadData(token = null) {
+export async function loginWithGoogleCredential(credential) {
+  const resp = await fetch('/api/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
+    body: JSON.stringify({ credential }),
+  });
+  if (!resp.ok) throw new Error('No se pudo iniciar sesión.');
+  return true;
+}
+
+export async function logoutSession() {
+  await fetch('/api/logout', {
+    method: 'POST',
+    credentials: 'same-origin',
+  });
+}
+
+export async function loadData() {
   let localData = { tasks: [], boardNotes: [], events: [] };
   
   // 1. Siempre cargar de local primero (rápido)
@@ -104,28 +122,24 @@ export async function loadData(token = null) {
     console.error("Error cargando local:", e);
   }
 
-  // 2. Si hay token, intentar cargar de la nube (D1)
-  if (token) {
-    try {
-      const resp = await fetch('/api/data', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (resp.ok) {
-        const cloudData = await resp.json();
-        const safeCloudData = normalizeDataPayload(cloudData);
-        // Mezclar o priorizar nube (aquí podrías añadir lógica de marcas de tiempo)
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(safeCloudData));
-        return safeCloudData;
-      }
-    } catch (e) {
-      console.warn("Error sincronizando con la nube:", e);
+  try {
+    const resp = await fetch('/api/data', { credentials: 'same-origin' });
+    if (resp.ok) {
+      const cloudData = await resp.json();
+      const safeCloudData = normalizeDataPayload(cloudData);
+      // Mezclar o priorizar nube (aquí podrías añadir lógica de marcas de tiempo)
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(safeCloudData));
+      return { ...safeCloudData, authenticated: true };
     }
+    if (resp.status === 401) return { ...localData, authenticated: false };
+  } catch (e) {
+    console.warn("Error sincronizando con la nube:", e);
   }
 
-  return localData;
+  return { ...localData, authenticated: false };
 }
 
-export async function saveData(payload, token = null) {
+export async function saveData(payload, authenticated = false) {
   // 1. Guardar local siempre
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
@@ -133,15 +147,15 @@ export async function saveData(payload, token = null) {
     // El guardado local puede fallar por cuota o modo privado; la nube sigue siendo el respaldo.
   }
 
-  // 2. Si hay token, sincronizar con la nube
-  if (token) {
+  // 2. Si hay sesión, sincronizar con la nube usando cookie HttpOnly
+  if (authenticated) {
     try {
       await fetch('/api/sync', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}` 
         },
+        credentials: 'same-origin',
         body: JSON.stringify(payload)
       });
     } catch (e) {

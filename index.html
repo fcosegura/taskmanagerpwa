@@ -19,25 +19,5 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
-    <!-- PWA: Service Worker -->
-    <script>
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', function () {
-          navigator.serviceWorker.register('/sw.js').then(function (reg) {
-            console.log('[PWA] Service Worker registrado:', reg.scope);
-            reg.addEventListener('updatefound', function () {
-              var newWorker = reg.installing;
-              newWorker.addEventListener('statechange', function () {
-                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                  console.log('[PWA] Nueva versión disponible. Recarga para actualizar.');
-                }
-              });
-            });
-          }).catch(function (err) {
-            console.warn('[PWA] Error al registrar Service Worker:', err);
-          });
-        });
-      }
-    </script>
   </body>
 </html>

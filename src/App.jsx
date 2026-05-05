@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { P_ORDER } from './constants.js';
 import { uid, toDateStr, parseDateTimeFromDescription, parseDescriptionDateResult, cleanDescriptionSegment } from './utils.jsx';
-import { loadData, saveData, validateBackupPayload, normalizeDataPayload } from './storage.js';
+import { loadData, saveData, validateBackupPayload, normalizeDataPayload, loginWithGoogleCredential, logoutSession } from './storage.js';
 import TasksView from './components/TasksView.jsx';
 import CalendarView from './components/CalendarView.jsx';
 import BoardView from './components/BoardView.jsx';
@@ -11,12 +11,13 @@ import BottomNav from './components/BottomNav.jsx';
 import Login from './components/Login.jsx';
 
 export default function App() {
-  const [userToken, setUserToken] = useState(localStorage.getItem('userToken') || null);
+  const [authenticated, setAuthenticated] = useState(null);
+  const [authVersion, setAuthVersion] = useState(0);
   const [tasks, setTasks] = useState([]);
   const [boardNotes, setBoardNotes] = useState([]);
   const [events, setEvents] = useState([]);
   const [ready, setReady] = useState(false);
-  const [hydratedToken, setHydratedToken] = useState(null);
+  const [hydratedSession, setHydratedSession] = useState(null);
   const [view, setView] = useState('tasks');
   const [modal, setModal] = useState(null);
   const [eventModal, setEventModal] = useState(null);
@@ -29,40 +30,47 @@ export default function App() {
   const fileInputRef = useRef(null);
 
   useEffect(() => {
+    localStorage.removeItem('userToken');
+  }, []);
+
+  useEffect(() => {
     let cancelled = false;
-    loadData(userToken).then((data) => {
+    loadData().then((data) => {
       if (cancelled) return;
       setTasks(data.tasks);
       setBoardNotes(data.boardNotes);
       setEvents(data.events || []);
-      setHydratedToken(userToken || 'local');
+      setAuthenticated(data.authenticated);
+      setHydratedSession(data.authenticated);
       setReady(true);
     });
     return () => { cancelled = true; };
-  }, [userToken]);
+  }, [authVersion]);
 
-  const handleLoginSuccess = (token) => {
-    setUserToken(token);
-    localStorage.setItem('userToken', token);
+  const handleLoginSuccess = async (credential) => {
+    await loginWithGoogleCredential(credential);
+    setReady(false);
+    setAuthenticated(true);
+    setAuthVersion((version) => version + 1);
   };
 
-  const handleLogout = () => {
-    setUserToken(null);
-    localStorage.removeItem('userToken');
+  const handleLogout = async () => {
+    await logoutSession();
+    setAuthenticated(false);
     setReady(false);
-    setHydratedToken(null);
+    setHydratedSession(null);
     setTasks([]);
     setBoardNotes([]);
     setEvents([]);
   };
 
   useEffect(() => {
-    if (!ready || hydratedToken !== (userToken || 'local')) return undefined;
+    if (!ready || !authenticated || hydratedSession !== authenticated) return undefined;
     const timer = window.setTimeout(() => {
-      saveData({ tasks, boardNotes, events }, userToken);
+      saveData({ tasks, boardNotes, events }, authenticated);
     }, 500);
     return () => window.clearTimeout(timer);
-  }, [tasks, boardNotes, events, ready, userToken, hydratedToken]);
+  }, [tasks, boardNotes, events, ready, authenticated, hydratedSession]);
 
   useEffect(() => {
     const onKeyDown = (e) => { if (e.key === 'Escape') { setModal(null); setEventModal(null); } };
@@ -201,7 +209,11 @@ export default function App() {
   const categoryCounts = categoryBase.reduce((acc, t) => { if (!t.category) return acc; acc[t.category] = (acc[t.category] || 0) + 1; return acc; }, {});
   const totalVisible = baseByStatus.length;
 
-  if (!userToken) {
+  if (authenticated === null) {
+    return null;
+  }
+
+  if (!authenticated) {
     return <Login onLoginSuccess={handleLoginSuccess} />;
   }
 

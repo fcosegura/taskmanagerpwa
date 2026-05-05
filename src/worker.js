@@ -1,11 +1,58 @@
 const VALID_STATUS = new Set(['not_done', 'started', 'in_progress', 'blocked', 'done']);
 const VALID_PRIORITY = new Set(['low', 'medium', 'high', 'critical']);
+const SESSION_COOKIE = '__Host-taskmanager_session';
+const SECURITY_HEADERS = {
+  'Content-Security-Policy': [
+    "default-src 'self'",
+    "script-src 'self' https://accounts.google.com",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: https://lh3.googleusercontent.com",
+    "font-src 'self'",
+    "connect-src 'self'",
+    "frame-src https://accounts.google.com",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+    "upgrade-insecure-requests"
+  ].join('; '),
+  'Cross-Origin-Opener-Policy': 'same-origin-allow-popups',
+  'Referrer-Policy': 'strict-origin-when-cross-origin',
+  'X-Content-Type-Options': 'nosniff',
+  'X-Frame-Options': 'DENY',
+  'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=()'
+};
+
+function withSecurityHeaders(headers = {}) {
+  return { ...SECURITY_HEADERS, ...headers };
+}
 
 function json(data, init = {}) {
   return new Response(JSON.stringify(data), {
     ...init,
-    headers: { 'Content-Type': 'application/json', ...(init.headers || {}) }
+    headers: withSecurityHeaders({
+      'Content-Type': 'application/json',
+      'Cache-Control': 'no-store',
+      ...(init.headers || {})
+    })
   });
+}
+
+function getCookie(request, name) {
+  const cookie = request.headers.get('Cookie') || '';
+  return cookie
+    .split(';')
+    .map((part) => part.trim())
+    .find((part) => part.startsWith(`${name}=`))
+    ?.slice(name.length + 1) || '';
+}
+
+function sessionCookie(value) {
+  return `${SESSION_COOKIE}=${value}; Path=/; Max-Age=3600; HttpOnly; Secure; SameSite=Strict`;
+}
+
+function clearSessionCookie() {
+  return `${SESSION_COOKIE}=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Strict`;
 }
 
 function isValidTask(task) {
@@ -64,35 +111,51 @@ function isValidPayload(payload) {
   );
 }
 
+async function verifyGoogleToken(token, env) {
+  if (!token) return null;
+  const googleResp = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${token}`);
+  const info = await googleResp.json();
+  if (!googleResp.ok || info.error) return null;
+  if (info.aud !== env.GOOGLE_CLIENT_ID) return null;
+  if (!['accounts.google.com', 'https://accounts.google.com'].includes(info.iss)) return null;
+  if (!info.exp || Number(info.exp) * 1000 <= Date.now()) return null;
+  return info.sub || null;
+}
+
+async function authenticate(request, env) {
+  const token = getCookie(request, SESSION_COOKIE);
+  return verifyGoogleToken(token, env);
+}
+
 export default {
   // Worker Version: 2026.05.05.1
   async fetch(request, env) {
     const url = new URL(request.url);
 
-    // Lógica de la API (D1)
     if (url.pathname.startsWith('/api/')) {
-      const authHeader = request.headers.get('Authorization');
-      if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        return json({ error: 'No autorizado' }, { status: 401 });
-      }
-
-      const token = authHeader.split(' ')[1];
-      let userId;
-      
-      try {
-        const googleResp = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${token}`);
-        const info = await googleResp.json();
-        if (!googleResp.ok || info.error) return json({ error: 'Token inválido' }, { status: 401 });
-        
-        // FIX CRÍTICO: Verificar que el token sea para TU app
-        if (info.aud !== env.GOOGLE_CLIENT_ID) {
-          return json({ error: 'Audience mismatch' }, { status: 401 });
+      if (request.method === 'POST' && url.pathname === '/api/login') {
+        try {
+          const { credential } = await request.json();
+          const userId = await verifyGoogleToken(credential, env);
+          if (!userId) return json({ error: 'Token inválido' }, { status: 401 });
+          return json(
+            { success: true },
+            { headers: { 'Set-Cookie': sessionCookie(credential) } }
+          );
+        } catch {
+          return json({ error: 'Login inválido' }, { status: 400 });
         }
-
-        userId = info.sub;
-      } catch {
-        return json({ error: 'Error de autenticación' }, { status: 500 });
       }
+
+      if (request.method === 'POST' && url.pathname === '/api/logout') {
+        return json(
+          { success: true },
+          { headers: { 'Set-Cookie': clearSessionCookie() } }
+        );
+      }
+
+      const userId = await authenticate(request, env);
+      if (!userId) return json({ error: 'No autorizado' }, { status: 401 });
 
       const path = url.pathname.replace('/api', '');
       
@@ -146,6 +209,13 @@ export default {
     }
 
     // Modern Assets (2026): El Worker sirve los archivos de la carpeta assets configurada
-    return env.ASSETS.fetch(request);
+    const response = await env.ASSETS.fetch(request);
+    const headers = new Headers(response.headers);
+    Object.entries(SECURITY_HEADERS).forEach(([key, value]) => headers.set(key, value));
+    return new Response(response.body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers
+    });
   }
 };
