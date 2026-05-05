@@ -18,3 +18,4 @@ If you are developing a production application, we recommend using TypeScript wi
 ## Versión D1-Integration
 - Multi-user support with Google OAuth
 - Cloudflare D1 persistence
+- Preview branch validation enabled
