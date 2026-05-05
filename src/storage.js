@@ -61,20 +61,58 @@ function loadSafeData(parsed) {
   return { tasks: [], boardNotes: [], events: [] };
 }
 
-export async function loadData() {
+export async function loadData(token = null) {
+  let localData = { tasks: [], boardNotes: [], events: [] };
+  
+  // 1. Siempre cargar de local primero (rápido)
   try {
     const r = localStorage.getItem(STORAGE_KEY);
-    if (!r) return { tasks: [], boardNotes: [], events: [] };
-    return loadSafeData(JSON.parse(r));
-  } catch {
-    return { tasks: [], boardNotes: [], events: [] };
+    if (r) localData = loadSafeData(JSON.parse(r));
+  } catch (e) {
+    console.error("Error cargando local:", e);
   }
+
+  // 2. Si hay token, intentar cargar de la nube (D1)
+  if (token) {
+    try {
+      const resp = await fetch('/api/data', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (resp.ok) {
+        const cloudData = await resp.json();
+        // Mezclar o priorizar nube (aquí podrías añadir lógica de marcas de tiempo)
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(cloudData));
+        return cloudData;
+      }
+    } catch (e) {
+      console.warn("Error sincronizando con la nube:", e);
+    }
+  }
+
+  return localData;
 }
 
-export async function saveData(payload) {
+export async function saveData(payload, token = null) {
+  // 1. Guardar local siempre
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
-  } catch {
+  } catch (e) {
     // silent
+  }
+
+  // 2. Si hay token, sincronizar con la nube
+  if (token) {
+    try {
+      await fetch('/api/sync', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}` 
+        },
+        body: JSON.stringify(payload)
+      });
+    } catch (e) {
+      console.warn("Error guardando en la nube:", e);
+    }
   }
 }

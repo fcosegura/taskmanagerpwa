@@ -8,8 +8,10 @@ import BoardView from './components/BoardView.jsx';
 import TaskModal from './components/TaskModal.jsx';
 import EventModal from './components/EventModal.jsx';
 import BottomNav from './components/BottomNav.jsx';
+import Login from './components/Login.jsx';
 
 export default function App() {
+  const [userToken, setUserToken] = useState(localStorage.getItem('userToken') || null);
   const [tasks, setTasks] = useState([]);
   const [boardNotes, setBoardNotes] = useState([]);
   const [events, setEvents] = useState([]);
@@ -26,17 +28,30 @@ export default function App() {
   const fileInputRef = useRef(null);
 
   useEffect(() => {
-    loadData().then((data) => {
+    loadData(userToken).then((data) => {
       setTasks(data.tasks);
       setBoardNotes(data.boardNotes);
       setEvents(data.events || []);
       setReady(true);
     });
-  }, []);
+  }, [userToken]);
+
+  const handleLoginSuccess = (token) => {
+    setUserToken(token);
+    localStorage.setItem('userToken', token);
+  };
+
+  const handleLogout = () => {
+    setUserToken(null);
+    localStorage.removeItem('userToken');
+    setTasks([]);
+    setBoardNotes([]);
+    setEvents([]);
+  };
 
   useEffect(() => {
-    if (ready) saveData({ tasks, boardNotes, events });
-  }, [tasks, boardNotes, events, ready]);
+    if (ready) saveData({ tasks, boardNotes, events }, userToken);
+  }, [tasks, boardNotes, events, ready, userToken]);
 
   useEffect(() => {
     const onKeyDown = (e) => { if (e.key === 'Escape') { setModal(null); setEventModal(null); } };
@@ -173,6 +188,10 @@ export default function App() {
   const categoryCounts = categoryBase.reduce((acc, t) => { if (!t.category) return acc; acc[t.category] = (acc[t.category] || 0) + 1; return acc; }, {});
   const totalVisible = baseByStatus.length;
 
+  if (!userToken) {
+    return <Login onLoginSuccess={handleLoginSuccess} />;
+  }
+
   return (
     <div style={{ position: 'relative', minHeight: '100vh', fontFamily: 'var(--font-sans)', background: 'var(--color-background-tertiary)', color: 'var(--color-text-primary)' }}>
       <h2 className="sr-only">Gestor de tareas con calendario</h2>
@@ -191,11 +210,14 @@ export default function App() {
         zIndex: 100,
         paddingTop: 'env(safe-area-inset-top)'
       }}>
-        <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 4 }}>
-          <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-text-primary)' }}>{view === 'board' ? 'Tablero' : 'Tareas'}</span>
-          <span className="hide-mobile" style={{ fontSize: 12, color: 'var(--color-text-secondary)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
-            {view === 'board' ? 'Notas estilo post-it' : 'Gestión de tareas y calendario'}
-          </span>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+          <button onClick={handleLogout} style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 18, padding: 4 }} title="Cerrar sesión">🚪</button>
+          <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 4 }}>
+            <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-text-primary)' }}>{view === 'board' ? 'Tablero' : 'Tareas'}</span>
+            <span className="hide-mobile" style={{ fontSize: 12, color: 'var(--color-text-secondary)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+              {view === 'board' ? 'Notas estilo post-it' : 'Gestión de tareas y calendario'}
+            </span>
+          </div>
         </div>
 
         <div className="hide-mobile" style={{ display: 'flex', gap: 3, background: 'var(--color-background-secondary)', padding: '3px', borderRadius: 'var(--border-radius-md)' }}>

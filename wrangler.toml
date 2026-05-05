@@ -1,0 +1,9 @@
+#:schema node_modules/wrangler/config-schema.json
+name = "taskmanagerpwa"
+compatibility_date = "2024-04-03"
+pages_build_output_dir = "dist"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "task-manager-db"
+database_id = "ab97960a-23e8-4ee6-b2f2-9821d33450d6"
