@@ -26,19 +26,19 @@ export default function TasksView({
   return (
     <div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 20 }}>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ position: 'relative', minWidth: 280, flex: 1, maxWidth: 400 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ position: 'relative', minWidth: 200, flex: '1 1 280px', maxWidth: '100%' }}>
             <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-secondary)', fontSize: 14 }}>🔍</span>
             <input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Buscar tareas o categorías..."
+              placeholder="Buscar tareas..."
               style={{ width: '100%', height: 42, padding: '10px 14px 10px 40px', borderRadius: '999px', border: '1px solid rgba(148,163,184,0.25)', background: 'var(--color-background-primary)', color: 'var(--color-text-primary)', fontSize: 13, boxShadow: '0 2px 8px rgba(15,23,42,0.02)', transition: 'border 0.2s, box-shadow 0.2s' }}
               onFocus={(e) => { e.target.style.borderColor = 'var(--color-border-info)'; e.target.style.boxShadow = '0 4px 12px rgba(56,189,248,0.1)'; }}
               onBlur={(e) => { e.target.style.borderColor = 'rgba(148,163,184,0.25)'; e.target.style.boxShadow = '0 2px 8px rgba(15,23,42,0.02)'; }}
             />
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: '1 1 auto', justifyContent: 'flex-end' }}>
             <button
               type="button"
               onClick={() => setShowFilters((p) => !p)}
@@ -47,12 +47,12 @@ export default function TasksView({
               onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--color-background-primary)')}
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>
-              Filtros {(filter !== 'all' || categoryFilter !== 'all') && <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--color-accent)' }} />}
+              <span className="hide-mobile">Filtros</span> {(filter !== 'all' || categoryFilter !== 'all') && <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--color-accent)' }} />}
             </button>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--color-background-primary)', padding: '8px 16px', borderRadius: 999, border: '0.5px solid var(--color-border-tertiary)', boxShadow: '0 2px 8px rgba(15,23,42,0.02)' }}>
               <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--color-text-info)', display: 'inline-block' }} />
               <span style={{ color: 'var(--color-text-secondary)', fontSize: 12, fontWeight: 500, whiteSpace: 'nowrap' }}>
-                Mostrando <strong style={{ color: 'var(--color-text-primary)' }}>{tasks.length}</strong> de {total}
+                <strong style={{ color: 'var(--color-text-primary)' }}>{tasks.length}</strong><span className="hide-mobile"> de {total}</span>
               </span>
             </div>
           </div>
@@ -95,7 +95,21 @@ export default function TasksView({
 
       <form
         onSubmit={handleQuickSubmit}
-        style={{ marginTop: 24, position: 'sticky', bottom: 20, zIndex: 10, background: 'var(--color-background-primary)', borderRadius: 999, padding: '6px 6px 6px 20px', display: 'flex', gap: 10, alignItems: 'center', boxShadow: '0 10px 40px -10px rgba(15,23,42,0.15)', border: '1px solid var(--color-border-tertiary)', transition: 'box-shadow 0.2s' }}
+        style={{ 
+          marginTop: 24, 
+          position: 'sticky', 
+          bottom: 'calc(20px + env(safe-area-inset-bottom))', 
+          zIndex: 10, 
+          background: 'var(--color-background-primary)', 
+          borderRadius: 999, 
+          padding: '6px 6px 6px 20px', 
+          display: 'flex', 
+          gap: 10, 
+          alignItems: 'center', 
+          boxShadow: '0 10px 40px -10px rgba(15,23,42,0.15)', 
+          border: '1px solid var(--color-border-tertiary)', 
+          transition: 'box-shadow 0.2s' 
+        }}
         onFocus={(e) => (e.currentTarget.style.boxShadow = '0 15px 50px -10px rgba(37,99,235,0.2)')}
         onBlur={(e) => (e.currentTarget.style.boxShadow = '0 10px 40px -10px rgba(15,23,42,0.15)')}
       >

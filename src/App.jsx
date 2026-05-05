@@ -7,6 +7,7 @@ import CalendarView from './components/CalendarView.jsx';
 import BoardView from './components/BoardView.jsx';
 import TaskModal from './components/TaskModal.jsx';
 import EventModal from './components/EventModal.jsx';
+import BottomNav from './components/BottomNav.jsx';
 
 export default function App() {
   const [tasks, setTasks] = useState([]);
@@ -176,34 +177,59 @@ export default function App() {
     <div style={{ position: 'relative', minHeight: '100vh', fontFamily: 'var(--font-sans)', background: 'var(--color-background-tertiary)', color: 'var(--color-text-primary)' }}>
       <h2 className="sr-only">Gestor de tareas con calendario</h2>
 
-      <div style={{ background: 'var(--color-background-primary)', borderBottom: '0.5px solid rgba(148,163,184,0.18)', padding: '0 20px', minHeight: 72, display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: 'var(--shadow-soft)' }}>
+      <div style={{ 
+        background: 'var(--color-background-primary)', 
+        borderBottom: '0.5px solid rgba(148,163,184,0.18)', 
+        padding: '0 20px', 
+        minHeight: 72, 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'space-between', 
+        boxShadow: 'var(--shadow-soft)',
+        position: 'sticky',
+        top: 0,
+        zIndex: 100,
+        paddingTop: 'env(safe-area-inset-top)'
+      }}>
         <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 4 }}>
           <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-text-primary)' }}>{view === 'board' ? 'Tablero' : 'Tareas'}</span>
-          <span style={{ fontSize: 12, color: 'var(--color-text-secondary)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+          <span className="hide-mobile" style={{ fontSize: 12, color: 'var(--color-text-secondary)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
             {view === 'board' ? 'Notas estilo post-it' : 'Gestión de tareas y calendario'}
           </span>
         </div>
 
-        <div style={{ display: 'flex', gap: 3, background: 'var(--color-background-secondary)', padding: '3px', borderRadius: 'var(--border-radius-md)' }}>
+        <div className="hide-mobile" style={{ display: 'flex', gap: 3, background: 'var(--color-background-secondary)', padding: '3px', borderRadius: 'var(--border-radius-md)' }}>
           {[['tasks', 'Tareas'], ['calendar', 'Calendario'], ['board', 'Tablero']].map(([v, l]) => (
             <button key={v} onClick={() => setView(v)} style={{ padding: '4px 14px', border: 'none', borderRadius: 'calc(var(--border-radius-md) - 2px)', background: view === v ? 'var(--color-background-primary)' : 'transparent', color: view === v ? 'var(--color-text-primary)' : 'var(--color-text-secondary)', fontSize: 13, fontWeight: view === v ? 500 : 400, cursor: 'pointer' }}>{l}</button>
           ))}
         </div>
 
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          <button type="button" onClick={downloadBackup} style={{ padding: '8px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', border: '1px solid transparent', background: 'rgba(37,99,235,0.1)', color: 'var(--color-accent)', borderRadius: '999px', transition: 'background 150ms ease' }} onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(37,99,235,0.16)')} onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(37,99,235,0.1)')}>Exportar</button>
-          <button type="button" onClick={() => fileInputRef.current?.click()} style={{ padding: '8px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', border: '1px solid rgba(148,163,184,0.2)', background: 'var(--color-background-primary)', color: 'var(--color-text-primary)', borderRadius: '999px', transition: 'background 150ms ease' }} onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(241,245,249,0.95)')} onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--color-background-primary)')}>Importar</button>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <button className="hide-mobile" type="button" onClick={downloadBackup} style={{ padding: '8px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', border: '1px solid transparent', background: 'rgba(37,99,235,0.1)', color: 'var(--color-accent)', borderRadius: '999px', transition: 'background 150ms ease' }} onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(37,99,235,0.16)')} onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(37,99,235,0.1)')}>Exportar</button>
+          <button className="hide-mobile" type="button" onClick={() => fileInputRef.current?.click()} style={{ padding: '8px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', border: '1px solid rgba(148,163,184,0.2)', background: 'var(--color-background-primary)', color: 'var(--color-text-primary)', borderRadius: '999px', transition: 'background 150ms ease' }} onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(241,245,249,0.95)')} onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--color-background-primary)')}>Importar</button>
           <button type="button"
             onClick={() => view === 'board'
               ? addBoardNote({ id: uid(), title: '', text: '', createdAt: new Date().toISOString(), x: 20 + Math.random() * 40, y: 20 + Math.random() * 40 })
               : open()
             }
             aria-label={view === 'board' ? 'Crear nueva nota' : 'Crear nueva tarea'}
-            style={{ padding: '10px 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer', border: 'none', background: 'linear-gradient(135deg, var(--color-accent), #3b82f6)', color: 'white', borderRadius: '999px', boxShadow: '0 18px 36px rgba(37,99,235,0.18)', transition: 'transform 150ms ease, box-shadow 150ms ease' }}
+            style={{ 
+              padding: '10px 18px', 
+              fontSize: 13, 
+              fontWeight: 700, 
+              cursor: 'pointer', 
+              border: 'none', 
+              background: 'linear-gradient(135deg, var(--color-accent), #3b82f6)', 
+              color: 'white', 
+              borderRadius: '999px', 
+              boxShadow: '0 18px 36px rgba(37,99,235,0.18)', 
+              transition: 'transform 150ms ease, box-shadow 150ms ease',
+              whiteSpace: 'nowrap'
+            }}
             onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 22px 40px rgba(37,99,235,0.22)'; }}
             onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 18px 36px rgba(37,99,235,0.18)'; }}
           >
-            {view === 'board' ? '+ Nueva nota' : '+ Nueva tarea'}
+            {view === 'board' ? '+ Nota' : '+ Tarea'}
           </button>
         </div>
       </div>
@@ -246,6 +272,8 @@ export default function App() {
           <EventModal event={eventModal} onSave={upsertEvent} onDelete={eventModal.id ? () => deleteEvent(eventModal.id) : null} onClose={() => setEventModal(null)} />
         </div>
       )}
+
+      <BottomNav currentView={view} setView={setView} />
     </div>
   );
 }

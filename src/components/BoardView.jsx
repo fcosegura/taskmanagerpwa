@@ -9,17 +9,18 @@ function BoardNoteCard({ note, onDelete, onUpdate, onPointerDown, isDragging }) 
         zIndex: isDragging ? 50 : 10,
         cursor: isDragging ? 'grabbing' : 'grab',
         background: '#fef3c7', border: '1px solid #fcd34d',
-        borderRadius: 20, padding: 14, minHeight: 220, width: 220,
-        display: 'flex', flexDirection: 'column', gap: 10,
+        borderRadius: 16, padding: 12, minHeight: 180, width: 180,
+        display: 'flex', flexDirection: 'column', gap: 8,
         boxShadow: isDragging ? '0 25px 50px -12px rgba(0,0,0,0.25)' : '0 12px 24px rgba(15,23,42,0.08)',
         transition: isDragging ? 'none' : 'box-shadow 0.2s',
+        touchAction: 'none'
       }}
     >
       <button
         type="button"
-        onClick={() => onDelete(note.id)}
+        onClick={(e) => { e.stopPropagation(); onDelete(note.id); }}
         aria-label="Eliminar nota"
-        style={{ position: 'absolute', top: 10, right: 10, border: 'none', background: 'transparent', color: '#6b7280', cursor: 'pointer', fontSize: 16, lineHeight: 1 }}
+        style={{ position: 'absolute', top: 8, right: 8, border: 'none', background: 'transparent', color: '#6b7280', cursor: 'pointer', fontSize: 18, lineHeight: 1, zIndex: 5 }}
       >×</button>
       <input
         value={note.title}
@@ -79,11 +80,11 @@ export default function BoardView({ notes, onAddNote, onUpdateNote, onDeleteNote
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, background: 'var(--color-background-primary)', borderRadius: 'var(--border-radius-lg)', padding: 20, boxShadow: 'var(--shadow-soft)' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, background: 'var(--color-background-primary)', borderRadius: 'var(--border-radius-lg)', padding: '16px 20px', boxShadow: 'var(--shadow-soft)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
           <div>
-            <div style={{ fontSize: 16, fontWeight: 700 }}>Tablero de notas</div>
-            <div style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>Crea, arrastra y edita notas directamente en el tablero.</div>
+            <div style={{ fontSize: 16, fontWeight: 700 }}>Tablero</div>
+            <div style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>Notas estilo post-it.</div>
           </div>
           <button
             type="button"
@@ -91,7 +92,7 @@ export default function BoardView({ notes, onAddNote, onUpdateNote, onDeleteNote
             style={{ width: 40, height: 40, borderRadius: 999, border: 'none', background: '#f59e0b', color: 'white', fontSize: 24, fontWeight: 700, cursor: 'pointer', boxShadow: '0 10px 20px rgba(245,158,11,0.24)' }}
           >+</button>
         </div>
-        <div style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>Las notas son libres. Añade post-its, muévelos donde quieras y organiza tus ideas.</div>
+        <div className="hide-mobile" style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>Las notas son libres. Añade post-its, muévelos donde quieras y organiza tus ideas.</div>
       </div>
 
       <div
@@ -109,12 +110,12 @@ export default function BoardView({ notes, onAddNote, onUpdateNote, onDeleteNote
         }}
       >
         {notes.length === 0 ? (
-          <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', color: 'var(--color-text-secondary)', textAlign: 'center' }}>
+          <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', color: 'var(--color-text-secondary)', textAlign: 'center', padding: 20 }}>
             Pulsa + para crear tu primer post-it.
           </div>
         ) : notes.map((note, index) => {
-          if (note.x === undefined) note.x = (index % 4) * 240 + 20;
-          if (note.y === undefined) note.y = Math.floor(index / 4) * 240 + 20;
+          if (note.x === undefined) note.x = (index % 2) * 200 + 20;
+          if (note.y === undefined) note.y = Math.floor(index / 2) * 200 + 20;
           return (
             <BoardNoteCard
               key={note.id}

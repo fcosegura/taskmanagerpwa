@@ -34,12 +34,15 @@
   --color-text-success: #16a34a;
   --color-background-success: #dcfce7;
   --color-border-success: #86efac;
+
+  --nav-height: 72px;
 }
 
 *,
 *::before,
 *::after {
   box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
 }
 
 body {
@@ -50,6 +53,7 @@ body {
   font-family: var(--font-sans);
   color: var(--color-text-primary);
   line-height: 1.5;
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
 button {
@@ -71,4 +75,32 @@ button:focus-visible {
   overflow: hidden;
   clip: rect(0, 0, 0, 0);
   border: 0;
+}
+
+/* ── Responsive Utilities ── */
+
+@media (max-width: 768px) {
+  .hide-mobile {
+    display: none !important;
+  }
+  
+  body {
+    padding-bottom: calc(var(--nav-height) + env(safe-area-inset-bottom));
+  }
+}
+
+@media (min-width: 769px) {
+  .show-mobile {
+    display: none !important;
+  }
+}
+
+/* Animations */
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+.animate-slide-up {
+  animation: slideUp 0.3s ease-out;
 }
