@@ -206,6 +206,17 @@ function buildProfileId(userId, name) {
   return `${userId}:${slug}:${Date.now().toString(36)}`;
 }
 
+function scopedEntityId(profileId, entityId) {
+  if (typeof entityId !== 'string') return entityId;
+  return `${profileId}::${entityId}`;
+}
+
+function unscopedEntityId(profileId, storedId) {
+  if (typeof storedId !== 'string') return storedId;
+  const prefix = `${profileId}::`;
+  return storedId.startsWith(prefix) ? storedId.slice(prefix.length) : storedId;
+}
+
 function normalizePriority(priority) {
   if (typeof priority !== 'string') return 'medium';
   const cleaned = priority.toLowerCase().trim();
@@ -400,13 +411,22 @@ export default {
             "SELECT * FROM events WHERE user_id = ? AND profile_id = ?"
           ).bind(userId, profileId).all();
           
-          const parsedTasks = tasks.map(t => ({ ...t, subtasks: JSON.parse(t.subtasks || '[]') }));
+          const parsedTasks = tasks.map((t) => ({
+            ...t,
+            id: unscopedEntityId(profileId, t.id),
+            subtasks: JSON.parse(t.subtasks || '[]')
+          }));
           const parsedNotes = notes.map(({ created_at, updated_at, ...note }) => ({
             ...note,
+            id: unscopedEntityId(profileId, note.id),
             createdAt: created_at,
             updatedAt: updated_at
           }));
-          return json({ tasks: parsedTasks, boardNotes: parsedNotes, events, profiles, activeProfileId: profileId });
+          const parsedEvents = events.map((event) => ({
+            ...event,
+            id: unscopedEntityId(profileId, event.id)
+          }));
+          return json({ tasks: parsedTasks, boardNotes: parsedNotes, events: parsedEvents, profiles, activeProfileId: profileId });
         }
 
         if (request.method === 'POST' && path === '/sync') {
@@ -425,16 +445,16 @@ export default {
           ];
 
           for (const t of tasks) {
-            batch.push(env.DB.prepare("INSERT INTO tasks (id, user_id, profile_id, description, status, priority, category, date, time, subtasks) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-              .bind(t.id, userId, syncProfileId, t.description, t.status, t.priority, t.category || null, t.date || null, t.time || null, JSON.stringify(t.subtasks || [])));
+            batch.push(env.DB.prepare("INSERT OR REPLACE INTO tasks (id, user_id, profile_id, description, status, priority, category, date, time, subtasks) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+              .bind(scopedEntityId(syncProfileId, t.id), userId, syncProfileId, t.description, t.status, t.priority, t.category || null, t.date || null, t.time || null, JSON.stringify(t.subtasks || [])));
           }
           for (const n of boardNotes) {
-            batch.push(env.DB.prepare("INSERT INTO notes (id, user_id, profile_id, title, text, x, y) VALUES (?, ?, ?, ?, ?, ?, ?)")
-              .bind(n.id, userId, syncProfileId, n.title || '', n.text || '', n.x || 0, n.y || 0));
+            batch.push(env.DB.prepare("INSERT OR REPLACE INTO notes (id, user_id, profile_id, title, text, x, y) VALUES (?, ?, ?, ?, ?, ?, ?)")
+              .bind(scopedEntityId(syncProfileId, n.id), userId, syncProfileId, n.title || '', n.text || '', n.x || 0, n.y || 0));
           }
           for (const e of events) {
-            batch.push(env.DB.prepare("INSERT INTO events (id, user_id, profile_id, title, startDate, endDate, color) VALUES (?, ?, ?, ?, ?, ?, ?)")
-              .bind(e.id, userId, syncProfileId, e.title, e.startDate, e.endDate || null, e.color || '#3b82f6'));
+            batch.push(env.DB.prepare("INSERT OR REPLACE INTO events (id, user_id, profile_id, title, startDate, endDate, color) VALUES (?, ?, ?, ?, ?, ?, ?)")
+              .bind(scopedEntityId(syncProfileId, e.id), userId, syncProfileId, e.title, e.startDate, e.endDate || null, e.color || '#3b82f6'));
           }
 
           await env.DB.batch(batch);
