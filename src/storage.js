@@ -209,7 +209,8 @@ export async function loadData(profileId = null) {
       const cloudData = await resp.json();
       const safeCloudData = normalizeDataPayload(cloudData);
       const resolvedProfileId = typeof cloudData.activeProfileId === 'string' ? cloudData.activeProfileId : profileId;
-      const shouldPreferLocal = hasAnyData(localData) && !hasAnyData(safeCloudData);
+      // Important: for explicit profiles, trust cloud as source of truth to avoid cross-workspace bleed.
+      const shouldPreferLocal = !resolvedProfileId && hasAnyData(localData) && !hasAnyData(safeCloudData);
       const effectiveData = shouldPreferLocal ? localData : safeCloudData;
       // Prefer local when cloud comes back empty, to avoid data loss on transient sync failures.
       localStorage.setItem(profileStorageKey(resolvedProfileId), JSON.stringify(effectiveData));
@@ -254,6 +255,10 @@ export async function saveData(payload, authenticated = false, profileId = null)
 
   // 2. Si hay sesión, sincronizar con la nube usando cookie HttpOnly
   if (authenticated) {
+    if (!profileId) {
+      // Never sync to cloud without an explicit profile id in multi-workspace mode.
+      return;
+    }
     try {
       const resp = await fetch('/api/sync', {
         method: 'POST',

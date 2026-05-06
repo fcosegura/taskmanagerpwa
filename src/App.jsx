@@ -99,6 +99,7 @@ export default function App() {
 
   useEffect(() => {
     if (!ready || !authenticated || hydratedSession !== authenticated) return undefined;
+    if (!activeProfileId) return undefined;
     const timer = window.setTimeout(() => {
       setSyncState('saving');
       saveData({ tasks, boardNotes, events }, authenticated, activeProfileId)
