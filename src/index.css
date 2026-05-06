@@ -727,15 +727,15 @@ select:focus {
 .liquid-glass-modal {
   position: relative;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.48);
   background:
-    linear-gradient(160deg, rgba(255, 255, 255, 0.62), rgba(255, 255, 255, 0.34) 55%, rgba(220, 235, 255, 0.24));
+    linear-gradient(160deg, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0.2) 55%, rgba(220, 235, 255, 0.14));
   box-shadow:
-    0 20px 50px rgba(15, 23, 42, 0.24),
-    inset 0 1px 0 rgba(255, 255, 255, 0.65),
-    inset 0 -1px 0 rgba(255, 255, 255, 0.25);
-  backdrop-filter: blur(18px) saturate(150%);
-  -webkit-backdrop-filter: blur(18px) saturate(150%);
+    0 20px 50px rgba(15, 23, 42, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.72),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
 }
 
 .liquid-glass-modal::before {
@@ -744,7 +744,7 @@ select:focus {
   inset: -35% -20% auto -20%;
   height: 46%;
   pointer-events: none;
-  background: radial-gradient(ellipse at top, rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0));
+  background: radial-gradient(ellipse at top, rgba(255, 255, 255, 0.58), rgba(255, 255, 255, 0));
 }
 
 .login-page {
