@@ -11,8 +11,8 @@ function readLocalPayload(profileId) {
   } catch (e) {
     console.error("Error cargando local (perfil):", e);
   }
-  if (profileId) {
-    // Compatibility fallback for pre-profile local data.
+  if (!profileId) {
+    // Legacy fallback only for default/no-profile scope.
     try {
       const legacyRaw = localStorage.getItem(STORAGE_KEY);
       if (legacyRaw) return normalizeDataPayload(JSON.parse(legacyRaw));
@@ -193,8 +193,10 @@ export async function loadData(profileId = null) {
       const effectiveData = shouldPreferLocal ? localData : safeCloudData;
       // Prefer local when cloud comes back empty, to avoid data loss on transient sync failures.
       localStorage.setItem(profileStorageKey(resolvedProfileId), JSON.stringify(effectiveData));
-      // Keep legacy key updated for backwards compatibility and recovery.
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(effectiveData));
+      if (!resolvedProfileId) {
+        // Keep legacy key only for default/no-profile scope.
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(effectiveData));
+      }
       return {
         ...effectiveData,
         authenticated: true,
@@ -204,19 +206,28 @@ export async function loadData(profileId = null) {
     }
     if (resp.status === 401) return { ...localData, authenticated: false, profiles: [], activeProfileId: profileId };
     console.warn("La nube respondió con error, manteniendo la sesión local:", resp.status);
-    return { ...localData, authenticated: true, profiles: [], activeProfileId: profileId };
+    let cloudError = `Cloud sync read failed (${resp.status})`;
+    try {
+      const data = await resp.json();
+      if (typeof data?.error === 'string') cloudError = data.error;
+    } catch {
+      // ignore non-json body
+    }
+    return { ...localData, authenticated: true, profiles: [], activeProfileId: profileId, cloudError };
   } catch (e) {
     console.warn("Error sincronizando con la nube:", e);
   }
 
-  return { ...localData, authenticated: false, profiles: [], activeProfileId: profileId };
+  return { ...localData, authenticated: false, profiles: [], activeProfileId: profileId, cloudError: null };
 }
 
 export async function saveData(payload, authenticated = false, profileId = null) {
   // 1. Guardar local siempre
   try {
     localStorage.setItem(profileStorageKey(profileId), JSON.stringify(payload));
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+    if (!profileId) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+    }
   } catch {
     // El guardado local puede fallar por cuota o modo privado; la nube sigue siendo el respaldo.
   }

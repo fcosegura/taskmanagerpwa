@@ -55,6 +55,10 @@ export default function App() {
       }
       setAuthenticated(data.authenticated);
       setHydratedSession(data.authenticated);
+      if (data.cloudError) {
+        setBackupMessage(`Sync D1: ${data.cloudError}`);
+        setTimeout(() => setBackupMessage(''), 5500);
+      }
       setReady(true);
     });
     return () => { cancelled = true; };
@@ -271,6 +275,10 @@ export default function App() {
     setSearchQuery('');
     setModal(null);
     setEventModal(null);
+    setTasks([]);
+    setBoardNotes([]);
+    setEvents([]);
+    setReady(false);
     setShowProfileMenu(false);
   };
 

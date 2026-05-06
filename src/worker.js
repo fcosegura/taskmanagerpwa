@@ -150,6 +150,22 @@ async function ensureProfilesSchema(env) {
   await safeExec("CREATE INDEX IF NOT EXISTS idx_tasks_user_profile ON tasks(user_id, profile_id)");
   await safeExec("CREATE INDEX IF NOT EXISTS idx_notes_user_profile ON notes(user_id, profile_id)");
   await safeExec("CREATE INDEX IF NOT EXISTS idx_events_user_profile ON events(user_id, profile_id)");
+
+  const hasProfileColumn = async (tableName) => {
+    try {
+      const { results } = await env.DB.prepare(`PRAGMA table_info(${tableName})`).all();
+      return Array.isArray(results) && results.some((col) => col?.name === 'profile_id');
+    } catch {
+      return false;
+    }
+  };
+
+  const tasksHasProfile = await hasProfileColumn('tasks');
+  const notesHasProfile = await hasProfileColumn('notes');
+  const eventsHasProfile = await hasProfileColumn('events');
+  if (!tasksHasProfile || !notesHasProfile || !eventsHasProfile) {
+    throw new Error('D1 schema mismatch: profile_id column missing in one or more tables.');
+  }
 }
 
 async function ensureDefaultProfile(env, userId) {
@@ -303,6 +319,10 @@ export default {
     const url = new URL(request.url);
 
     if (url.pathname.startsWith('/api/')) {
+      if (!env?.DB) {
+        return json({ error: 'D1 binding missing: DB is not configured in this environment.' }, { status: 500 });
+      }
+
       if (request.method === 'POST' && url.pathname === '/api/login') {
         try {
           const { credential } = await request.json();
@@ -421,6 +441,7 @@ export default {
           return json({ success: true, activeProfileId: syncProfileId });
         }
       } catch (err) {
+        console.error('API error', path, err);
         return json({ error: err.message }, { status: 500 });
       }
     }
