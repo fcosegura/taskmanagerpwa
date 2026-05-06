@@ -26,6 +26,7 @@ export default function App() {
   const [filter, setFilter] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [summaryFilter, setSummaryFilter] = useState('none');
   const [backupMessage, setBackupMessage] = useState('');
   const fileInputRef = useRef(null);
 
@@ -123,6 +124,7 @@ export default function App() {
         setBoardNotes(normalized.boardNotes);
         setEvents(normalized.events);
         setFilter('all'); setCategoryFilter('all'); setModal(null); setEventModal(null);
+        setSummaryFilter('none');
         setBackupMessage('Importación completada correctamente.');
       } catch (err) {
         setBackupMessage(`Error al importar: ${err.message}`);
@@ -165,6 +167,29 @@ export default function App() {
     upsert({ description: cleaned || description.trim(), date: parsed?.date || '', time: parsed?.time || '', status: 'not_done', priority: 'medium', subtasks: [], category: '' });
   };
 
+  const handleSummaryMetricClick = (metricKey) => {
+    setView('tasks');
+    setSearchQuery('');
+    setCategoryFilter('all');
+    if (metricKey === 'today') {
+      setFilter('all');
+      setSummaryFilter((current) => (current === 'today' ? 'none' : 'today'));
+      return;
+    }
+    setSummaryFilter('none');
+    if (metricKey === 'active') {
+      setFilter('all');
+      return;
+    }
+    if (metricKey === 'blocked') {
+      setFilter((current) => (current === 'blocked' ? 'all' : 'blocked'));
+      return;
+    }
+    if (metricKey === 'done') {
+      setFilter((current) => (current === 'done' ? 'all' : 'done'));
+    }
+  };
+
   const y = calDate.getFullYear(), mo = calDate.getMonth();
   const dIM = new Date(y, mo + 1, 0).getDate();
   const fD = new Date(y, mo, 1).getDay();
@@ -191,10 +216,13 @@ export default function App() {
   const activeTasks = tasks.filter((t) => t.status !== 'done');
   const baseByStatus = filter === 'all' ? activeTasks : tasks.filter((t) => t.status === filter);
   const byCategory = categoryFilter === 'all' ? baseByStatus : baseByStatus.filter((t) => t.category === categoryFilter);
+  const bySummary = summaryFilter === 'today'
+    ? byCategory.filter((t) => t.date === todayStr && t.status !== 'done')
+    : byCategory;
   const normalizedSearch = searchQuery.trim().toLowerCase();
   const bySearch = normalizedSearch
-    ? byCategory.filter((t) => t.description.toLowerCase().includes(normalizedSearch) || (t.category || '').toLowerCase().includes(normalizedSearch))
-    : byCategory;
+    ? bySummary.filter((t) => t.description.toLowerCase().includes(normalizedSearch) || (t.category || '').toLowerCase().includes(normalizedSearch))
+    : bySummary;
   const sorted = [...bySearch].sort((a, b) => {
     if (a.status === 'done' && b.status !== 'done') return 1;
     if (b.status === 'done' && a.status !== 'done') return -1;
@@ -207,10 +235,17 @@ export default function App() {
   const statusCounts = statusBase.reduce((acc, t) => { const key = t.status || 'not_done'; acc[key] = (acc[key] || 0) + 1; return acc; }, {});
   const categoryBase = filter === 'all' ? activeTasks : tasks.filter((t) => t.status === filter);
   const categoryCounts = categoryBase.reduce((acc, t) => { if (!t.category) return acc; acc[t.category] = (acc[t.category] || 0) + 1; return acc; }, {});
-  const totalVisible = baseByStatus.length;
+  const totalVisible = bySummary.length;
   const completedCount = tasks.filter((t) => t.status === 'done').length;
   const blockedCount = tasks.filter((t) => t.status === 'blocked').length;
   const todayCount = (tByDate[todayStr] || []).filter((t) => t.status !== 'done').length;
+  const activeMetric = summaryFilter === 'today'
+    ? 'today'
+    : filter === 'blocked'
+      ? 'blocked'
+      : filter === 'done'
+        ? 'done'
+        : 'active';
 
   if (authenticated === null) {
     return null;
@@ -271,10 +306,23 @@ export default function App() {
             <h1>{view === 'calendar' ? 'Planifica la semana' : view === 'board' ? 'Ordena tus ideas' : 'Prioriza lo importante'}</h1>
           </div>
           <div className="metric-strip">
-            <div><strong>{activeTasks.length}</strong><span>Activas</span></div>
-            <div><strong>{todayCount}</strong><span>Hoy</span></div>
-            <div><strong>{blockedCount}</strong><span>Bloqueadas</span></div>
-            <div><strong>{completedCount}</strong><span>Hechas</span></div>
+            {[
+              { key: 'active', label: 'Activas', count: activeTasks.length },
+              { key: 'today', label: 'Hoy', count: todayCount },
+              { key: 'blocked', label: 'Bloqueadas', count: blockedCount },
+              { key: 'done', label: 'Hechas', count: completedCount },
+            ].map((metric) => (
+              <button
+                key={metric.key}
+                type="button"
+                className={`metric-card${activeMetric === metric.key ? ' active' : ''}`}
+                onClick={() => handleSummaryMetricClick(metric.key)}
+                aria-pressed={activeMetric === metric.key}
+              >
+                <strong>{metric.count}</strong>
+                <span>{metric.label}</span>
+              </button>
+            ))}
           </div>
         </section>
 

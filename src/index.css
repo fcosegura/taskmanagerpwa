@@ -257,12 +257,30 @@ select:focus {
   justify-content: flex-end;
 }
 
-.metric-strip div {
+.metric-strip .metric-card {
   min-width: 92px;
   padding: 12px 14px;
   border-radius: 14px;
   border: var(--surface-border);
   background: rgba(255, 255, 255, 0.82);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
+}
+
+.metric-strip .metric-card:hover {
+  border-color: rgba(37, 99, 235, 0.35);
+}
+
+.metric-strip .metric-card:focus-visible {
+  outline: 2px solid rgba(37, 99, 235, 0.35);
+  outline-offset: 2px;
+}
+
+.metric-strip .metric-card.active {
+  border-color: rgba(37, 99, 235, 0.45);
+  box-shadow: 0 10px 20px -14px rgba(37, 99, 235, 0.75);
+  transform: translateY(-1px);
 }
 
 .metric-strip strong,
