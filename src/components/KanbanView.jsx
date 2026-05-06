@@ -57,6 +57,7 @@ function KanbanTaskCard({ task, onEditTask, onDragStart, onDragEnd }) {
 export default function KanbanView({ tasks, onEditTask, onMoveTaskStatus }) {
   const [draggedTaskId, setDraggedTaskId] = useState(null);
   const [hoverStatus, setHoverStatus] = useState(null);
+  const [hoverIndex, setHoverIndex] = useState(null);
 
   const groupedTasks = useMemo(() => (
     STATUS.reduce((accumulator, status) => {
@@ -70,6 +71,7 @@ export default function KanbanView({ tasks, onEditTask, onMoveTaskStatus }) {
     onMoveTaskStatus?.(draggedTaskId, status, targetIndex);
     setDraggedTaskId(null);
     setHoverStatus(null);
+    setHoverIndex(null);
   };
 
   return (
@@ -82,9 +84,14 @@ export default function KanbanView({ tasks, onEditTask, onMoveTaskStatus }) {
             onDragOver={(event) => {
               event.preventDefault();
               if (hoverStatus !== status.v) setHoverStatus(status.v);
+              const columnCount = groupedTasks[status.v]?.length || 0;
+              if (hoverIndex === null || hoverIndex > columnCount) setHoverIndex(columnCount);
             }}
             onDragLeave={() => {
-              if (hoverStatus === status.v) setHoverStatus(null);
+              if (hoverStatus === status.v) {
+                setHoverStatus(null);
+                setHoverIndex(null);
+              }
             }}
             onDrop={(event) => {
               event.preventDefault();
@@ -97,33 +104,42 @@ export default function KanbanView({ tasks, onEditTask, onMoveTaskStatus }) {
             </div>
             <div className="kanban-column-body">
               {(groupedTasks[status.v] || []).map((task, index) => (
-                <div
-                  key={task.id}
-                  onDragOver={(event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    if (hoverStatus !== status.v) setHoverStatus(status.v);
-                  }}
-                  onDrop={(event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    handleDropOnColumn(status.v, index);
-                  }}
-                >
-                  <KanbanTaskCard
-                    task={task}
-                    onEditTask={onEditTask}
-                    onDragStart={(event, taskId) => {
-                      event.dataTransfer.effectAllowed = 'move';
-                      setDraggedTaskId(taskId);
+                <div key={task.id}>
+                  {hoverStatus === status.v && hoverIndex === index && (
+                    <div className="kanban-drop-indicator" />
+                  )}
+                  <div
+                    onDragOver={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      if (hoverStatus !== status.v) setHoverStatus(status.v);
+                      if (hoverIndex !== index) setHoverIndex(index);
                     }}
-                    onDragEnd={() => {
-                      setDraggedTaskId(null);
-                      setHoverStatus(null);
+                    onDrop={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      handleDropOnColumn(status.v, index);
                     }}
-                  />
+                  >
+                    <KanbanTaskCard
+                      task={task}
+                      onEditTask={onEditTask}
+                      onDragStart={(event, taskId) => {
+                        event.dataTransfer.effectAllowed = 'move';
+                        setDraggedTaskId(taskId);
+                      }}
+                      onDragEnd={() => {
+                        setDraggedTaskId(null);
+                        setHoverStatus(null);
+                        setHoverIndex(null);
+                      }}
+                    />
+                  </div>
                 </div>
               ))}
+              {hoverStatus === status.v && hoverIndex === (groupedTasks[status.v] || []).length && (
+                <div className="kanban-drop-indicator" />
+              )}
               {(groupedTasks[status.v] || []).length === 0 && (
                 <div className="kanban-empty">Arrastra tareas aquí</div>
               )}
