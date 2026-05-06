@@ -1,5 +1,9 @@
 import { STORAGE_KEY, STATUS, PRIORITY } from './constants.js';
 
+function profileStorageKey(profileId) {
+  return profileId ? `${STORAGE_KEY}:${profileId}` : STORAGE_KEY;
+}
+
 export function isValidTask(task) {
   if (!task || typeof task !== 'object') return false;
   const { id, description, status, priority, subtasks, category, date, time } = task;
@@ -111,40 +115,59 @@ export async function logoutSession() {
   });
 }
 
-export async function loadData() {
+export async function createProfile(name) {
+  const resp = await fetch('/api/profiles', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
+    body: JSON.stringify({ name }),
+  });
+  if (!resp.ok) throw new Error('No se pudo crear el perfil.');
+  const data = await resp.json();
+  return data.profile;
+}
+
+export async function loadData(profileId = null) {
   let localData = { tasks: [], boardNotes: [], events: [] };
   
   // 1. Siempre cargar de local primero (rápido)
   try {
-    const r = localStorage.getItem(STORAGE_KEY);
+    const r = localStorage.getItem(profileStorageKey(profileId));
     if (r) localData = normalizeDataPayload(JSON.parse(r));
   } catch (e) {
     console.error("Error cargando local:", e);
   }
 
   try {
-    const resp = await fetch('/api/data', { credentials: 'same-origin' });
+    const query = profileId ? `?profileId=${encodeURIComponent(profileId)}` : '';
+    const resp = await fetch(`/api/data${query}`, { credentials: 'same-origin' });
     if (resp.ok) {
       const cloudData = await resp.json();
       const safeCloudData = normalizeDataPayload(cloudData);
+      const resolvedProfileId = typeof cloudData.activeProfileId === 'string' ? cloudData.activeProfileId : profileId;
       // Mezclar o priorizar nube (aquí podrías añadir lógica de marcas de tiempo)
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(safeCloudData));
-      return { ...safeCloudData, authenticated: true };
+      localStorage.setItem(profileStorageKey(resolvedProfileId), JSON.stringify(safeCloudData));
+      return {
+        ...safeCloudData,
+        authenticated: true,
+        profiles: Array.isArray(cloudData.profiles) ? cloudData.profiles : [],
+        activeProfileId: resolvedProfileId || null,
+      };
     }
-    if (resp.status === 401) return { ...localData, authenticated: false };
+    if (resp.status === 401) return { ...localData, authenticated: false, profiles: [], activeProfileId: profileId };
     console.warn("La nube respondió con error, manteniendo la sesión local:", resp.status);
-    return { ...localData, authenticated: true };
+    return { ...localData, authenticated: true, profiles: [], activeProfileId: profileId };
   } catch (e) {
     console.warn("Error sincronizando con la nube:", e);
   }
 
-  return { ...localData, authenticated: false };
+  return { ...localData, authenticated: false, profiles: [], activeProfileId: profileId };
 }
 
-export async function saveData(payload, authenticated = false) {
+export async function saveData(payload, authenticated = false, profileId = null) {
   // 1. Guardar local siempre
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+    localStorage.setItem(profileStorageKey(profileId), JSON.stringify(payload));
   } catch {
     // El guardado local puede fallar por cuota o modo privado; la nube sigue siendo el respaldo.
   }
@@ -158,7 +181,7 @@ export async function saveData(payload, authenticated = false) {
           'Content-Type': 'application/json',
         },
         credentials: 'same-origin',
-        body: JSON.stringify(payload)
+        body: JSON.stringify({ profileId, payload })
       });
     } catch (e) {
       console.warn("Error guardando en la nube:", e);

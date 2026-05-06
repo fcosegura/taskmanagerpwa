@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { P_ORDER } from './constants.js';
 import { uid, toDateStr, parseDateTimeFromDescription, parseDescriptionDateResult, cleanDescriptionSegment } from './utils.jsx';
-import { loadData, saveData, validateBackupPayload, normalizeDataPayload, loginWithGoogleCredential, logoutSession } from './storage.js';
+import { loadData, saveData, validateBackupPayload, normalizeDataPayload, loginWithGoogleCredential, logoutSession, createProfile } from './storage.js';
 import TasksView from './components/TasksView.jsx';
 import CalendarView from './components/CalendarView.jsx';
 import BoardView from './components/BoardView.jsx';
@@ -11,6 +11,7 @@ import BottomNav from './components/BottomNav.jsx';
 import Login from './components/Login.jsx';
 
 export default function App() {
+  const ACTIVE_PROFILE_STORAGE_KEY = 'taskmanager_active_profile';
   const [authenticated, setAuthenticated] = useState(null);
   const [authVersion, setAuthVersion] = useState(0);
   const [tasks, setTasks] = useState([]);
@@ -28,7 +29,11 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [summaryFilter, setSummaryFilter] = useState('none');
   const [backupMessage, setBackupMessage] = useState('');
+  const [profiles, setProfiles] = useState([]);
+  const [activeProfileId, setActiveProfileId] = useState(() => localStorage.getItem(ACTIVE_PROFILE_STORAGE_KEY) || null);
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
   const fileInputRef = useRef(null);
+  const profileMenuRef = useRef(null);
 
   useEffect(() => {
     localStorage.removeItem('userToken');
@@ -36,17 +41,32 @@ export default function App() {
 
   useEffect(() => {
     let cancelled = false;
-    loadData().then((data) => {
+    loadData(activeProfileId).then((data) => {
       if (cancelled) return;
       setTasks(data.tasks);
       setBoardNotes(data.boardNotes);
       setEvents(data.events || []);
+      setProfiles(Array.isArray(data.profiles) ? data.profiles : []);
+      if (data.activeProfileId && data.activeProfileId !== activeProfileId) {
+        setActiveProfileId(data.activeProfileId);
+        localStorage.setItem(ACTIVE_PROFILE_STORAGE_KEY, data.activeProfileId);
+      }
       setAuthenticated(data.authenticated);
       setHydratedSession(data.authenticated);
       setReady(true);
     });
     return () => { cancelled = true; };
-  }, [authVersion]);
+  }, [authVersion, activeProfileId]);
+
+  useEffect(() => {
+    const onPointerDown = (event) => {
+      if (!profileMenuRef.current?.contains(event.target)) {
+        setShowProfileMenu(false);
+      }
+    };
+    window.addEventListener('pointerdown', onPointerDown);
+    return () => window.removeEventListener('pointerdown', onPointerDown);
+  }, []);
 
   const handleLoginSuccess = async (credential) => {
     await loginWithGoogleCredential(credential);
@@ -63,15 +83,18 @@ export default function App() {
     setTasks([]);
     setBoardNotes([]);
     setEvents([]);
+    setProfiles([]);
+    setActiveProfileId(null);
+    localStorage.removeItem(ACTIVE_PROFILE_STORAGE_KEY);
   };
 
   useEffect(() => {
     if (!ready || !authenticated || hydratedSession !== authenticated) return undefined;
     const timer = window.setTimeout(() => {
-      saveData({ tasks, boardNotes, events }, authenticated);
+      saveData({ tasks, boardNotes, events }, authenticated, activeProfileId);
     }, 500);
     return () => window.clearTimeout(timer);
-  }, [tasks, boardNotes, events, ready, authenticated, hydratedSession]);
+  }, [tasks, boardNotes, events, ready, authenticated, hydratedSession, activeProfileId]);
 
   useEffect(() => {
     const onKeyDown = (e) => { if (e.key === 'Escape') { setModal(null); setEventModal(null); } };
@@ -190,6 +213,40 @@ export default function App() {
     }
   };
 
+  const activeProfile = profiles.find((profile) => profile.id === activeProfileId) || profiles[0] || null;
+  const activeProfileName = activeProfile?.name || 'Trabajo';
+  const profileGlyph = (activeProfileName[0] || 'T').toUpperCase();
+
+  const handleSelectProfile = (profileId) => {
+    if (!profileId || profileId === activeProfileId) {
+      setShowProfileMenu(false);
+      return;
+    }
+    setActiveProfileId(profileId);
+    localStorage.setItem(ACTIVE_PROFILE_STORAGE_KEY, profileId);
+    setView('tasks');
+    setFilter('all');
+    setCategoryFilter('all');
+    setSummaryFilter('none');
+    setSearchQuery('');
+    setModal(null);
+    setEventModal(null);
+    setShowProfileMenu(false);
+  };
+
+  const handleCreateProfile = async () => {
+    const name = window.prompt('Nombre del workspace', 'Personal')?.trim();
+    if (!name) return;
+    try {
+      const profile = await createProfile(name);
+      setProfiles((prev) => [...prev, profile]);
+      handleSelectProfile(profile.id);
+    } catch (error) {
+      setBackupMessage(error.message || 'No se pudo crear el workspace.');
+      setTimeout(() => setBackupMessage(''), 5000);
+    }
+  };
+
   const y = calDate.getFullYear(), mo = calDate.getMonth();
   const dIM = new Date(y, mo + 1, 0).getDate();
   const fD = new Date(y, mo, 1).getDay();
@@ -262,11 +319,40 @@ export default function App() {
       <header className="app-header">
         <div className="brand-block">
           <button className="icon-button subtle" onClick={handleLogout} title="Cerrar sesión" aria-label="Cerrar sesión">↩</button>
-          <div className="brand-mark" aria-hidden="true">T</div>
+          <div className="workspace-switcher" ref={profileMenuRef}>
+            <button
+              type="button"
+              className="brand-mark workspace-trigger"
+              onClick={() => setShowProfileMenu((open) => !open)}
+              aria-haspopup="menu"
+              aria-expanded={showProfileMenu}
+              aria-label={`Cambiar workspace. Actual: ${activeProfileName}`}
+            >
+              {profileGlyph}
+            </button>
+            {showProfileMenu && (
+              <div className="workspace-menu" role="menu">
+                {profiles.map((profile) => (
+                  <button
+                    key={profile.id}
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={profile.id === activeProfileId}
+                    className={`workspace-option${profile.id === activeProfileId ? ' active' : ''}`}
+                    onClick={() => handleSelectProfile(profile.id)}
+                  >
+                    <span>{profile.name}</span>
+                    {profile.id === activeProfileId && <span>✓</span>}
+                  </button>
+                ))}
+                <button type="button" className="workspace-create" onClick={handleCreateProfile}>+ Nuevo workspace</button>
+              </div>
+            )}
+          </div>
           <div className="brand-copy">
             <span className="brand-title">{view === 'calendar' ? 'Calendario' : view === 'board' ? 'Tablero' : 'Tareas'}</span>
             <span className="brand-subtitle hide-mobile">
-              {view === 'board' ? 'Notas libres para organizar ideas' : 'Tu centro de trabajo diario'}
+              {view === 'board' ? `Notas libres · ${activeProfileName}` : `Workspace: ${activeProfileName}`}
             </span>
           </div>
         </div>

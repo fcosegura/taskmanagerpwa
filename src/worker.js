@@ -122,6 +122,70 @@ function isValidPayload(payload) {
   );
 }
 
+function normalizeSyncBody(body) {
+  if (!body || typeof body !== 'object') return null;
+  if (isValidPayload(body)) {
+    return { profileId: typeof body.profileId === 'string' ? body.profileId : null, payload: body };
+  }
+  if (body.payload && isValidPayload(body.payload)) {
+    return { profileId: typeof body.profileId === 'string' ? body.profileId : null, payload: body.payload };
+  }
+  return null;
+}
+
+async function ensureProfilesSchema(env) {
+  await env.DB.batch([
+    env.DB.prepare("CREATE TABLE IF NOT EXISTS profiles (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP)"),
+    env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_profiles_user ON profiles(user_id)"),
+    env.DB.prepare("ALTER TABLE tasks ADD COLUMN profile_id TEXT"),
+    env.DB.prepare("ALTER TABLE notes ADD COLUMN profile_id TEXT"),
+    env.DB.prepare("ALTER TABLE events ADD COLUMN profile_id TEXT"),
+    env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_tasks_user_profile ON tasks(user_id, profile_id)"),
+    env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_notes_user_profile ON notes(user_id, profile_id)"),
+    env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_events_user_profile ON events(user_id, profile_id)")
+  ]).catch(() => {
+    // ALTER TABLE can fail after first migration; keep startup resilient.
+  });
+}
+
+async function ensureDefaultProfile(env, userId) {
+  const defaultProfileId = `${userId}:work`;
+  await env.DB.prepare(
+    "INSERT OR IGNORE INTO profiles (id, user_id, name) VALUES (?, ?, ?)"
+  ).bind(defaultProfileId, userId, 'Trabajo').run();
+
+  // Migrate legacy rows with NULL profile_id into default profile.
+  await env.DB.batch([
+    env.DB.prepare("UPDATE tasks SET profile_id = ? WHERE user_id = ? AND profile_id IS NULL").bind(defaultProfileId, userId),
+    env.DB.prepare("UPDATE notes SET profile_id = ? WHERE user_id = ? AND profile_id IS NULL").bind(defaultProfileId, userId),
+    env.DB.prepare("UPDATE events SET profile_id = ? WHERE user_id = ? AND profile_id IS NULL").bind(defaultProfileId, userId)
+  ]);
+
+  return defaultProfileId;
+}
+
+async function resolveProfileId(env, userId, requestedProfileId) {
+  const defaultProfileId = await ensureDefaultProfile(env, userId);
+  if (!requestedProfileId) return defaultProfileId;
+  const row = await env.DB.prepare(
+    "SELECT id FROM profiles WHERE id = ? AND user_id = ?"
+  ).bind(requestedProfileId, userId).first();
+  return row?.id || defaultProfileId;
+}
+
+function sanitizeProfileName(name) {
+  if (typeof name !== 'string') return '';
+  return name.trim().replace(/\s+/g, ' ').slice(0, 40);
+}
+
+function buildProfileId(userId, name) {
+  const slug = name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'workspace';
+  return `${userId}:${slug}:${Date.now().toString(36)}`;
+}
+
 async function verifyGoogleToken(token, env) {
   if (!token) return null;
   const googleResp = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${token}`);
@@ -171,10 +235,34 @@ export default {
       const path = url.pathname.replace('/api', '');
       
       try {
+        await ensureProfilesSchema(env);
+        const requestedProfileId = url.searchParams.get('profileId');
+        const profileId = await resolveProfileId(env, userId, requestedProfileId);
+
+        if (request.method === 'POST' && path === '/profiles') {
+          const body = await request.json();
+          const name = sanitizeProfileName(body?.name);
+          if (!name) return json({ error: 'Nombre de perfil inválido' }, { status: 400 });
+          const newProfile = { id: buildProfileId(userId, name), name };
+          await env.DB.prepare(
+            "INSERT INTO profiles (id, user_id, name) VALUES (?, ?, ?)"
+          ).bind(newProfile.id, userId, newProfile.name).run();
+          return json({ profile: newProfile });
+        }
+
         if (request.method === 'GET' && path === '/data') {
-          const { results: tasks } = await env.DB.prepare("SELECT * FROM tasks WHERE user_id = ?").bind(userId).all();
-          const { results: notes } = await env.DB.prepare("SELECT * FROM notes WHERE user_id = ?").bind(userId).all();
-          const { results: events } = await env.DB.prepare("SELECT * FROM events WHERE user_id = ?").bind(userId).all();
+          const { results: profiles } = await env.DB.prepare(
+            "SELECT id, name, created_at, updated_at FROM profiles WHERE user_id = ? ORDER BY created_at ASC"
+          ).bind(userId).all();
+          const { results: tasks } = await env.DB.prepare(
+            "SELECT * FROM tasks WHERE user_id = ? AND profile_id = ?"
+          ).bind(userId, profileId).all();
+          const { results: notes } = await env.DB.prepare(
+            "SELECT * FROM notes WHERE user_id = ? AND profile_id = ?"
+          ).bind(userId, profileId).all();
+          const { results: events } = await env.DB.prepare(
+            "SELECT * FROM events WHERE user_id = ? AND profile_id = ?"
+          ).bind(userId, profileId).all();
           
           const parsedTasks = tasks.map(t => ({ ...t, subtasks: JSON.parse(t.subtasks || '[]') }));
           const parsedNotes = notes.map(({ created_at, updated_at, ...note }) => ({
@@ -182,37 +270,39 @@ export default {
             createdAt: created_at,
             updatedAt: updated_at
           }));
-          return json({ tasks: parsedTasks, boardNotes: parsedNotes, events });
+          return json({ tasks: parsedTasks, boardNotes: parsedNotes, events, profiles, activeProfileId: profileId });
         }
 
         if (request.method === 'POST' && path === '/sync') {
-          const payload = await request.json();
-          if (!isValidPayload(payload)) {
+          const body = await request.json();
+          const normalizedBody = normalizeSyncBody(body);
+          if (!normalizedBody) {
             return json({ error: 'Payload inválido' }, { status: 400 });
           }
+          const syncProfileId = await resolveProfileId(env, userId, normalizedBody.profileId);
+          const { tasks, boardNotes, events } = normalizedBody.payload;
 
-          const { tasks, boardNotes, events } = payload;
           const batch = [
-            env.DB.prepare("DELETE FROM tasks WHERE user_id = ?").bind(userId),
-            env.DB.prepare("DELETE FROM notes WHERE user_id = ?").bind(userId),
-            env.DB.prepare("DELETE FROM events WHERE user_id = ?").bind(userId)
+            env.DB.prepare("DELETE FROM tasks WHERE user_id = ? AND profile_id = ?").bind(userId, syncProfileId),
+            env.DB.prepare("DELETE FROM notes WHERE user_id = ? AND profile_id = ?").bind(userId, syncProfileId),
+            env.DB.prepare("DELETE FROM events WHERE user_id = ? AND profile_id = ?").bind(userId, syncProfileId)
           ];
 
           for (const t of tasks) {
-            batch.push(env.DB.prepare("INSERT INTO tasks (id, user_id, description, status, priority, category, date, time, subtasks) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
-              .bind(t.id, userId, t.description, t.status, t.priority, t.category || null, t.date || null, t.time || null, JSON.stringify(t.subtasks || [])));
+            batch.push(env.DB.prepare("INSERT INTO tasks (id, user_id, profile_id, description, status, priority, category, date, time, subtasks) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+              .bind(t.id, userId, syncProfileId, t.description, t.status, t.priority, t.category || null, t.date || null, t.time || null, JSON.stringify(t.subtasks || [])));
           }
           for (const n of boardNotes) {
-            batch.push(env.DB.prepare("INSERT INTO notes (id, user_id, title, text, x, y) VALUES (?, ?, ?, ?, ?, ?)")
-              .bind(n.id, userId, n.title || '', n.text || '', n.x || 0, n.y || 0));
+            batch.push(env.DB.prepare("INSERT INTO notes (id, user_id, profile_id, title, text, x, y) VALUES (?, ?, ?, ?, ?, ?, ?)")
+              .bind(n.id, userId, syncProfileId, n.title || '', n.text || '', n.x || 0, n.y || 0));
           }
           for (const e of events) {
-            batch.push(env.DB.prepare("INSERT INTO events (id, user_id, title, startDate, endDate, color) VALUES (?, ?, ?, ?, ?, ?)")
-              .bind(e.id, userId, e.title, e.startDate, e.endDate || null, e.color || '#3b82f6'));
+            batch.push(env.DB.prepare("INSERT INTO events (id, user_id, profile_id, title, startDate, endDate, color) VALUES (?, ?, ?, ?, ?, ?, ?)")
+              .bind(e.id, userId, syncProfileId, e.title, e.startDate, e.endDate || null, e.color || '#3b82f6'));
           }
 
           await env.DB.batch(batch);
-          return json({ success: true });
+          return json({ success: true, activeProfileId: syncProfileId });
         }
       } catch (err) {
         return json({ error: err.message }, { status: 500 });
