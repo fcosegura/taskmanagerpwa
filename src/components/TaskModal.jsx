@@ -1,0 +1,145 @@
+import { useState } from 'react';
+import { STATUS } from '../constants.js';
+import { uid, fmtDate, parseDateTimeFromDescription, parseDescriptionDateResult, cleanDescriptionSegment } from '../utils.jsx';
+
+export default function TaskModal({ task, categories, onSave, onDelete, onClose }) {
+  const [form, setForm] = useState({ ...task, subtasks: task.subtasks || [], category: task.category || '', time: task.time || '' });
+  const [subtaskText, setSubtaskText] = useState('');
+  const [newCategory, setNewCategory] = useState('');
+
+  const handleDescriptionChange = (value) => {
+    setForm((prev) => ({ ...prev, description: value }));
+  };
+
+  const fillDateTime = () => {
+    const preview = parseDateTimeFromDescription(form.description || '');
+    if (!preview) return;
+    const result = parseDescriptionDateResult(form.description || '');
+    let cleaned = cleanDescriptionSegment(form.description, result?.text || '');
+    if (!result?.text || cleaned === form.description.trim()) {
+      cleaned = cleaned.replace(/(?:\b(?:a|al|a la|a las|el|la|en|para)\b.*)$/i, '').replace(/\s{2,}/g, ' ').trim();
+    }
+    setForm((prev) => ({ ...prev, description: cleaned || form.description.trim(), date: preview.date, time: preview.time || prev.time }));
+  };
+
+  const handleChange = (field, value) => setForm((prev) => ({ ...prev, [field]: value }));
+
+  const addSubtask = () => {
+    const text = subtaskText?.trim();
+    if (!text) return;
+    setForm((prev) => ({ ...prev, subtasks: [...(prev.subtasks || []), { id: uid(), text, done: false }] }));
+    setSubtaskText('');
+  };
+
+  const toggleSubtask = (id) => {
+    setForm((prev) => ({ ...prev, subtasks: prev.subtasks.map((st) => st.id === id ? { ...st, done: !st.done } : st) }));
+  };
+
+  const removeSubtask = (id) => {
+    setForm((prev) => ({ ...prev, subtasks: prev.subtasks.filter((st) => st.id !== id) }));
+  };
+
+  const onSubmit = (e) => {
+    e.preventDefault();
+    if (!form.description || !form.description.trim()) return;
+    const category = newCategory.trim() || form.category || '';
+    const parsed = parseDateTimeFromDescription(form.description);
+    const finalForm = { ...form, category, date: form.date || parsed?.date || '', time: form.time || parsed?.time || '' };
+    onSave(finalForm);
+  };
+
+  const preview = parseDateTimeFromDescription(form.description || '');
+  const previewLabel = preview ? `Se creará para: ${fmtDate(preview.date)}${preview.time ? ` · ${preview.time}` : ''}` : null;
+
+  return (
+    <form onSubmit={onSubmit} style={{ width: 'min(420px, 100%)', maxWidth: 'calc(100% - 32px)', background: 'var(--color-background-primary)', borderRadius: 'var(--border-radius-lg)', boxShadow: 'var(--shadow-card)', padding: 24, color: 'var(--color-text-primary)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, gap: 12, flexWrap: 'wrap' }}>
+        <div>
+          <div style={{ fontSize: 18, fontWeight: 700 }}>{task.id ? 'Editar tarea' : 'Nueva tarea'}</div>
+          <div style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginTop: 4 }}>
+            {task.id ? 'Actualiza los detalles de la tarea.' : 'Crea una tarea nueva rápidamente.'}
+          </div>
+        </div>
+        <button type="button" onClick={onClose} aria-label="Cerrar modal" style={{ border: 'none', background: 'transparent', color: 'var(--color-text-secondary)', cursor: 'pointer', fontSize: 22, lineHeight: 1 }}>×</button>
+      </div>
+
+      <label style={{ display: 'block', marginBottom: 14, fontSize: 13, color: 'var(--color-text-secondary)' }}>
+        Descripción
+        <textarea value={form.description} onChange={(e) => handleDescriptionChange(e.target.value)} rows={3} style={{ width: '100%', boxSizing: 'border-box', marginTop: 6, borderRadius: 'var(--border-radius-md)', border: '0.5px solid var(--color-border-secondary)', padding: 10, fontSize: 13, resize: 'vertical' }} />
+      </label>
+
+      {previewLabel && (
+        <div style={{ marginBottom: 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, fontSize: 12, color: 'var(--color-text-secondary)', background: 'rgba(56,189,248,0.08)', border: '1px solid rgba(56,189,248,0.18)', borderRadius: 'var(--border-radius-md)', padding: '10px 12px' }}>
+          <span>{previewLabel}</span>
+          <button type="button" onClick={fillDateTime} style={{ border: 'none', background: 'rgba(37,99,235,0.12)', color: 'var(--color-accent)', borderRadius: '999px', padding: '6px 12px', cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>Autofill</button>
+        </div>
+      )}
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, color: 'var(--color-text-secondary)' }}>
+          <span style={{ fontWeight: 500 }}>Categoría</span>
+          <select value={form.category} onChange={(e) => { handleChange('category', e.target.value); setNewCategory(''); }} style={{ width: '100%', height: 44, boxSizing: 'border-box', borderRadius: 'var(--border-radius-md)', border: '0.5px solid var(--color-border-secondary)', padding: '10px 12px', fontSize: 13, background: 'var(--color-background-primary)', appearance: 'none' }}>
+            <option value="">Selecciona categoría</option>
+            {categories.map((cat) => <option key={cat} value={cat}>{cat}</option>)}
+          </select>
+        </label>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, color: 'var(--color-text-secondary)' }}>
+          <span style={{ fontWeight: 500 }}>Nueva categoría</span>
+          <input value={newCategory} onChange={(e) => setNewCategory(e.target.value)} placeholder="Nombre de categoría" style={{ width: '100%', height: 44, boxSizing: 'border-box', borderRadius: 'var(--border-radius-md)', border: '0.5px solid var(--color-border-secondary)', padding: '10px 12px', fontSize: 13, background: 'var(--color-background-primary)' }} />
+        </label>
+      </div>
+      <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 14 }}>
+        Elige una categoría existente o escribe una nueva; la nueva categoría reemplazará la selección.
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, marginBottom: 14, alignItems: 'end' }}>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, color: 'var(--color-text-secondary)' }}>
+          <span style={{ fontWeight: 500 }}>Subtarea</span>
+          <input value={subtaskText} onChange={(e) => setSubtaskText(e.target.value)} placeholder="Añadir nueva subtarea" style={{ width: '100%', height: 44, boxSizing: 'border-box', borderRadius: 'var(--border-radius-md)', border: '0.5px solid var(--color-border-secondary)', padding: '10px 12px', fontSize: 13, background: 'var(--color-background-primary)' }} />
+        </label>
+        <button type="button" onClick={addSubtask} disabled={!subtaskText.trim()} style={{ height: 44, minWidth: 100, borderRadius: 'var(--border-radius-md)', border: 'none', background: subtaskText.trim() ? 'var(--color-background-info)' : 'var(--color-background-secondary)', color: subtaskText.trim() ? 'var(--color-text-info)' : 'var(--color-text-secondary)', fontWeight: 700, cursor: subtaskText.trim() ? 'pointer' : 'not-allowed' }}>Añadir</button>
+      </div>
+
+      {form.subtasks?.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 14, maxHeight: 180, overflowY: 'auto' }}>
+          {form.subtasks.map((st) => (
+            <div key={st.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 'var(--border-radius-md)', background: 'var(--color-background-secondary)', border: '0.5px solid var(--color-border-tertiary)' }}>
+              <button type="button" onClick={() => toggleSubtask(st.id)} aria-label={st.done ? 'Marcar subtarea como pendiente' : 'Marcar subtarea como completa'} style={{ width: 26, height: 26, borderRadius: 999, border: '1px solid var(--color-border-tertiary)', background: st.done ? 'var(--color-background-success)' : 'var(--color-background-primary)', color: st.done ? 'var(--color-text-success)' : 'var(--color-text-secondary)', display: 'grid', placeItems: 'center', cursor: 'pointer' }}>
+                {st.done ? '✓' : '○'}
+              </button>
+              <div style={{ flex: 1, fontSize: 13, color: st.done ? 'var(--color-text-secondary)' : 'var(--color-text-primary)', textDecoration: st.done ? 'line-through' : 'none' }}>{st.text}</div>
+              <button type="button" onClick={() => removeSubtask(st.id)} aria-label="Eliminar subtarea" style={{ border: 'none', background: 'transparent', color: 'var(--color-text-secondary)', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>×</button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 10, marginBottom: 14 }}>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, color: 'var(--color-text-secondary)' }}>
+          <span style={{ fontWeight: 500 }}>Fecha inicio</span>
+          <input type="date" value={form.date} onChange={(e) => handleChange('date', e.target.value)} style={{ width: '100%', height: 44, boxSizing: 'border-box', borderRadius: 'var(--border-radius-md)', border: '0.5px solid var(--color-border-secondary)', padding: '10px 12px', fontSize: 13, background: 'var(--color-background-primary)', appearance: 'none' }} />
+        </label>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, color: 'var(--color-text-secondary)' }}>
+          <span style={{ fontWeight: 500 }}>Fecha fin</span>
+          <input type="date" value={form.endDate || ''} min={form.date} onChange={(e) => handleChange('endDate', e.target.value)} style={{ width: '100%', height: 44, boxSizing: 'border-box', borderRadius: 'var(--border-radius-md)', border: '0.5px solid var(--color-border-secondary)', padding: '10px 12px', fontSize: 13, background: 'var(--color-background-primary)', appearance: 'none' }} />
+        </label>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, color: 'var(--color-text-secondary)' }}>
+          <span style={{ fontWeight: 500 }}>Hora</span>
+          <input type="time" value={form.time} onChange={(e) => handleChange('time', e.target.value)} style={{ width: '90px', height: 44, boxSizing: 'border-box', borderRadius: 'var(--border-radius-md)', border: '0.5px solid var(--color-border-secondary)', padding: '10px 12px', fontSize: 13, background: 'var(--color-background-primary)', appearance: 'none' }} />
+        </label>
+      </div>
+
+      <label style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 18, fontSize: 13, color: 'var(--color-text-secondary)' }}>
+        <span style={{ fontWeight: 500 }}>Estado</span>
+        <select value={form.status} onChange={(e) => handleChange('status', e.target.value)} style={{ width: '100%', minHeight: 44, boxSizing: 'border-box', borderRadius: 'var(--border-radius-md)', border: '0.5px solid var(--color-border-secondary)', padding: '10px 12px', fontSize: 13, background: 'var(--color-background-primary)', appearance: 'none' }}>
+          {STATUS.map((option) => <option key={option.v} value={option.v}>{option.label}</option>)}
+        </select>
+      </label>
+
+      <div style={{ display: 'flex', gap: 10 }}>
+        <button type="button" onClick={onDelete} disabled={!onDelete} style={{ flex: 1, borderRadius: 'var(--border-radius-md)', border: '0.5px solid var(--color-border-secondary)', background: onDelete ? 'var(--color-background-danger)' : 'var(--color-background-secondary)', color: onDelete ? 'var(--color-text-danger)' : 'var(--color-text-secondary)', padding: '11px 0', cursor: onDelete ? 'pointer' : 'not-allowed' }}>Eliminar</button>
+        <button type="submit" style={{ flex: 1, borderRadius: 'var(--border-radius-md)', border: 'none', background: 'var(--color-background-info)', color: 'var(--color-text-info)', fontWeight: 700, padding: '11px 0', cursor: 'pointer' }}>Guardar</button>
+      </div>
+    </form>
+  );
+}
