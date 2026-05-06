@@ -23,6 +23,15 @@ function readLocalPayload(profileId) {
   return { tasks: [], boardNotes: [], events: [] };
 }
 
+function hasAnyData(payload) {
+  if (!payload || typeof payload !== 'object') return false;
+  return (
+    (Array.isArray(payload.tasks) && payload.tasks.length > 0) ||
+    (Array.isArray(payload.boardNotes) && payload.boardNotes.length > 0) ||
+    (Array.isArray(payload.events) && payload.events.length > 0)
+  );
+}
+
 export function isValidTask(task) {
   if (!task || typeof task !== 'object') return false;
   const { id, description, status, priority, subtasks, category, date, time } = task;
@@ -156,12 +165,14 @@ export async function loadData(profileId = null) {
       const cloudData = await resp.json();
       const safeCloudData = normalizeDataPayload(cloudData);
       const resolvedProfileId = typeof cloudData.activeProfileId === 'string' ? cloudData.activeProfileId : profileId;
-      // Mezclar o priorizar nube (aquí podrías añadir lógica de marcas de tiempo)
-      localStorage.setItem(profileStorageKey(resolvedProfileId), JSON.stringify(safeCloudData));
+      const shouldPreferLocal = hasAnyData(localData) && !hasAnyData(safeCloudData);
+      const effectiveData = shouldPreferLocal ? localData : safeCloudData;
+      // Prefer local when cloud comes back empty, to avoid data loss on transient sync failures.
+      localStorage.setItem(profileStorageKey(resolvedProfileId), JSON.stringify(effectiveData));
       // Keep legacy key updated for backwards compatibility and recovery.
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(safeCloudData));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(effectiveData));
       return {
-        ...safeCloudData,
+        ...effectiveData,
         authenticated: true,
         profiles: Array.isArray(cloudData.profiles) ? cloudData.profiles : [],
         activeProfileId: resolvedProfileId || null,
@@ -189,7 +200,7 @@ export async function saveData(payload, authenticated = false, profileId = null)
   // 2. Si hay sesión, sincronizar con la nube usando cookie HttpOnly
   if (authenticated) {
     try {
-      await fetch('/api/sync', {
+      const resp = await fetch('/api/sync', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -197,8 +208,13 @@ export async function saveData(payload, authenticated = false, profileId = null)
         credentials: 'same-origin',
         body: JSON.stringify({ profileId, payload })
       });
+      if (!resp.ok) {
+        const text = await resp.text().catch(() => '');
+        throw new Error(text || `Sync HTTP ${resp.status}`);
+      }
     } catch (e) {
       console.warn("Error guardando en la nube:", e);
+      throw e;
     }
   }
 }
