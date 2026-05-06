@@ -6,6 +6,7 @@ import { Pill, CategoryPill } from './shared/index.jsx';
 export default function TaskRow({ task, onClick, onToggleDone, onToggleSubtaskDone, onReorderSubtasks }) {
   const [showSubtasks, setShowSubtasks] = useState(false);
   const [dragIndex, setDragIndex] = useState(null);
+  const [hoverSubtaskIndex, setHoverSubtaskIndex] = useState(null);
   const s = STATUS.find((x) => x.v === task.status) || STATUS[0];
   const p = PRIORITY.find((x) => x.v === task.priority) || PRIORITY[1];
   const subtaskCount = task.subtasks?.length || 0;
@@ -84,69 +85,100 @@ export default function TaskRow({ task, onClick, onToggleDone, onToggleSubtaskDo
               <div style={{ width: `${progress}%`, height: '100%', borderRadius: 999, background: completedSubtasks === subtaskCount ? 'var(--color-text-success)' : 'var(--color-text-info)' }} />
             </div>
             {showSubtasks && (
-              <div style={{ marginTop: 4, display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div
+                style={{ marginTop: 4, display: 'flex', flexDirection: 'column', gap: 6 }}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (hoverSubtaskIndex === null || hoverSubtaskIndex > (task.subtasks?.length || 0)) {
+                    setHoverSubtaskIndex(task.subtasks?.length || 0);
+                  }
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (dragIndex === null) return;
+                  const endIndex = task.subtasks?.length || 0;
+                  onReorderSubtasks?.(task.id, dragIndex, endIndex);
+                  setDragIndex(null);
+                  setHoverSubtaskIndex(null);
+                }}
+                onDragLeave={() => setHoverSubtaskIndex(null)}
+              >
                 {task.subtasks.map((subtask, index) => (
-                  <div
-                    key={subtask.id}
-                    draggable
-                    onDragStart={(e) => {
-                      e.stopPropagation();
-                      setDragIndex(index);
-                    }}
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                    }}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      if (dragIndex === null || dragIndex === index) return;
-                      onReorderSubtasks?.(task.id, dragIndex, index);
-                      setDragIndex(null);
-                    }}
-                    onDragEnd={() => setDragIndex(null)}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      fontSize: 12,
-                      color: subtask.done ? 'var(--color-text-secondary)' : 'var(--color-text-primary)',
-                      padding: '6px 8px',
-                      borderRadius: 8,
-                      background: dragIndex === index ? 'rgba(23, 107, 135, 0.08)' : 'transparent'
-                    }}
-                  >
-                    <button
-                      type="button"
-                      onClick={(e) => {
+                  <div key={subtask.id}>
+                    {hoverSubtaskIndex === index && (
+                      <div className="subtask-drop-indicator" style={{ marginBottom: 6 }} />
+                    )}
+                    <div
+                      draggable
+                      onDragStart={(e) => {
                         e.stopPropagation();
-                        onToggleSubtaskDone?.(task.id, subtask.id);
+                        setDragIndex(index);
                       }}
-                      aria-label={subtask.done ? 'Marcar subtarea como pendiente' : 'Marcar subtarea como completada'}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (hoverSubtaskIndex !== index) setHoverSubtaskIndex(index);
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (dragIndex === null || dragIndex === index) return;
+                        onReorderSubtasks?.(task.id, dragIndex, index);
+                        setDragIndex(null);
+                        setHoverSubtaskIndex(null);
+                      }}
+                      onDragEnd={() => {
+                        setDragIndex(null);
+                        setHoverSubtaskIndex(null);
+                      }}
                       style={{
-                        border: '1px solid var(--color-border-tertiary)',
-                        width: 20,
-                        height: 20,
-                        borderRadius: 999,
-                        display: 'grid',
-                        placeItems: 'center',
-                        background: subtask.done ? 'var(--color-background-success)' : 'var(--color-background-primary)',
-                        color: subtask.done ? 'var(--color-text-success)' : 'var(--color-text-secondary)',
-                        cursor: 'pointer',
-                        padding: 0
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        fontSize: 12,
+                        color: subtask.done ? 'var(--color-text-secondary)' : 'var(--color-text-primary)',
+                        padding: '6px 8px',
+                        borderRadius: 8,
+                        background: dragIndex === index ? 'rgba(23, 107, 135, 0.08)' : 'transparent'
                       }}
                     >
-                      {subtask.done ? '✓' : ''}
-                    </button>
-                    <span style={{ textDecoration: subtask.done ? 'line-through' : 'none' }}>{subtask.text}</span>
-                    <span
-                      title="Arrastra para reordenar"
-                      style={{ marginLeft: 'auto', color: 'var(--color-text-secondary)', cursor: 'grab', fontSize: 13 }}
-                    >
-                      ⋮⋮
-                    </span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onToggleSubtaskDone?.(task.id, subtask.id);
+                        }}
+                        aria-label={subtask.done ? 'Marcar subtarea como pendiente' : 'Marcar subtarea como completada'}
+                        style={{
+                          border: '1px solid var(--color-border-tertiary)',
+                          width: 20,
+                          height: 20,
+                          borderRadius: 999,
+                          display: 'grid',
+                          placeItems: 'center',
+                          background: subtask.done ? 'var(--color-background-success)' : 'var(--color-background-primary)',
+                          color: subtask.done ? 'var(--color-text-success)' : 'var(--color-text-secondary)',
+                          cursor: 'pointer',
+                          padding: 0
+                        }}
+                      >
+                        {subtask.done ? '✓' : ''}
+                      </button>
+                      <span style={{ textDecoration: subtask.done ? 'line-through' : 'none' }}>{subtask.text}</span>
+                      <span
+                        title="Arrastra para reordenar"
+                        style={{ marginLeft: 'auto', color: 'var(--color-text-secondary)', cursor: 'grab', fontSize: 13 }}
+                      >
+                        ⋮⋮
+                      </span>
+                    </div>
                   </div>
                 ))}
+                {hoverSubtaskIndex === (task.subtasks?.length || 0) && (
+                  <div className="subtask-drop-indicator" />
+                )}
               </div>
             )}
           </div>
@@ -169,7 +201,7 @@ export default function TaskRow({ task, onClick, onToggleDone, onToggleSubtaskDo
         </button>
         <Pill s={p} />
         {task.category && <CategoryPill name={task.category} />}
-        <Pill s={s} />
+        <Pill s={s} fixedWidth={82} />
       </div>
     </div>
   );

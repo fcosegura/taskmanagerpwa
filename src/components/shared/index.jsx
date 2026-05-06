@@ -1,9 +1,11 @@
-export function Pill({ s }) {
+export function Pill({ s, fixedWidth = null }) {
   return (
     <span
       style={{
         fontSize: 11, fontWeight: 500, padding: '2px 8px', borderRadius: 20, whiteSpace: 'nowrap',
         background: `var(${s.bv})`, color: `var(${s.tv})`,
+        minWidth: fixedWidth || undefined,
+        textAlign: fixedWidth ? 'center' : undefined,
       }}
     >
       {s.label}

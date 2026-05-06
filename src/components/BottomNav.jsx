@@ -1,6 +1,7 @@
 export default function BottomNav({ currentView, setView }) {
   const tabs = [
     { id: 'tasks', label: 'Tareas', icon: '📋' },
+    { id: 'kanban', label: 'Kanban', icon: '🧩' },
     { id: 'calendar', label: 'Calendario', icon: '📅' },
     { id: 'board', label: 'Tablero', icon: '📌' },
   ];

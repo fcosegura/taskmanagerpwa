@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
-import { P_ORDER } from './constants.js';
+import { P_ORDER, STATUS } from './constants.js';
 import { uid, toDateStr, parseDateTimeFromDescription, parseDescriptionDateResult, cleanDescriptionSegment } from './utils.jsx';
 import { loadData, saveData, validateBackupPayload, normalizeDataPayload, loginWithGoogleCredential, logoutSession, createProfile, deleteProfile, parseTaskWithAI } from './storage.js';
 import TasksView from './components/TasksView.jsx';
 import CalendarView from './components/CalendarView.jsx';
 import BoardView from './components/BoardView.jsx';
+import KanbanView from './components/KanbanView.jsx';
 import TaskModal from './components/TaskModal.jsx';
 import EventModal from './components/EventModal.jsx';
 import BottomNav from './components/BottomNav.jsx';
@@ -132,6 +133,30 @@ export default function App() {
 
   const toggleDone = (id) => {
     setTasks((p) => p.map((t) => t.id === id ? { ...t, status: t.status === 'done' ? 'not_done' : 'done' } : t));
+  };
+  const moveTaskToStatus = (taskId, targetStatus, targetIndex = null) => {
+    setTasks((prev) => {
+      const sourceTask = prev.find((task) => task.id === taskId);
+      if (!sourceTask) return prev;
+      const nextStatus = targetStatus || sourceTask.status;
+      const movedTask = { ...sourceTask, status: nextStatus };
+      const remaining = prev.filter((task) => task.id !== taskId);
+      const byStatus = STATUS.reduce((acc, status) => {
+        acc[status.v] = [];
+        return acc;
+      }, {});
+      remaining.forEach((task) => {
+        if (!byStatus[task.status]) byStatus[task.status] = [];
+        byStatus[task.status].push(task);
+      });
+      const list = byStatus[nextStatus] || [];
+      const insertionIndex = targetIndex === null
+        ? list.length
+        : Math.max(0, Math.min(targetIndex, list.length));
+      list.splice(insertionIndex, 0, movedTask);
+      byStatus[nextStatus] = list;
+      return STATUS.flatMap((status) => byStatus[status.v] || []);
+    });
   };
   const toggleSubtaskDone = (taskId, subtaskId) => {
     setTasks((prev) => prev.map((task) => (
@@ -479,7 +504,7 @@ export default function App() {
             )}
           </div>
           <div className="brand-copy">
-            <span className="brand-title">{view === 'calendar' ? 'Calendario' : view === 'board' ? 'Tablero' : 'Tareas'}</span>
+            <span className="brand-title">{view === 'kanban' ? 'Kanban' : view === 'calendar' ? 'Calendario' : view === 'board' ? 'Tablero' : 'Tareas'}</span>
             <span className="brand-subtitle hide-mobile">
               {view === 'board' ? `Notas libres · ${activeProfileName}` : `Workspace: ${activeProfileName}`}
             </span>
@@ -487,7 +512,7 @@ export default function App() {
         </div>
 
         <div className="desktop-tabs hide-mobile">
-          {[['tasks', 'Tareas'], ['calendar', 'Calendario'], ['board', 'Tablero']].map(([v, l]) => (
+          {[['tasks', 'Tareas'], ['kanban', 'Kanban'], ['calendar', 'Calendario'], ['board', 'Tablero']].map(([v, l]) => (
             <button key={v} className={view === v ? 'active' : ''} onClick={() => setView(v)}>{l}</button>
           ))}
         </div>
@@ -539,7 +564,7 @@ export default function App() {
         <section className="overview-panel compact">
           <div>
             <p className="eyebrow">Resumen</p>
-            <h1>{view === 'calendar' ? 'Planifica la semana' : view === 'board' ? 'Ordena tus ideas' : 'Prioriza lo importante'}</h1>
+            <h1>{view === 'kanban' ? 'Visualiza el flujo real' : view === 'calendar' ? 'Planifica la semana' : view === 'board' ? 'Ordena tus ideas' : 'Prioriza lo importante'}</h1>
           </div>
           <div className="metric-strip">
             {[
@@ -571,6 +596,12 @@ export default function App() {
               onEdit={(t) => setModal(t)} onToggleDone={toggleDone} onToggleSubtaskDone={toggleSubtaskDone}
               onReorderSubtasks={reorderTaskSubtasks} onQuickAdd={handleQuickAdd} onQuickSuggest={handleQuickSuggest}
             />
+          : view === 'kanban'
+            ? <KanbanView
+                tasks={tasks}
+                onEditTask={(task) => setModal(task)}
+                onMoveTaskStatus={moveTaskToStatus}
+              />
           : view === 'calendar'
             ? <CalendarView
                 y={y} mo={mo} dIM={dIM} fD={fD} tByDate={tByDate} eByDate={eByDate} todayStr={todayStr}
