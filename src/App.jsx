@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { P_ORDER } from './constants.js';
+import { P_ORDER, STATUS } from './constants.js';
 import { uid, toDateStr, parseDateTimeFromDescription, parseDescriptionDateResult, cleanDescriptionSegment } from './utils.jsx';
 import { loadData, saveData, validateBackupPayload, normalizeDataPayload, loginWithGoogleCredential, logoutSession, createProfile, deleteProfile, parseTaskWithAI } from './storage.js';
 import TasksView from './components/TasksView.jsx';
@@ -134,10 +134,29 @@ export default function App() {
   const toggleDone = (id) => {
     setTasks((p) => p.map((t) => t.id === id ? { ...t, status: t.status === 'done' ? 'not_done' : 'done' } : t));
   };
-  const moveTaskToStatus = (taskId, status) => {
-    setTasks((prev) => prev.map((task) => (
-      task.id === taskId ? { ...task, status } : task
-    )));
+  const moveTaskToStatus = (taskId, targetStatus, targetIndex = null) => {
+    setTasks((prev) => {
+      const sourceTask = prev.find((task) => task.id === taskId);
+      if (!sourceTask) return prev;
+      const nextStatus = targetStatus || sourceTask.status;
+      const movedTask = { ...sourceTask, status: nextStatus };
+      const remaining = prev.filter((task) => task.id !== taskId);
+      const byStatus = STATUS.reduce((acc, status) => {
+        acc[status.v] = [];
+        return acc;
+      }, {});
+      remaining.forEach((task) => {
+        if (!byStatus[task.status]) byStatus[task.status] = [];
+        byStatus[task.status].push(task);
+      });
+      const list = byStatus[nextStatus] || [];
+      const insertionIndex = targetIndex === null
+        ? list.length
+        : Math.max(0, Math.min(targetIndex, list.length));
+      list.splice(insertionIndex, 0, movedTask);
+      byStatus[nextStatus] = list;
+      return STATUS.flatMap((status) => byStatus[status.v] || []);
+    });
   };
   const toggleSubtaskDone = (taskId, subtaskId) => {
     setTasks((prev) => prev.map((task) => (
@@ -579,7 +598,7 @@ export default function App() {
             />
           : view === 'kanban'
             ? <KanbanView
-                tasks={[...tasks].sort((a, b) => (P_ORDER[a.priority] ?? 3) - (P_ORDER[b.priority] ?? 3))}
+                tasks={tasks}
                 onEditTask={(task) => setModal(task)}
                 onMoveTaskStatus={moveTaskToStatus}
               />

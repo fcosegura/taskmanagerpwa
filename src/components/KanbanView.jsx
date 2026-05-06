@@ -65,9 +65,9 @@ export default function KanbanView({ tasks, onEditTask, onMoveTaskStatus }) {
     }, {})
   ), [tasks]);
 
-  const handleDropOnColumn = (status) => {
+  const handleDropOnColumn = (status, targetIndex = null) => {
     if (!draggedTaskId) return;
-    onMoveTaskStatus?.(draggedTaskId, status);
+    onMoveTaskStatus?.(draggedTaskId, status, targetIndex);
     setDraggedTaskId(null);
     setHoverStatus(null);
   };
@@ -88,7 +88,7 @@ export default function KanbanView({ tasks, onEditTask, onMoveTaskStatus }) {
             }}
             onDrop={(event) => {
               event.preventDefault();
-              handleDropOnColumn(status.v);
+              handleDropOnColumn(status.v, groupedTasks[status.v]?.length || 0);
             }}
           >
             <div className="kanban-column-header">
@@ -96,20 +96,33 @@ export default function KanbanView({ tasks, onEditTask, onMoveTaskStatus }) {
               <strong>{groupedTasks[status.v]?.length || 0}</strong>
             </div>
             <div className="kanban-column-body">
-              {(groupedTasks[status.v] || []).map((task) => (
-                <KanbanTaskCard
+              {(groupedTasks[status.v] || []).map((task, index) => (
+                <div
                   key={task.id}
-                  task={task}
-                  onEditTask={onEditTask}
-                  onDragStart={(event, taskId) => {
-                    event.dataTransfer.effectAllowed = 'move';
-                    setDraggedTaskId(taskId);
+                  onDragOver={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    if (hoverStatus !== status.v) setHoverStatus(status.v);
                   }}
-                  onDragEnd={() => {
-                    setDraggedTaskId(null);
-                    setHoverStatus(null);
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    handleDropOnColumn(status.v, index);
                   }}
-                />
+                >
+                  <KanbanTaskCard
+                    task={task}
+                    onEditTask={onEditTask}
+                    onDragStart={(event, taskId) => {
+                      event.dataTransfer.effectAllowed = 'move';
+                      setDraggedTaskId(taskId);
+                    }}
+                    onDragEnd={() => {
+                      setDraggedTaskId(null);
+                      setHoverStatus(null);
+                    }}
+                  />
+                </div>
               ))}
               {(groupedTasks[status.v] || []).length === 0 && (
                 <div className="kanban-empty">Arrastra tareas aquí</div>
