@@ -5,6 +5,7 @@ import { loadData, saveData, validateBackupPayload, normalizeDataPayload, loginW
 import TasksView from './components/TasksView.jsx';
 import CalendarView from './components/CalendarView.jsx';
 import BoardView from './components/BoardView.jsx';
+import KanbanView from './components/KanbanView.jsx';
 import TaskModal from './components/TaskModal.jsx';
 import EventModal from './components/EventModal.jsx';
 import BottomNav from './components/BottomNav.jsx';
@@ -132,6 +133,11 @@ export default function App() {
 
   const toggleDone = (id) => {
     setTasks((p) => p.map((t) => t.id === id ? { ...t, status: t.status === 'done' ? 'not_done' : 'done' } : t));
+  };
+  const moveTaskToStatus = (taskId, status) => {
+    setTasks((prev) => prev.map((task) => (
+      task.id === taskId ? { ...task, status } : task
+    )));
   };
   const toggleSubtaskDone = (taskId, subtaskId) => {
     setTasks((prev) => prev.map((task) => (
@@ -479,7 +485,7 @@ export default function App() {
             )}
           </div>
           <div className="brand-copy">
-            <span className="brand-title">{view === 'calendar' ? 'Calendario' : view === 'board' ? 'Tablero' : 'Tareas'}</span>
+            <span className="brand-title">{view === 'kanban' ? 'Kanban' : view === 'calendar' ? 'Calendario' : view === 'board' ? 'Tablero' : 'Tareas'}</span>
             <span className="brand-subtitle hide-mobile">
               {view === 'board' ? `Notas libres · ${activeProfileName}` : `Workspace: ${activeProfileName}`}
             </span>
@@ -487,7 +493,7 @@ export default function App() {
         </div>
 
         <div className="desktop-tabs hide-mobile">
-          {[['tasks', 'Tareas'], ['calendar', 'Calendario'], ['board', 'Tablero']].map(([v, l]) => (
+          {[['tasks', 'Tareas'], ['kanban', 'Kanban'], ['calendar', 'Calendario'], ['board', 'Tablero']].map(([v, l]) => (
             <button key={v} className={view === v ? 'active' : ''} onClick={() => setView(v)}>{l}</button>
           ))}
         </div>
@@ -539,7 +545,7 @@ export default function App() {
         <section className="overview-panel compact">
           <div>
             <p className="eyebrow">Resumen</p>
-            <h1>{view === 'calendar' ? 'Planifica la semana' : view === 'board' ? 'Ordena tus ideas' : 'Prioriza lo importante'}</h1>
+            <h1>{view === 'kanban' ? 'Visualiza el flujo real' : view === 'calendar' ? 'Planifica la semana' : view === 'board' ? 'Ordena tus ideas' : 'Prioriza lo importante'}</h1>
           </div>
           <div className="metric-strip">
             {[
@@ -571,6 +577,12 @@ export default function App() {
               onEdit={(t) => setModal(t)} onToggleDone={toggleDone} onToggleSubtaskDone={toggleSubtaskDone}
               onReorderSubtasks={reorderTaskSubtasks} onQuickAdd={handleQuickAdd} onQuickSuggest={handleQuickSuggest}
             />
+          : view === 'kanban'
+            ? <KanbanView
+                tasks={[...tasks].sort((a, b) => (P_ORDER[a.priority] ?? 3) - (P_ORDER[b.priority] ?? 3))}
+                onEditTask={(task) => setModal(task)}
+                onMoveTaskStatus={moveTaskToStatus}
+              />
           : view === 'calendar'
             ? <CalendarView
                 y={y} mo={mo} dIM={dIM} fD={fD} tByDate={tByDate} eByDate={eByDate} todayStr={todayStr}

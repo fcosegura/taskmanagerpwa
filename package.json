@@ -8,6 +8,7 @@
   },
   "scripts": {
     "dev": "vite",
+    "dev:worker": "npm run build && npx wrangler d1 execute task-manager-db --local --file=schema.sql && npx wrangler dev --local --ip localhost --port 8788",
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",

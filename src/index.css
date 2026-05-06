@@ -574,11 +574,71 @@ select:focus {
 
 .calendar-panel,
 .day-panel,
+.kanban-column,
 .board-toolbar,
 .board-canvas {
   border: var(--surface-border) !important;
   border-radius: 18px !important;
   box-shadow: var(--shadow-soft);
+}
+
+.kanban-view {
+  width: 100%;
+}
+
+.kanban-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.kanban-column {
+  min-height: calc(100vh - 300px);
+  display: flex;
+  flex-direction: column;
+  background: rgba(255, 255, 255, 0.75);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.kanban-column.active-drop {
+  border-color: rgba(37, 99, 235, 0.45) !important;
+  box-shadow: 0 14px 28px rgba(37, 99, 235, 0.18);
+}
+
+.kanban-column-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 12px 10px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--color-text-primary);
+}
+
+.kanban-column-header strong {
+  border-radius: 999px;
+  padding: 3px 8px;
+  font-size: 11px;
+  background: var(--color-background-secondary);
+  color: var(--color-text-secondary);
+}
+
+.kanban-column-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  min-height: 140px;
+}
+
+.kanban-empty {
+  border: 1px dashed rgba(148, 163, 184, 0.35);
+  border-radius: 10px;
+  padding: 12px;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  text-align: center;
 }
 
 .calendar-cell {
@@ -843,6 +903,14 @@ nav.show-mobile button.active {
   .calendar-cell {
     min-height: 58px !important;
     padding-inline: 2px !important;
+  }
+
+  .kanban-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .kanban-column {
+    min-height: auto;
   }
 
   .modal-backdrop {
