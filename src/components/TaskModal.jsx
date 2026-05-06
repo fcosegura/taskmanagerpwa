@@ -5,6 +5,8 @@ import { parseTaskWithAI } from '../storage.js';
 
 export default function TaskModal({ task, categories, onSave, onDelete, onClose }) {
   const [form, setForm] = useState({ ...task, subtasks: task.subtasks || [], category: task.category || '', time: task.time || '' });
+  const [showAdvanced, setShowAdvanced] = useState(Boolean(task.id));
+  const [dragSubtaskIndex, setDragSubtaskIndex] = useState(null);
   const [subtaskText, setSubtaskText] = useState('');
   const [newCategory, setNewCategory] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
@@ -81,6 +83,16 @@ export default function TaskModal({ task, categories, onSave, onDelete, onClose 
   const removeSubtask = (id) => {
     setForm((prev) => ({ ...prev, subtasks: prev.subtasks.filter((st) => st.id !== id) }));
   };
+  const reorderSubtasks = (fromIndex, toIndex) => {
+    if (fromIndex === toIndex) return;
+    setForm((prev) => {
+      const subtasks = [...(prev.subtasks || [])];
+      if (fromIndex < 0 || fromIndex >= subtasks.length || toIndex < 0 || toIndex >= subtasks.length) return prev;
+      const [moved] = subtasks.splice(fromIndex, 1);
+      subtasks.splice(toIndex, 0, moved);
+      return { ...prev, subtasks };
+    });
+  };
 
   const onSubmit = (e) => {
     e.preventDefault();
@@ -138,6 +150,25 @@ export default function TaskModal({ task, categories, onSave, onDelete, onClose 
         </div>
       )}
 
+      <button
+        type="button"
+        onClick={() => setShowAdvanced((prev) => !prev)}
+        style={{
+          border: 'none',
+          background: 'transparent',
+          color: 'var(--color-accent)',
+          fontSize: 12,
+          fontWeight: 700,
+          padding: 0,
+          marginBottom: 14,
+          cursor: 'pointer'
+        }}
+      >
+        {showAdvanced ? 'Ocultar opciones avanzadas' : 'Mostrar opciones avanzadas'}
+      </button>
+
+      {showAdvanced && (
+      <>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
         <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, color: 'var(--color-text-secondary)' }}>
           <span style={{ fontWeight: 500 }}>Categoría</span>
@@ -165,8 +196,30 @@ export default function TaskModal({ task, categories, onSave, onDelete, onClose 
 
       {form.subtasks?.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 14, maxHeight: 180, overflowY: 'auto' }}>
-          {form.subtasks.map((st) => (
-            <div key={st.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 'var(--border-radius-md)', background: 'var(--color-background-secondary)', border: '0.5px solid var(--color-border-tertiary)' }}>
+          {form.subtasks.map((st, index) => (
+            <div
+              key={st.id}
+              draggable
+              onDragStart={() => setDragSubtaskIndex(index)}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                e.preventDefault();
+                if (dragSubtaskIndex === null || dragSubtaskIndex === index) return;
+                reorderSubtasks(dragSubtaskIndex, index);
+                setDragSubtaskIndex(null);
+              }}
+              onDragEnd={() => setDragSubtaskIndex(null)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                padding: '10px 12px',
+                borderRadius: 'var(--border-radius-md)',
+                background: dragSubtaskIndex === index ? 'rgba(23, 107, 135, 0.08)' : 'var(--color-background-secondary)',
+                border: '0.5px solid var(--color-border-tertiary)'
+              }}
+            >
+              <span title="Arrastra para reordenar" style={{ color: 'var(--color-text-secondary)', cursor: 'grab', fontSize: 13 }}>⋮⋮</span>
               <button type="button" onClick={() => toggleSubtask(st.id)} aria-label={st.done ? 'Marcar subtarea como pendiente' : 'Marcar subtarea como completa'} style={{ width: 26, height: 26, borderRadius: 999, border: '1px solid var(--color-border-tertiary)', background: st.done ? 'var(--color-background-success)' : 'var(--color-background-primary)', color: st.done ? 'var(--color-text-success)' : 'var(--color-text-secondary)', display: 'grid', placeItems: 'center', cursor: 'pointer' }}>
                 {st.done ? '✓' : '○'}
               </button>
@@ -198,9 +251,15 @@ export default function TaskModal({ task, categories, onSave, onDelete, onClose 
           {STATUS.map((option) => <option key={option.v} value={option.v}>{option.label}</option>)}
         </select>
       </label>
+      </>
+      )}
 
       <div style={{ display: 'flex', gap: 10 }}>
-        <button type="button" onClick={onDelete} disabled={!onDelete} style={{ flex: 1, borderRadius: 'var(--border-radius-md)', border: '0.5px solid var(--color-border-secondary)', background: onDelete ? 'var(--color-background-danger)' : 'var(--color-background-secondary)', color: onDelete ? 'var(--color-text-danger)' : 'var(--color-text-secondary)', padding: '11px 0', cursor: onDelete ? 'pointer' : 'not-allowed' }}>Eliminar</button>
+        {onDelete ? (
+          <button type="button" onClick={onDelete} style={{ flex: 1, borderRadius: 'var(--border-radius-md)', border: '0.5px solid var(--color-border-secondary)', background: 'var(--color-background-danger)', color: 'var(--color-text-danger)', padding: '11px 0', cursor: 'pointer' }}>Eliminar</button>
+        ) : (
+          <button type="button" onClick={onClose} style={{ flex: 1, borderRadius: 'var(--border-radius-md)', border: '0.5px solid var(--color-border-secondary)', background: 'var(--color-background-secondary)', color: 'var(--color-text-secondary)', padding: '11px 0', cursor: 'pointer' }}>Cancelar</button>
+        )}
         <button type="submit" style={{ flex: 1, borderRadius: 'var(--border-radius-md)', border: 'none', background: 'var(--color-background-info)', color: 'var(--color-text-info)', fontWeight: 700, padding: '11px 0', cursor: 'pointer' }}>Guardar</button>
       </div>
     </form>
