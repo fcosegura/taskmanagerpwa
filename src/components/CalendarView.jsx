@@ -6,6 +6,10 @@ import TaskRow from './TaskRow.jsx';
 export default function CalendarView({ y, mo, dIM, fD, tByDate, eByDate, todayStr, prev, next, selDay, setSelDay, onAddTaskForDay, onEditTask, onAddEventForDay, onEditEvent }) {
   const cells = [...Array(fD).fill(null), ...Array.from({ length: dIM }, (_, i) => i + 1)];
   const selDs = selDay ? toDateStr(y, mo, selDay) : null;
+  const today = new Date();
+  const isCurrentMonth = today.getFullYear() === y && today.getMonth() === mo;
+  const fallbackDay = isCurrentMonth ? today.getDate() : 1;
+  const eventCreateDate = selDs || toDateStr(y, mo, fallbackDay);
 
   return (
     <div className="calendar-view" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -18,7 +22,7 @@ export default function CalendarView({ y, mo, dIM, fD, tByDate, eByDate, todaySt
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             <button
               type="button"
-              onClick={() => onAddEventForDay(toDateStr(y, mo, new Date().getDate()))}
+              onClick={() => onAddEventForDay(eventCreateDate)}
               style={{ padding: '8px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', border: '1px solid var(--color-border-secondary)', background: 'var(--color-background-primary)', color: 'var(--color-text-primary)', borderRadius: '999px', whiteSpace: 'nowrap' }}
             >+ Evento</button>
             <div style={{ display: 'flex', gap: 6 }}>
