@@ -1,11 +1,14 @@
 import { useState } from 'react';
 import { STATUS } from '../constants.js';
 import { uid, fmtDate, parseDateTimeFromDescription, parseDescriptionDateResult, cleanDescriptionSegment } from '../utils.jsx';
+import { parseTaskWithAI } from '../storage.js';
 
 export default function TaskModal({ task, categories, onSave, onDelete, onClose }) {
   const [form, setForm] = useState({ ...task, subtasks: task.subtasks || [], category: task.category || '', time: task.time || '' });
   const [subtaskText, setSubtaskText] = useState('');
   const [newCategory, setNewCategory] = useState('');
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiFeedback, setAiFeedback] = useState('');
 
   const handleDescriptionChange = (value) => {
     setForm((prev) => ({ ...prev, description: value }));
@@ -23,6 +26,34 @@ export default function TaskModal({ task, categories, onSave, onDelete, onClose 
   };
 
   const handleChange = (field, value) => setForm((prev) => ({ ...prev, [field]: value }));
+
+  const handleAISuggest = async () => {
+    const text = (form.description || '').trim();
+    if (!text || aiLoading) return;
+    setAiLoading(true);
+    setAiFeedback('');
+    try {
+      const { task: parsed, source } = await parseTaskWithAI(text);
+      if (!parsed) throw new Error('No hubo sugerencias válidas.');
+      const due = typeof parsed.dueDate === 'string' ? new Date(parsed.dueDate) : null;
+      const hasValidDue = due instanceof Date && !Number.isNaN(due.getTime());
+      const suggestedCategory = Array.isArray(parsed.tags) && parsed.tags.length > 0 ? String(parsed.tags[0]) : '';
+      setForm((prev) => ({
+        ...prev,
+        description: parsed.title || prev.description,
+        date: hasValidDue ? `${due.getFullYear()}-${String(due.getMonth() + 1).padStart(2, '0')}-${String(due.getDate()).padStart(2, '0')}` : prev.date,
+        time: hasValidDue ? `${String(due.getHours()).padStart(2, '0')}:${String(due.getMinutes()).padStart(2, '0')}` : prev.time,
+        priority: ['low', 'medium', 'high', 'critical'].includes(parsed.priority) ? parsed.priority : prev.priority,
+        category: prev.category || suggestedCategory,
+      }));
+      if (!newCategory && suggestedCategory) setNewCategory(suggestedCategory);
+      setAiFeedback(source === 'ai' ? 'Sugerencia IA aplicada.' : 'Sugerencia local aplicada.');
+    } catch (error) {
+      setAiFeedback(error.message || 'No se pudo generar sugerencia.');
+    } finally {
+      setAiLoading(false);
+    }
+  };
 
   const addSubtask = () => {
     const text = subtaskText?.trim();
@@ -67,6 +98,26 @@ export default function TaskModal({ task, categories, onSave, onDelete, onClose 
         Descripción
         <textarea value={form.description} onChange={(e) => handleDescriptionChange(e.target.value)} rows={3} style={{ width: '100%', boxSizing: 'border-box', marginTop: 6, borderRadius: 'var(--border-radius-md)', border: '0.5px solid var(--color-border-secondary)', padding: 10, fontSize: 13, resize: 'vertical' }} />
       </label>
+      <div style={{ marginBottom: 14, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <button
+          type="button"
+          onClick={handleAISuggest}
+          disabled={!form.description?.trim() || aiLoading}
+          style={{
+            border: 'none',
+            background: form.description?.trim() && !aiLoading ? 'var(--color-background-info)' : 'var(--color-background-secondary)',
+            color: form.description?.trim() && !aiLoading ? 'var(--color-text-info)' : 'var(--color-text-secondary)',
+            borderRadius: '999px',
+            padding: '7px 12px',
+            cursor: form.description?.trim() && !aiLoading ? 'pointer' : 'not-allowed',
+            fontSize: 12,
+            fontWeight: 700
+          }}
+        >
+          {aiLoading ? 'Sugiriendo...' : 'Sugerir con IA'}
+        </button>
+        {aiFeedback && <span style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>{aiFeedback}</span>}
+      </div>
 
       {previewLabel && (
         <div style={{ marginBottom: 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, fontSize: 12, color: 'var(--color-text-secondary)', background: 'rgba(56,189,248,0.08)', border: '1px solid rgba(56,189,248,0.18)', borderRadius: 'var(--border-radius-md)', padding: '10px 12px' }}>

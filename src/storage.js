@@ -155,6 +155,30 @@ export async function createProfile(name) {
   return data.profile;
 }
 
+export async function parseTaskWithAI(text) {
+  const resp = await fetch('/api/ai/parse-task', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
+    body: JSON.stringify({ text }),
+  });
+  if (!resp.ok) {
+    let message = 'No se pudo parsear la tarea.';
+    try {
+      const data = await resp.json();
+      if (typeof data?.error === 'string') message = data.error;
+    } catch {
+      // Keep generic message when body is not JSON.
+    }
+    throw new Error(message);
+  }
+  const data = await resp.json();
+  return {
+    task: data?.task || null,
+    source: data?.source || 'fallback',
+  };
+}
+
 export async function loadData(profileId = null) {
   let localData = readLocalPayload(profileId);
 
