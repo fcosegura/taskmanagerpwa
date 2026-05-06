@@ -1,6 +1,6 @@
 // Service Worker — Task Manager PWA
 // Versión de caché: incrementar para forzar actualización
-const CACHE_NAME = 'taskmanager-v3';
+const CACHE_NAME = 'taskmanager-v4';
 
 // Recursos que se precargan en la instalación
 const PRECACHE_URLS = [
@@ -36,6 +36,12 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
+
+  // Nunca cachear API: siempre red para evitar respuestas stale en sync/workspaces.
+  if (url.pathname.startsWith('/api/')) {
+    event.respondWith(fetch(request));
+    return;
+  }
 
   // Solo interceptar peticiones same-origin
   if (url.origin !== location.origin) {
