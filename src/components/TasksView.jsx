@@ -137,7 +137,7 @@ export default function TasksView({
         <input
           value={quickText}
           onChange={(e) => setQuickText(e.target.value)}
-          placeholder="Ej: Revisar el reporte mañana..."
+          placeholder="Escribe una tarea y presiona Enter..."
           style={{ flex: 1, border: 'none', background: 'transparent', fontSize: 14, outline: 'none', color: 'var(--color-text-primary)' }}
         />
         <button

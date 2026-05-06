@@ -33,8 +33,10 @@ export default function App() {
   const [profiles, setProfiles] = useState([]);
   const [activeProfileId, setActiveProfileId] = useState(() => localStorage.getItem(ACTIVE_PROFILE_STORAGE_KEY) || null);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [showActionsMenu, setShowActionsMenu] = useState(false);
   const fileInputRef = useRef(null);
   const profileMenuRef = useRef(null);
+  const actionsMenuRef = useRef(null);
   const syncFeedbackTimerRef = useRef(null);
 
   useEffect(() => {
@@ -68,6 +70,9 @@ export default function App() {
     const onPointerDown = (event) => {
       if (!profileMenuRef.current?.contains(event.target)) {
         setShowProfileMenu(false);
+      }
+      if (!actionsMenuRef.current?.contains(event.target)) {
+        setShowActionsMenu(false);
       }
     };
     window.addEventListener('pointerdown', onPointerDown);
@@ -418,8 +423,23 @@ export default function App() {
           >
             {syncState === 'saving' ? 'Guardando...' : syncState === 'saved' ? 'Guardado' : syncState === 'error' ? 'Error al guardar' : ''}
           </div>
-          <button className="ghost-button hide-mobile" type="button" onClick={downloadBackup}>Exportar</button>
-          <button className="ghost-button hide-mobile" type="button" onClick={() => fileInputRef.current?.click()}>Importar</button>
+          <div className="actions-menu-wrap hide-mobile" ref={actionsMenuRef}>
+            <button
+              className="ghost-button"
+              type="button"
+              onClick={() => setShowActionsMenu((open) => !open)}
+              aria-haspopup="menu"
+              aria-expanded={showActionsMenu}
+            >
+              Acciones
+            </button>
+            {showActionsMenu && (
+              <div className="header-actions-menu" role="menu">
+                <button type="button" role="menuitem" onClick={() => { downloadBackup(); setShowActionsMenu(false); }}>Exportar backup</button>
+                <button type="button" role="menuitem" onClick={() => { fileInputRef.current?.click(); setShowActionsMenu(false); }}>Importar backup</button>
+              </div>
+            )}
+          </div>
           <button type="button"
             onClick={() => view === 'board'
               ? addBoardNote({ id: uid(), title: '', text: '', createdAt: new Date().toISOString(), x: 20 + Math.random() * 40, y: 20 + Math.random() * 40 })
@@ -440,7 +460,7 @@ export default function App() {
       <input ref={fileInputRef} type="file" accept="application/json" style={{ display: 'none' }} onChange={handleImportFile} />
 
       <main className="app-main">
-        <section className="overview-panel">
+        <section className="overview-panel compact">
           <div>
             <p className="eyebrow">Resumen</p>
             <h1>{view === 'calendar' ? 'Planifica la semana' : view === 'board' ? 'Ordena tus ideas' : 'Prioriza lo importante'}</h1>

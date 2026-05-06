@@ -5,6 +5,7 @@ import { parseTaskWithAI } from '../storage.js';
 
 export default function TaskModal({ task, categories, onSave, onDelete, onClose }) {
   const [form, setForm] = useState({ ...task, subtasks: task.subtasks || [], category: task.category || '', time: task.time || '' });
+  const [showAdvanced, setShowAdvanced] = useState(Boolean(task.id));
   const [subtaskText, setSubtaskText] = useState('');
   const [newCategory, setNewCategory] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
@@ -138,6 +139,25 @@ export default function TaskModal({ task, categories, onSave, onDelete, onClose 
         </div>
       )}
 
+      <button
+        type="button"
+        onClick={() => setShowAdvanced((prev) => !prev)}
+        style={{
+          border: 'none',
+          background: 'transparent',
+          color: 'var(--color-accent)',
+          fontSize: 12,
+          fontWeight: 700,
+          padding: 0,
+          marginBottom: 14,
+          cursor: 'pointer'
+        }}
+      >
+        {showAdvanced ? 'Ocultar opciones avanzadas' : 'Mostrar opciones avanzadas'}
+      </button>
+
+      {showAdvanced && (
+      <>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
         <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, color: 'var(--color-text-secondary)' }}>
           <span style={{ fontWeight: 500 }}>Categoría</span>
@@ -198,9 +218,15 @@ export default function TaskModal({ task, categories, onSave, onDelete, onClose 
           {STATUS.map((option) => <option key={option.v} value={option.v}>{option.label}</option>)}
         </select>
       </label>
+      </>
+      )}
 
       <div style={{ display: 'flex', gap: 10 }}>
-        <button type="button" onClick={onDelete} disabled={!onDelete} style={{ flex: 1, borderRadius: 'var(--border-radius-md)', border: '0.5px solid var(--color-border-secondary)', background: onDelete ? 'var(--color-background-danger)' : 'var(--color-background-secondary)', color: onDelete ? 'var(--color-text-danger)' : 'var(--color-text-secondary)', padding: '11px 0', cursor: onDelete ? 'pointer' : 'not-allowed' }}>Eliminar</button>
+        {onDelete ? (
+          <button type="button" onClick={onDelete} style={{ flex: 1, borderRadius: 'var(--border-radius-md)', border: '0.5px solid var(--color-border-secondary)', background: 'var(--color-background-danger)', color: 'var(--color-text-danger)', padding: '11px 0', cursor: 'pointer' }}>Eliminar</button>
+        ) : (
+          <button type="button" onClick={onClose} style={{ flex: 1, borderRadius: 'var(--border-radius-md)', border: '0.5px solid var(--color-border-secondary)', background: 'var(--color-background-secondary)', color: 'var(--color-text-secondary)', padding: '11px 0', cursor: 'pointer' }}>Cancelar</button>
+        )}
         <button type="submit" style={{ flex: 1, borderRadius: 'var(--border-radius-md)', border: 'none', background: 'var(--color-background-info)', color: 'var(--color-text-info)', fontWeight: 700, padding: '11px 0', cursor: 'pointer' }}>Guardar</button>
       </div>
     </form>
