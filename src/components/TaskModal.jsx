@@ -216,7 +216,7 @@ export default function TaskModal({ task, categories, onSave, onDelete, onClose 
           {form.subtasks.map((st, index) => (
             <div key={st.id}>
               {hoverSubtaskIndex === index && (
-                <div style={{ height: 6, borderRadius: 999, background: 'linear-gradient(90deg, rgba(37,99,235,0.2), rgba(37,99,235,0.7), rgba(37,99,235,0.2))', marginBottom: 6 }} />
+                <div className="subtask-drop-indicator" style={{ marginBottom: 6 }} />
               )}
               <div
                 draggable
@@ -256,7 +256,7 @@ export default function TaskModal({ task, categories, onSave, onDelete, onClose 
             </div>
           ))}
           {hoverSubtaskIndex === form.subtasks.length && (
-            <div style={{ height: 6, borderRadius: 999, background: 'linear-gradient(90deg, rgba(37,99,235,0.2), rgba(37,99,235,0.7), rgba(37,99,235,0.2))' }} />
+            <div className="subtask-drop-indicator" />
           )}
         </div>
       )}

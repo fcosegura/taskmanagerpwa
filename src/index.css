@@ -639,6 +639,25 @@ select:focus {
   box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.2);
 }
 
+.subtask-drop-indicator {
+  height: 6px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(37, 99, 235, 0.2), rgba(37, 99, 235, 0.7), rgba(37, 99, 235, 0.2));
+  box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.16);
+  animation: subtaskDropPulse 700ms ease-in-out infinite alternate;
+}
+
+@keyframes subtaskDropPulse {
+  from {
+    opacity: 0.65;
+    transform: scaleX(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+}
+
 .kanban-empty {
   border: 1px dashed rgba(148, 163, 184, 0.35);
   border-radius: 10px;

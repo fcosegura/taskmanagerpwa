@@ -108,7 +108,7 @@ export default function TaskRow({ task, onClick, onToggleDone, onToggleSubtaskDo
                 {task.subtasks.map((subtask, index) => (
                   <div key={subtask.id}>
                     {hoverSubtaskIndex === index && (
-                      <div style={{ height: 6, borderRadius: 999, background: 'linear-gradient(90deg, rgba(37,99,235,0.2), rgba(37,99,235,0.7), rgba(37,99,235,0.2))', marginBottom: 6 }} />
+                      <div className="subtask-drop-indicator" style={{ marginBottom: 6 }} />
                     )}
                     <div
                       draggable
@@ -177,7 +177,7 @@ export default function TaskRow({ task, onClick, onToggleDone, onToggleSubtaskDo
                   </div>
                 ))}
                 {hoverSubtaskIndex === (task.subtasks?.length || 0) && (
-                  <div style={{ height: 6, borderRadius: 999, background: 'linear-gradient(90deg, rgba(37,99,235,0.2), rgba(37,99,235,0.7), rgba(37,99,235,0.2))' }} />
+                  <div className="subtask-drop-indicator" />
                 )}
               </div>
             )}
