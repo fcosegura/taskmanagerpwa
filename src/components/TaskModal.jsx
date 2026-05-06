@@ -4,7 +4,7 @@ import { uid, fmtDate, parseDateTimeFromDescription, parseDescriptionDateResult,
 import { parseTaskWithAI } from '../storage.js';
 
 export default function TaskModal({ task, categories, onSave, onDelete, onClose }) {
-  const [form, setForm] = useState({ ...task, subtasks: task.subtasks || [], category: task.category || '', time: task.time || '' });
+  const [form, setForm] = useState({ ...task, subtasks: task.subtasks || [], category: task.category || '', time: task.time || '', hideInKanbanDone: Boolean(task.hideInKanbanDone) });
   const [showAdvanced, setShowAdvanced] = useState(Boolean(task.id));
   const [dragSubtaskIndex, setDragSubtaskIndex] = useState(null);
   const [hoverSubtaskIndex, setHoverSubtaskIndex] = useState(null);
@@ -282,6 +282,17 @@ export default function TaskModal({ task, categories, onSave, onDelete, onClose 
           {STATUS.map((option) => <option key={option.v} value={option.v}>{option.label}</option>)}
         </select>
       </label>
+      {form.status === 'done' && (
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 18, fontSize: 12, color: 'var(--color-text-secondary)', userSelect: 'none', cursor: 'pointer' }}>
+          <input
+            type="checkbox"
+            checked={Boolean(form.hideInKanbanDone)}
+            onChange={(e) => handleChange('hideInKanbanDone', e.target.checked)}
+            style={{ width: 16, height: 16, margin: 0 }}
+          />
+          Hide en columna Completado de Kanban
+        </label>
+      )}
       </>
       )}
 

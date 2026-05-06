@@ -74,6 +74,7 @@ function isValidTask(task) {
     typeof task.description === 'string' &&
     VALID_STATUS.has(task.status) &&
     VALID_PRIORITY.has(task.priority) &&
+    (task.hideInKanbanDone === undefined || typeof task.hideInKanbanDone === 'boolean') &&
     Array.isArray(task.subtasks) &&
     task.subtasks.every((st) => (
       st &&
@@ -150,6 +151,7 @@ async function ensureProfilesSchema(env) {
   await safeExec("CREATE INDEX IF NOT EXISTS idx_tasks_user_profile ON tasks(user_id, profile_id)");
   await safeExec("CREATE INDEX IF NOT EXISTS idx_notes_user_profile ON notes(user_id, profile_id)");
   await safeExec("CREATE INDEX IF NOT EXISTS idx_events_user_profile ON events(user_id, profile_id)");
+  await safeExec("ALTER TABLE tasks ADD COLUMN hide_in_kanban_done INTEGER DEFAULT 0");
 
   const hasProfileColumn = async (tableName) => {
     try {
@@ -450,6 +452,7 @@ export default {
           const parsedTasks = tasks.map((t) => ({
             ...t,
             id: unscopedEntityId(profileId, t.id),
+            hideInKanbanDone: Boolean(t.hide_in_kanban_done),
             subtasks: JSON.parse(t.subtasks || '[]')
           }));
           const parsedNotes = notes.map(({ created_at, updated_at, ...note }) => ({
@@ -481,8 +484,8 @@ export default {
           ];
 
           for (const t of tasks) {
-            batch.push(env.DB.prepare("INSERT OR REPLACE INTO tasks (id, user_id, profile_id, description, status, priority, category, date, time, subtasks) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-              .bind(scopedEntityId(syncProfileId, t.id), userId, syncProfileId, t.description, t.status, t.priority, t.category || null, t.date || null, t.time || null, JSON.stringify(t.subtasks || [])));
+            batch.push(env.DB.prepare("INSERT OR REPLACE INTO tasks (id, user_id, profile_id, description, status, priority, category, date, time, subtasks, hide_in_kanban_done) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+              .bind(scopedEntityId(syncProfileId, t.id), userId, syncProfileId, t.description, t.status, t.priority, t.category || null, t.date || null, t.time || null, JSON.stringify(t.subtasks || []), t.hideInKanbanDone ? 1 : 0));
           }
           for (const n of boardNotes) {
             batch.push(env.DB.prepare("INSERT OR REPLACE INTO notes (id, user_id, profile_id, title, text, x, y) VALUES (?, ?, ?, ?, ?, ?, ?)")
