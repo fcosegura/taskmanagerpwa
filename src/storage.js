@@ -213,12 +213,12 @@ export async function loadData(profileId = null) {
     } catch {
       // ignore non-json body
     }
-    return { ...localData, authenticated: true, profiles: [], activeProfileId: profileId, cloudError };
+    return { ...localData, authenticated: true, profiles: null, activeProfileId: profileId, cloudError };
   } catch (e) {
     console.warn("Error sincronizando con la nube:", e);
   }
 
-  return { ...localData, authenticated: false, profiles: [], activeProfileId: profileId, cloudError: null };
+  return { ...localData, authenticated: false, profiles: null, activeProfileId: profileId, cloudError: null };
 }
 
 export async function saveData(payload, authenticated = false, profileId = null) {

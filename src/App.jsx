@@ -48,7 +48,9 @@ export default function App() {
       setTasks(data.tasks);
       setBoardNotes(data.boardNotes);
       setEvents(data.events || []);
-      setProfiles(Array.isArray(data.profiles) ? data.profiles : []);
+      if (Array.isArray(data.profiles)) {
+        setProfiles(data.profiles);
+      }
       if (data.activeProfileId && data.activeProfileId !== activeProfileId) {
         setActiveProfileId(data.activeProfileId);
         localStorage.setItem(ACTIVE_PROFILE_STORAGE_KEY, data.activeProfileId);
