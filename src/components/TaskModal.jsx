@@ -108,7 +108,7 @@ export default function TaskModal({ task, categories, onSave, onDelete, onClose 
   const previewLabel = preview ? `Se creará para: ${fmtDate(preview.date)}${preview.time ? ` · ${preview.time}` : ''}` : null;
 
   return (
-    <form onSubmit={onSubmit} style={{ width: 'min(420px, 100%)', maxWidth: 'calc(100% - 32px)', background: 'var(--color-background-primary)', borderRadius: 'var(--border-radius-lg)', boxShadow: 'var(--shadow-card)', padding: 24, color: 'var(--color-text-primary)' }}>
+    <form className="liquid-glass-modal" onSubmit={onSubmit} style={{ width: 'min(420px, 100%)', maxWidth: 'calc(100% - 32px)', borderRadius: 'var(--border-radius-lg)', padding: 24, color: 'var(--color-text-primary)' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, gap: 12, flexWrap: 'wrap' }}>
         <div>
           <div style={{ fontSize: 18, fontWeight: 700 }}>{task.id ? 'Editar tarea' : 'Nueva tarea'}</div>
