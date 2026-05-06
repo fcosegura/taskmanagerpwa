@@ -54,6 +54,7 @@ function normalizeTask(task) {
     category: task.category || '',
     date: task.date || '',
     time: task.time || '',
+    hideInKanbanDone: Boolean(task.hideInKanbanDone),
   };
 }
 

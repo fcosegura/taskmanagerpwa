@@ -24,7 +24,21 @@ function KanbanTaskCard({ task, onEditTask, onDragStart, onDragEnd }) {
         gap: 8
       }}
     >
-      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-text-primary)' }}>{task.description}</div>
+      <div
+        style={{
+          fontSize: 13,
+          fontWeight: 700,
+          color: 'var(--color-text-primary)',
+          display: '-webkit-box',
+          WebkitLineClamp: 2,
+          WebkitBoxOrient: 'vertical',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          wordBreak: 'break-word'
+        }}
+      >
+        {task.description}
+      </div>
       {(task.date || totalSubtasks > 0) && (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
           <div style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>
@@ -61,7 +75,9 @@ export default function KanbanView({ tasks, onEditTask, onMoveTaskStatus }) {
 
   const groupedTasks = useMemo(() => (
     STATUS.reduce((accumulator, status) => {
-      accumulator[status.v] = tasks.filter((task) => task.status === status.v);
+      accumulator[status.v] = tasks.filter((task) => (
+        task.status === status.v && !(status.v === 'done' && task.hideInKanbanDone)
+      ));
       return accumulator;
     }, {})
   ), [tasks]);

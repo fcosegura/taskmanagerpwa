@@ -239,7 +239,7 @@ export default function App() {
     setModal(null);
   };
   const del = (id) => { setTasks((p) => p.filter((t) => t.id !== id)); setModal(null); };
-  const open = (init = {}) => setModal({ description: '', status: 'not_done', priority: 'medium', date: '', time: '', subtasks: [], category: '', ...init });
+  const open = (init = {}) => setModal({ description: '', status: 'not_done', priority: 'medium', date: '', time: '', subtasks: [], category: '', hideInKanbanDone: false, ...init });
 
   const addBoardNote = (note) => setBoardNotes((p) => [note, ...p]);
   const deleteBoardNote = (id) => setBoardNotes((p) => p.filter((note) => note.id !== id));
