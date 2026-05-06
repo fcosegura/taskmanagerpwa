@@ -29,11 +29,13 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [summaryFilter, setSummaryFilter] = useState('none');
   const [backupMessage, setBackupMessage] = useState('');
+  const [syncState, setSyncState] = useState('idle');
   const [profiles, setProfiles] = useState([]);
   const [activeProfileId, setActiveProfileId] = useState(() => localStorage.getItem(ACTIVE_PROFILE_STORAGE_KEY) || null);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const fileInputRef = useRef(null);
   const profileMenuRef = useRef(null);
+  const syncFeedbackTimerRef = useRef(null);
 
   useEffect(() => {
     localStorage.removeItem('userToken');
@@ -85,16 +87,30 @@ export default function App() {
     setEvents([]);
     setProfiles([]);
     setActiveProfileId(null);
+    setSyncState('idle');
     localStorage.removeItem(ACTIVE_PROFILE_STORAGE_KEY);
   };
 
   useEffect(() => {
     if (!ready || !authenticated || hydratedSession !== authenticated) return undefined;
     const timer = window.setTimeout(() => {
-      saveData({ tasks, boardNotes, events }, authenticated, activeProfileId);
+      setSyncState('saving');
+      saveData({ tasks, boardNotes, events }, authenticated, activeProfileId)
+        .then(() => {
+          setSyncState('saved');
+          if (syncFeedbackTimerRef.current) window.clearTimeout(syncFeedbackTimerRef.current);
+          syncFeedbackTimerRef.current = window.setTimeout(() => setSyncState('idle'), 1600);
+        })
+        .catch(() => {
+          setSyncState('error');
+        });
     }, 500);
     return () => window.clearTimeout(timer);
   }, [tasks, boardNotes, events, ready, authenticated, hydratedSession, activeProfileId]);
+
+  useEffect(() => () => {
+    if (syncFeedbackTimerRef.current) window.clearTimeout(syncFeedbackTimerRef.current);
+  }, []);
 
   useEffect(() => {
     const onKeyDown = (e) => { if (e.key === 'Escape') { setModal(null); setEventModal(null); } };
@@ -364,6 +380,12 @@ export default function App() {
         </div>
 
         <div className="header-actions">
+          <div
+            className={`sync-indicator${syncState !== 'idle' ? ' visible' : ''}${syncState === 'error' ? ' error' : ''}`}
+            aria-live="polite"
+          >
+            {syncState === 'saving' ? 'Guardando...' : syncState === 'saved' ? 'Guardado' : syncState === 'error' ? 'Error al guardar' : ''}
+          </div>
           <button className="ghost-button hide-mobile" type="button" onClick={downloadBackup}>Exportar</button>
           <button className="ghost-button hide-mobile" type="button" onClick={() => fileInputRef.current?.click()}>Importar</button>
           <button type="button"

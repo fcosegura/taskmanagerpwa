@@ -4,6 +4,25 @@ function profileStorageKey(profileId) {
   return profileId ? `${STORAGE_KEY}:${profileId}` : STORAGE_KEY;
 }
 
+function readLocalPayload(profileId) {
+  try {
+    const primaryRaw = localStorage.getItem(profileStorageKey(profileId));
+    if (primaryRaw) return normalizeDataPayload(JSON.parse(primaryRaw));
+  } catch (e) {
+    console.error("Error cargando local (perfil):", e);
+  }
+  if (profileId) {
+    // Compatibility fallback for pre-profile local data.
+    try {
+      const legacyRaw = localStorage.getItem(STORAGE_KEY);
+      if (legacyRaw) return normalizeDataPayload(JSON.parse(legacyRaw));
+    } catch (e) {
+      console.error("Error cargando local (legacy):", e);
+    }
+  }
+  return { tasks: [], boardNotes: [], events: [] };
+}
+
 export function isValidTask(task) {
   if (!task || typeof task !== 'object') return false;
   const { id, description, status, priority, subtasks, category, date, time } = task;
@@ -128,15 +147,7 @@ export async function createProfile(name) {
 }
 
 export async function loadData(profileId = null) {
-  let localData = { tasks: [], boardNotes: [], events: [] };
-  
-  // 1. Siempre cargar de local primero (rápido)
-  try {
-    const r = localStorage.getItem(profileStorageKey(profileId));
-    if (r) localData = normalizeDataPayload(JSON.parse(r));
-  } catch (e) {
-    console.error("Error cargando local:", e);
-  }
+  let localData = readLocalPayload(profileId);
 
   try {
     const query = profileId ? `?profileId=${encodeURIComponent(profileId)}` : '';
@@ -147,6 +158,8 @@ export async function loadData(profileId = null) {
       const resolvedProfileId = typeof cloudData.activeProfileId === 'string' ? cloudData.activeProfileId : profileId;
       // Mezclar o priorizar nube (aquí podrías añadir lógica de marcas de tiempo)
       localStorage.setItem(profileStorageKey(resolvedProfileId), JSON.stringify(safeCloudData));
+      // Keep legacy key updated for backwards compatibility and recovery.
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(safeCloudData));
       return {
         ...safeCloudData,
         authenticated: true,
@@ -168,6 +181,7 @@ export async function saveData(payload, authenticated = false, profileId = null)
   // 1. Guardar local siempre
   try {
     localStorage.setItem(profileStorageKey(profileId), JSON.stringify(payload));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
   } catch {
     // El guardado local puede fallar por cuota o modo privado; la nube sigue siendo el respaldo.
   }

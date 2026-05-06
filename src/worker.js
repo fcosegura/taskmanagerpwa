@@ -134,18 +134,22 @@ function normalizeSyncBody(body) {
 }
 
 async function ensureProfilesSchema(env) {
-  await env.DB.batch([
-    env.DB.prepare("CREATE TABLE IF NOT EXISTS profiles (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP)"),
-    env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_profiles_user ON profiles(user_id)"),
-    env.DB.prepare("ALTER TABLE tasks ADD COLUMN profile_id TEXT"),
-    env.DB.prepare("ALTER TABLE notes ADD COLUMN profile_id TEXT"),
-    env.DB.prepare("ALTER TABLE events ADD COLUMN profile_id TEXT"),
-    env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_tasks_user_profile ON tasks(user_id, profile_id)"),
-    env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_notes_user_profile ON notes(user_id, profile_id)"),
-    env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_events_user_profile ON events(user_id, profile_id)")
-  ]).catch(() => {
-    // ALTER TABLE can fail after first migration; keep startup resilient.
-  });
+  const safeExec = async (statement, ...bindings) => {
+    try {
+      await env.DB.prepare(statement).bind(...bindings).run();
+    } catch {
+      // Keep schema bootstrap resilient across mixed DB versions.
+    }
+  };
+
+  await safeExec("CREATE TABLE IF NOT EXISTS profiles (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP)");
+  await safeExec("CREATE INDEX IF NOT EXISTS idx_profiles_user ON profiles(user_id)");
+  await safeExec("ALTER TABLE tasks ADD COLUMN profile_id TEXT");
+  await safeExec("ALTER TABLE notes ADD COLUMN profile_id TEXT");
+  await safeExec("ALTER TABLE events ADD COLUMN profile_id TEXT");
+  await safeExec("CREATE INDEX IF NOT EXISTS idx_tasks_user_profile ON tasks(user_id, profile_id)");
+  await safeExec("CREATE INDEX IF NOT EXISTS idx_notes_user_profile ON notes(user_id, profile_id)");
+  await safeExec("CREATE INDEX IF NOT EXISTS idx_events_user_profile ON events(user_id, profile_id)");
 }
 
 async function ensureDefaultProfile(env, userId) {
