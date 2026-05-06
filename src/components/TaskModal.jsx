@@ -7,6 +7,7 @@ export default function TaskModal({ task, categories, onSave, onDelete, onClose 
   const [form, setForm] = useState({ ...task, subtasks: task.subtasks || [], category: task.category || '', time: task.time || '' });
   const [showAdvanced, setShowAdvanced] = useState(Boolean(task.id));
   const [dragSubtaskIndex, setDragSubtaskIndex] = useState(null);
+  const [hoverSubtaskIndex, setHoverSubtaskIndex] = useState(null);
   const [subtaskText, setSubtaskText] = useState('');
   const [newCategory, setNewCategory] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
@@ -195,38 +196,68 @@ export default function TaskModal({ task, categories, onSave, onDelete, onClose 
       </div>
 
       {form.subtasks?.length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 14, maxHeight: 180, overflowY: 'auto' }}>
+        <div
+          style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 14, maxHeight: 180, overflowY: 'auto' }}
+          onDragOver={(e) => {
+            e.preventDefault();
+            if (hoverSubtaskIndex === null || hoverSubtaskIndex > form.subtasks.length) {
+              setHoverSubtaskIndex(form.subtasks.length);
+            }
+          }}
+          onDrop={(e) => {
+            e.preventDefault();
+            if (dragSubtaskIndex === null) return;
+            reorderSubtasks(dragSubtaskIndex, form.subtasks.length);
+            setDragSubtaskIndex(null);
+            setHoverSubtaskIndex(null);
+          }}
+          onDragLeave={() => setHoverSubtaskIndex(null)}
+        >
           {form.subtasks.map((st, index) => (
-            <div
-              key={st.id}
-              draggable
-              onDragStart={() => setDragSubtaskIndex(index)}
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={(e) => {
-                e.preventDefault();
-                if (dragSubtaskIndex === null || dragSubtaskIndex === index) return;
-                reorderSubtasks(dragSubtaskIndex, index);
-                setDragSubtaskIndex(null);
-              }}
-              onDragEnd={() => setDragSubtaskIndex(null)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-                padding: '10px 12px',
-                borderRadius: 'var(--border-radius-md)',
-                background: dragSubtaskIndex === index ? 'rgba(23, 107, 135, 0.08)' : 'var(--color-background-secondary)',
-                border: '0.5px solid var(--color-border-tertiary)'
-              }}
-            >
-              <span title="Arrastra para reordenar" style={{ color: 'var(--color-text-secondary)', cursor: 'grab', fontSize: 13 }}>⋮⋮</span>
-              <button type="button" onClick={() => toggleSubtask(st.id)} aria-label={st.done ? 'Marcar subtarea como pendiente' : 'Marcar subtarea como completa'} style={{ width: 26, height: 26, borderRadius: 999, border: '1px solid var(--color-border-tertiary)', background: st.done ? 'var(--color-background-success)' : 'var(--color-background-primary)', color: st.done ? 'var(--color-text-success)' : 'var(--color-text-secondary)', display: 'grid', placeItems: 'center', cursor: 'pointer' }}>
-                {st.done ? '✓' : '○'}
-              </button>
-              <div style={{ flex: 1, fontSize: 13, color: st.done ? 'var(--color-text-secondary)' : 'var(--color-text-primary)', textDecoration: st.done ? 'line-through' : 'none' }}>{st.text}</div>
-              <button type="button" onClick={() => removeSubtask(st.id)} aria-label="Eliminar subtarea" style={{ border: 'none', background: 'transparent', color: 'var(--color-text-secondary)', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>×</button>
+            <div key={st.id}>
+              {hoverSubtaskIndex === index && (
+                <div style={{ height: 6, borderRadius: 999, background: 'linear-gradient(90deg, rgba(37,99,235,0.2), rgba(37,99,235,0.7), rgba(37,99,235,0.2))', marginBottom: 6 }} />
+              )}
+              <div
+                draggable
+                onDragStart={() => setDragSubtaskIndex(index)}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  if (hoverSubtaskIndex !== index) setHoverSubtaskIndex(index);
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  if (dragSubtaskIndex === null || dragSubtaskIndex === index) return;
+                  reorderSubtasks(dragSubtaskIndex, index);
+                  setDragSubtaskIndex(null);
+                  setHoverSubtaskIndex(null);
+                }}
+                onDragEnd={() => {
+                  setDragSubtaskIndex(null);
+                  setHoverSubtaskIndex(null);
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  padding: '10px 12px',
+                  borderRadius: 'var(--border-radius-md)',
+                  background: dragSubtaskIndex === index ? 'rgba(23, 107, 135, 0.08)' : 'var(--color-background-secondary)',
+                  border: '0.5px solid var(--color-border-tertiary)'
+                }}
+              >
+                <span title="Arrastra para reordenar" style={{ color: 'var(--color-text-secondary)', cursor: 'grab', fontSize: 13 }}>⋮⋮</span>
+                <button type="button" onClick={() => toggleSubtask(st.id)} aria-label={st.done ? 'Marcar subtarea como pendiente' : 'Marcar subtarea como completa'} style={{ width: 26, height: 26, borderRadius: 999, border: '1px solid var(--color-border-tertiary)', background: st.done ? 'var(--color-background-success)' : 'var(--color-background-primary)', color: st.done ? 'var(--color-text-success)' : 'var(--color-text-secondary)', display: 'grid', placeItems: 'center', cursor: 'pointer' }}>
+                  {st.done ? '✓' : '○'}
+                </button>
+                <div style={{ flex: 1, fontSize: 13, color: st.done ? 'var(--color-text-secondary)' : 'var(--color-text-primary)', textDecoration: st.done ? 'line-through' : 'none' }}>{st.text}</div>
+                <button type="button" onClick={() => removeSubtask(st.id)} aria-label="Eliminar subtarea" style={{ border: 'none', background: 'transparent', color: 'var(--color-text-secondary)', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>×</button>
+              </div>
             </div>
           ))}
+          {hoverSubtaskIndex === form.subtasks.length && (
+            <div style={{ height: 6, borderRadius: 999, background: 'linear-gradient(90deg, rgba(37,99,235,0.2), rgba(37,99,235,0.7), rgba(37,99,235,0.2))' }} />
+          )}
         </div>
       )}
 
