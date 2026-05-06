@@ -164,6 +164,13 @@ select:focus {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex: 1;
+}
+
+.workspace-option-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .workspace-option.active,
@@ -176,6 +183,28 @@ select:focus {
   margin-top: 4px;
   border-top: var(--surface-border);
   padding-top: 10px;
+}
+
+.workspace-delete {
+  border: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.workspace-delete:hover:not(:disabled) {
+  background: rgba(194, 65, 75, 0.1);
+  color: var(--color-text-danger);
+}
+
+.workspace-delete:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
 }
 
 .brand-copy {

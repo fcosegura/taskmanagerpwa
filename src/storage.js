@@ -155,6 +155,26 @@ export async function createProfile(name) {
   return data.profile;
 }
 
+export async function deleteProfile(profileId) {
+  const resp = await fetch('/api/profiles/delete', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
+    body: JSON.stringify({ profileId }),
+  });
+  if (!resp.ok) {
+    let message = 'No se pudo borrar el perfil.';
+    try {
+      const data = await resp.json();
+      if (typeof data?.error === 'string') message = data.error;
+    } catch {
+      // Keep generic fallback.
+    }
+    throw new Error(message);
+  }
+  return resp.json();
+}
+
 export async function parseTaskWithAI(text) {
   const resp = await fetch('/api/ai/parse-task', {
     method: 'POST',

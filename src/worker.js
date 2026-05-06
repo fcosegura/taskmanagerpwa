@@ -397,6 +397,36 @@ export default {
           return json({ profile: newProfile });
         }
 
+        if (request.method === 'POST' && path === '/profiles/delete') {
+          const body = await request.json();
+          const targetProfileId = typeof body?.profileId === 'string' ? body.profileId : '';
+          if (!targetProfileId) return json({ error: 'profileId inválido' }, { status: 400 });
+
+          const { results: userProfiles } = await env.DB.prepare(
+            "SELECT id, name, created_at FROM profiles WHERE user_id = ? ORDER BY created_at ASC"
+          ).bind(userId).all();
+
+          const existing = userProfiles.find((p) => p.id === targetProfileId);
+          if (!existing) return json({ error: 'El workspace no existe.' }, { status: 404 });
+          if (userProfiles.length <= 1) {
+            return json({ error: 'No puedes borrar el único workspace.' }, { status: 400 });
+          }
+
+          await env.DB.batch([
+            env.DB.prepare("DELETE FROM tasks WHERE user_id = ? AND profile_id = ?").bind(userId, targetProfileId),
+            env.DB.prepare("DELETE FROM notes WHERE user_id = ? AND profile_id = ?").bind(userId, targetProfileId),
+            env.DB.prepare("DELETE FROM events WHERE user_id = ? AND profile_id = ?").bind(userId, targetProfileId),
+            env.DB.prepare("DELETE FROM profiles WHERE user_id = ? AND id = ?").bind(userId, targetProfileId)
+          ]);
+
+          const { results: remainingProfiles } = await env.DB.prepare(
+            "SELECT id, name, created_at, updated_at FROM profiles WHERE user_id = ? ORDER BY created_at ASC"
+          ).bind(userId).all();
+
+          const fallbackProfileId = remainingProfiles[0]?.id || null;
+          return json({ success: true, profiles: remainingProfiles, activeProfileId: fallbackProfileId });
+        }
+
         if (request.method === 'GET' && path === '/data') {
           const { results: profiles } = await env.DB.prepare(
             "SELECT id, name, created_at, updated_at FROM profiles WHERE user_id = ? ORDER BY created_at ASC"

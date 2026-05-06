@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { P_ORDER } from './constants.js';
 import { uid, toDateStr, parseDateTimeFromDescription, parseDescriptionDateResult, cleanDescriptionSegment } from './utils.jsx';
-import { loadData, saveData, validateBackupPayload, normalizeDataPayload, loginWithGoogleCredential, logoutSession, createProfile, parseTaskWithAI } from './storage.js';
+import { loadData, saveData, validateBackupPayload, normalizeDataPayload, loginWithGoogleCredential, logoutSession, createProfile, deleteProfile, parseTaskWithAI } from './storage.js';
 import TasksView from './components/TasksView.jsx';
 import CalendarView from './components/CalendarView.jsx';
 import BoardView from './components/BoardView.jsx';
@@ -297,6 +297,32 @@ export default function App() {
     }
   };
 
+  const handleDeleteProfile = async (profile) => {
+    if (!profile?.id) return;
+    if (profiles.length <= 1) {
+      setBackupMessage('No puedes borrar el unico workspace.');
+      setTimeout(() => setBackupMessage(''), 4000);
+      return;
+    }
+    const confirmed = window.confirm(`Vas a borrar "${profile.name}" y todas sus tareas, notas y eventos. Esta accion no se puede deshacer.\n\nDeseas continuar?`);
+    if (!confirmed) return;
+    try {
+      const result = await deleteProfile(profile.id);
+      if (Array.isArray(result?.profiles)) {
+        setProfiles(result.profiles);
+      }
+      const nextProfileId = typeof result?.activeProfileId === 'string' ? result.activeProfileId : null;
+      if (nextProfileId) {
+        handleSelectProfile(nextProfileId);
+      }
+      setBackupMessage(`Workspace "${profile.name}" eliminado.`);
+      setTimeout(() => setBackupMessage(''), 4500);
+    } catch (error) {
+      setBackupMessage(error.message || 'No se pudo borrar el workspace.');
+      setTimeout(() => setBackupMessage(''), 5000);
+    }
+  };
+
   const y = calDate.getFullYear(), mo = calDate.getMonth();
   const dIM = new Date(y, mo + 1, 0).getDate();
   const fD = new Date(y, mo, 1).getDay();
@@ -383,17 +409,28 @@ export default function App() {
             {showProfileMenu && (
               <div className="workspace-menu" role="menu">
                 {profiles.map((profile) => (
-                  <button
-                    key={profile.id}
-                    type="button"
-                    role="menuitemradio"
-                    aria-checked={profile.id === activeProfileId}
-                    className={`workspace-option${profile.id === activeProfileId ? ' active' : ''}`}
-                    onClick={() => handleSelectProfile(profile.id)}
-                  >
-                    <span>{profile.name}</span>
-                    {profile.id === activeProfileId && <span>✓</span>}
-                  </button>
+                  <div key={profile.id} className="workspace-option-row">
+                    <button
+                      type="button"
+                      role="menuitemradio"
+                      aria-checked={profile.id === activeProfileId}
+                      className={`workspace-option${profile.id === activeProfileId ? ' active' : ''}`}
+                      onClick={() => handleSelectProfile(profile.id)}
+                    >
+                      <span>{profile.name}</span>
+                      {profile.id === activeProfileId && <span>✓</span>}
+                    </button>
+                    <button
+                      type="button"
+                      className="workspace-delete"
+                      aria-label={`Borrar workspace ${profile.name}`}
+                      title={`Borrar workspace ${profile.name}`}
+                      onClick={() => handleDeleteProfile(profile)}
+                      disabled={profiles.length <= 1}
+                    >
+                      ×
+                    </button>
+                  </div>
                 ))}
                 <button type="button" className="workspace-create" onClick={handleCreateProfile}>+ Nuevo workspace</button>
               </div>
