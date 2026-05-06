@@ -7,15 +7,33 @@ export default function TasksView({
   tasks, total, filter, setFilter, searchQuery, setSearchQuery,
   categoryFilter, setCategoryFilter, categories,
   statusCounts, categoryCounts,
-  onEdit, onToggleDone, onQuickAdd,
+  onEdit, onToggleDone, onQuickAdd, onQuickSuggest,
 }) {
   const [quickText, setQuickText] = useState('');
   const [showFilters, setShowFilters] = useState(false);
+  const [quickAiLoading, setQuickAiLoading] = useState(false);
+  const [quickFeedback, setQuickFeedback] = useState('');
 
   const handleQuickSubmit = (e) => {
     e.preventDefault();
     onQuickAdd(quickText);
     setQuickText('');
+    setQuickFeedback('');
+  };
+
+  const handleQuickAISubmit = async () => {
+    if (!quickText.trim() || quickAiLoading || !onQuickSuggest) return;
+    setQuickAiLoading(true);
+    setQuickFeedback('');
+    try {
+      await onQuickSuggest(quickText);
+      setQuickText('');
+      setQuickFeedback('Tarea creada con sugerencia IA.');
+    } catch (error) {
+      setQuickFeedback(error.message || 'No se pudo sugerir la tarea.');
+    } finally {
+      setQuickAiLoading(false);
+    }
   };
 
   const cnt = { ...statusCounts };
@@ -123,6 +141,14 @@ export default function TasksView({
           style={{ flex: 1, border: 'none', background: 'transparent', fontSize: 14, outline: 'none', color: 'var(--color-text-primary)' }}
         />
         <button
+          type="button"
+          onClick={handleQuickAISubmit}
+          disabled={!quickText.trim() || quickAiLoading}
+          style={{ background: quickText.trim() && !quickAiLoading ? 'var(--color-background-info)' : 'var(--color-background-secondary)', color: quickText.trim() && !quickAiLoading ? 'var(--color-text-info)' : 'var(--color-text-secondary)', border: 'none', padding: '10px 14px', borderRadius: 999, fontSize: 12, fontWeight: 700, cursor: quickText.trim() && !quickAiLoading ? 'pointer' : 'not-allowed', transition: 'all 0.2s' }}
+        >
+          {quickAiLoading ? 'IA...' : 'IA'}
+        </button>
+        <button
           type="submit"
           disabled={!quickText.trim()}
           style={{ background: quickText.trim() ? 'var(--color-accent)' : 'var(--color-background-secondary)', color: quickText.trim() ? 'white' : 'var(--color-text-secondary)', border: 'none', padding: '10px 20px', borderRadius: 999, fontSize: 13, fontWeight: 700, cursor: quickText.trim() ? 'pointer' : 'not-allowed', transition: 'all 0.2s' }}
@@ -130,6 +156,9 @@ export default function TasksView({
           Añadir
         </button>
       </form>
+      {quickFeedback && (
+        <div style={{ marginTop: 8, fontSize: 12, color: 'var(--color-text-secondary)' }}>{quickFeedback}</div>
+      )}
     </div>
   );
 }

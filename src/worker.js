@@ -190,6 +190,97 @@ function buildProfileId(userId, name) {
   return `${userId}:${slug}:${Date.now().toString(36)}`;
 }
 
+function normalizePriority(priority) {
+  if (typeof priority !== 'string') return 'medium';
+  const cleaned = priority.toLowerCase().trim();
+  if (['critical', 'critica', 'cr-itica', 'crítica'].includes(cleaned)) return 'critical';
+  if (['high', 'alta', 'urgent', 'urgente'].includes(cleaned)) return 'high';
+  if (['medium', 'media', 'normal'].includes(cleaned)) return 'medium';
+  if (['low', 'baja'].includes(cleaned)) return 'low';
+  return 'medium';
+}
+
+function extractTags(text) {
+  if (typeof text !== 'string') return [];
+  const tags = new Set();
+  const lower = text.toLowerCase();
+  if (/(cliente|meeting|reunion|reunión|equipo|trabajo)/.test(lower)) tags.add('trabajo');
+  if (/(casa|hogar|familia|personal)/.test(lower)) tags.add('personal');
+  if (/(salud|medico|medico|doctor|ejercicio)/.test(lower)) tags.add('salud');
+  for (const match of text.matchAll(/#([a-z0-9_-]{2,20})/gi)) {
+    tags.add(match[1].toLowerCase());
+  }
+  return [...tags].slice(0, 5);
+}
+
+function stripNoise(text) {
+  return text
+    .replace(/\s+/g, ' ')
+    .replace(/(^|[\s,])(urgente|urgent|alta prioridad)(?=$|[\s,])/gi, ' ')
+    .replace(/(^|[\s,])(prioridad|priority)\s*[:=-]?\s*(low|medium|high|critical|baja|media|alta)/gi, ' ')
+    .trim();
+}
+
+function parseTaskFallback(input) {
+  const text = (input || '').trim();
+  const maxLen = 350;
+  const truncated = text.length > maxLen ? text.slice(0, maxLen) : text;
+  const lower = truncated.toLowerCase();
+  const explicitPriority =
+    /\b(urgente|urgent)\b/.test(lower) ? 'high' :
+    (/\b(critical|critica|crítica)\b/.test(lower) ? 'critical' : null);
+  const priorityMatch = lower.match(/\b(?:prioridad|priority)\s*[:=-]?\s*(low|medium|high|critical|baja|media|alta)\b/);
+  const priority = normalizePriority(priorityMatch?.[1] || explicitPriority || 'medium');
+  const title = stripNoise(truncated).replace(/[.,;:\- ]+$/g, '') || truncated || 'Nueva tarea';
+  return {
+    title: title.slice(0, 120),
+    dueDate: null,
+    priority,
+    tags: extractTags(truncated)
+  };
+}
+
+function sanitizeParsedTask(parsed, fallbackText) {
+  const fb = parseTaskFallback(fallbackText);
+  if (!parsed || typeof parsed !== 'object') return fb;
+  const title =
+    typeof parsed.title === 'string' && parsed.title.trim()
+      ? parsed.title.trim().slice(0, 120)
+      : fb.title;
+  const dueDate = typeof parsed.dueDate === 'string' && parsed.dueDate.trim() ? parsed.dueDate.trim() : null;
+  const priority = normalizePriority(parsed.priority || fb.priority);
+  const tags = Array.isArray(parsed.tags)
+    ? [...new Set(parsed.tags.filter((t) => typeof t === 'string').map((t) => t.trim().toLowerCase()).filter(Boolean))].slice(0, 5)
+    : fb.tags;
+  return { title, dueDate, priority, tags };
+}
+
+async function parseTaskWithAi(input, env) {
+  if (!env?.AI?.run) return null;
+  const prompt = [
+    'Extrae una tarea de texto libre y responde SOLO JSON valido.',
+    'Formato exacto: {"title":"string","dueDate":"YYYY-MM-DDTHH:mm:ssZ|null","priority":"low|medium|high|critical","tags":["tag1"]}',
+    'Si no hay fecha clara, usar null en dueDate.',
+    `Texto: ${input}`
+  ].join('\n');
+  const result = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
+    messages: [{ role: 'user', content: prompt }],
+    max_tokens: 140,
+    temperature: 0.1
+  });
+  const raw = typeof result?.response === 'string' ? result.response.trim() : '';
+  if (!raw) return null;
+  const jsonStart = raw.indexOf('{');
+  const jsonEnd = raw.lastIndexOf('}');
+  if (jsonStart === -1 || jsonEnd === -1 || jsonEnd <= jsonStart) return null;
+  const maybeJson = raw.slice(jsonStart, jsonEnd + 1);
+  try {
+    return JSON.parse(maybeJson);
+  } catch {
+    return null;
+  }
+}
+
 async function verifyGoogleToken(token, env) {
   if (!token) return null;
   const googleResp = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${token}`);
@@ -242,6 +333,27 @@ export default {
         await ensureProfilesSchema(env);
         const requestedProfileId = url.searchParams.get('profileId');
         const profileId = await resolveProfileId(env, userId, requestedProfileId);
+
+        if (request.method === 'POST' && path === '/ai/parse-task') {
+          let body = null;
+          try {
+            body = await request.json();
+          } catch {
+            return json({ error: 'Body inválido' }, { status: 400 });
+          }
+          const text = typeof body?.text === 'string' ? body.text.trim() : '';
+          if (!text) return json({ error: 'text es requerido' }, { status: 400 });
+          if (text.length > 500) return json({ error: 'text demasiado largo (max 500)' }, { status: 400 });
+
+          const fallback = parseTaskFallback(text);
+          try {
+            const aiParsed = await parseTaskWithAi(text, env);
+            if (!aiParsed) return json({ task: fallback, source: 'fallback' });
+            return json({ task: sanitizeParsedTask(aiParsed, text), source: 'ai' });
+          } catch {
+            return json({ task: fallback, source: 'fallback' });
+          }
+        }
 
         if (request.method === 'POST' && path === '/profiles') {
           const body = await request.json();

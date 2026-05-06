@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { P_ORDER } from './constants.js';
 import { uid, toDateStr, parseDateTimeFromDescription, parseDescriptionDateResult, cleanDescriptionSegment } from './utils.jsx';
-import { loadData, saveData, validateBackupPayload, normalizeDataPayload, loginWithGoogleCredential, logoutSession, createProfile } from './storage.js';
+import { loadData, saveData, validateBackupPayload, normalizeDataPayload, loginWithGoogleCredential, logoutSession, createProfile, parseTaskWithAI } from './storage.js';
 import TasksView from './components/TasksView.jsx';
 import CalendarView from './components/CalendarView.jsx';
 import BoardView from './components/BoardView.jsx';
@@ -204,6 +204,30 @@ export default function App() {
       }
     }
     upsert({ description: cleaned || description.trim(), date: parsed?.date || '', time: parsed?.time || '', status: 'not_done', priority: 'medium', subtasks: [], category: '' });
+  };
+
+  const handleQuickSuggest = async (description) => {
+    const text = (description || '').trim();
+    if (!text) return;
+    const { task: parsed } = await parseTaskWithAI(text);
+    const fallbackParsed = parseDateTimeFromDescription(text);
+    const due = typeof parsed?.dueDate === 'string' ? new Date(parsed.dueDate) : null;
+    const hasValidDue = due instanceof Date && !Number.isNaN(due.getTime());
+    const category = Array.isArray(parsed?.tags) && parsed.tags.length > 0 ? String(parsed.tags[0]) : '';
+    const cleanDescription = typeof parsed?.title === 'string' && parsed.title.trim() ? parsed.title.trim() : text;
+    upsert({
+      description: cleanDescription,
+      date: hasValidDue
+        ? `${due.getFullYear()}-${String(due.getMonth() + 1).padStart(2, '0')}-${String(due.getDate()).padStart(2, '0')}`
+        : (fallbackParsed?.date || ''),
+      time: hasValidDue
+        ? `${String(due.getHours()).padStart(2, '0')}:${String(due.getMinutes()).padStart(2, '0')}`
+        : (fallbackParsed?.time || ''),
+      status: 'not_done',
+      priority: ['low', 'medium', 'high', 'critical'].includes(parsed?.priority) ? parsed.priority : 'medium',
+      subtasks: [],
+      category
+    });
   };
 
   const handleSummaryMetricClick = (metricKey) => {
@@ -440,7 +464,7 @@ export default function App() {
               searchQuery={searchQuery} setSearchQuery={setSearchQuery}
               categoryFilter={categoryFilter} setCategoryFilter={setCategoryFilter}
               categories={categories} statusCounts={statusCounts} categoryCounts={categoryCounts}
-              onEdit={(t) => setModal(t)} onToggleDone={toggleDone} onQuickAdd={handleQuickAdd}
+              onEdit={(t) => setModal(t)} onToggleDone={toggleDone} onQuickAdd={handleQuickAdd} onQuickSuggest={handleQuickSuggest}
             />
           : view === 'calendar'
             ? <CalendarView

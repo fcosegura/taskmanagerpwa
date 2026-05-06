@@ -5,6 +5,9 @@ compatibility_date = "2024-04-03"
 [vars]
 GOOGLE_CLIENT_ID = "365692313483-g4tv5i5agl4egs67h980vn6ce977p7df.apps.googleusercontent.com"
 
+[ai]
+binding = "AI"
+
 [assets]
 directory = "./dist"
 binding = "ASSETS"
