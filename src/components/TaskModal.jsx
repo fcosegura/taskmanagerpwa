@@ -6,6 +6,7 @@ import { parseTaskWithAI } from '../storage.js';
 export default function TaskModal({ task, categories, onSave, onDelete, onClose }) {
   const [form, setForm] = useState({ ...task, subtasks: task.subtasks || [], category: task.category || '', time: task.time || '' });
   const [showAdvanced, setShowAdvanced] = useState(Boolean(task.id));
+  const [dragSubtaskIndex, setDragSubtaskIndex] = useState(null);
   const [subtaskText, setSubtaskText] = useState('');
   const [newCategory, setNewCategory] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
@@ -81,6 +82,16 @@ export default function TaskModal({ task, categories, onSave, onDelete, onClose 
 
   const removeSubtask = (id) => {
     setForm((prev) => ({ ...prev, subtasks: prev.subtasks.filter((st) => st.id !== id) }));
+  };
+  const reorderSubtasks = (fromIndex, toIndex) => {
+    if (fromIndex === toIndex) return;
+    setForm((prev) => {
+      const subtasks = [...(prev.subtasks || [])];
+      if (fromIndex < 0 || fromIndex >= subtasks.length || toIndex < 0 || toIndex >= subtasks.length) return prev;
+      const [moved] = subtasks.splice(fromIndex, 1);
+      subtasks.splice(toIndex, 0, moved);
+      return { ...prev, subtasks };
+    });
   };
 
   const onSubmit = (e) => {
@@ -185,8 +196,30 @@ export default function TaskModal({ task, categories, onSave, onDelete, onClose 
 
       {form.subtasks?.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 14, maxHeight: 180, overflowY: 'auto' }}>
-          {form.subtasks.map((st) => (
-            <div key={st.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 'var(--border-radius-md)', background: 'var(--color-background-secondary)', border: '0.5px solid var(--color-border-tertiary)' }}>
+          {form.subtasks.map((st, index) => (
+            <div
+              key={st.id}
+              draggable
+              onDragStart={() => setDragSubtaskIndex(index)}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                e.preventDefault();
+                if (dragSubtaskIndex === null || dragSubtaskIndex === index) return;
+                reorderSubtasks(dragSubtaskIndex, index);
+                setDragSubtaskIndex(null);
+              }}
+              onDragEnd={() => setDragSubtaskIndex(null)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                padding: '10px 12px',
+                borderRadius: 'var(--border-radius-md)',
+                background: dragSubtaskIndex === index ? 'rgba(23, 107, 135, 0.08)' : 'var(--color-background-secondary)',
+                border: '0.5px solid var(--color-border-tertiary)'
+              }}
+            >
+              <span title="Arrastra para reordenar" style={{ color: 'var(--color-text-secondary)', cursor: 'grab', fontSize: 13 }}>⋮⋮</span>
               <button type="button" onClick={() => toggleSubtask(st.id)} aria-label={st.done ? 'Marcar subtarea como pendiente' : 'Marcar subtarea como completa'} style={{ width: 26, height: 26, borderRadius: 999, border: '1px solid var(--color-border-tertiary)', background: st.done ? 'var(--color-background-success)' : 'var(--color-background-primary)', color: st.done ? 'var(--color-text-success)' : 'var(--color-text-secondary)', display: 'grid', placeItems: 'center', cursor: 'pointer' }}>
                 {st.done ? '✓' : '○'}
               </button>

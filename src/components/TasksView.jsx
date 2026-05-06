@@ -7,7 +7,7 @@ export default function TasksView({
   tasks, total, filter, setFilter, searchQuery, setSearchQuery,
   categoryFilter, setCategoryFilter, categories,
   statusCounts, categoryCounts,
-  onEdit, onToggleDone, onQuickAdd, onQuickSuggest,
+  onEdit, onToggleDone, onToggleSubtaskDone, onReorderSubtasks, onQuickAdd, onQuickSuggest,
 }) {
   const [quickText, setQuickText] = useState('');
   const [showFilters, setShowFilters] = useState(false);
@@ -108,7 +108,16 @@ export default function TasksView({
         </div>
       ) : (
         <div className="task-list" style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-          {tasks.map((t) => <TaskRow key={t.id} task={t} onClick={() => onEdit(t)} onToggleDone={onToggleDone} />)}
+          {tasks.map((t) => (
+            <TaskRow
+              key={t.id}
+              task={t}
+              onClick={() => onEdit(t)}
+              onToggleDone={onToggleDone}
+              onToggleSubtaskDone={onToggleSubtaskDone}
+              onReorderSubtasks={onReorderSubtasks}
+            />
+          ))}
         </div>
       )}
 

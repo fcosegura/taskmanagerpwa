@@ -3,8 +3,9 @@ import { STATUS, PRIORITY } from '../constants.js';
 import { fmtDate, linkifyText } from '../utils.jsx';
 import { Pill, CategoryPill } from './shared/index.jsx';
 
-export default function TaskRow({ task, onClick, onToggleDone }) {
+export default function TaskRow({ task, onClick, onToggleDone, onToggleSubtaskDone, onReorderSubtasks }) {
   const [showSubtasks, setShowSubtasks] = useState(false);
+  const [dragIndex, setDragIndex] = useState(null);
   const s = STATUS.find((x) => x.v === task.status) || STATUS[0];
   const p = PRIORITY.find((x) => x.v === task.priority) || PRIORITY[1];
   const subtaskCount = task.subtasks?.length || 0;
@@ -66,7 +67,9 @@ export default function TaskRow({ task, onClick, onToggleDone }) {
                   style={{
                     display: 'inline-flex',
                     transition: 'transform 140ms ease',
-                    transform: showSubtasks ? 'rotate(90deg)' : 'rotate(0deg)'
+                    transform: showSubtasks ? 'rotate(90deg)' : 'rotate(0deg)',
+                    fontSize: 18,
+                    lineHeight: 1
                   }}
                 >
                   ▸
@@ -82,21 +85,66 @@ export default function TaskRow({ task, onClick, onToggleDone }) {
             </div>
             {showSubtasks && (
               <div style={{ marginTop: 4, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {task.subtasks.map((subtask) => (
+                {task.subtasks.map((subtask, index) => (
                   <div
                     key={subtask.id}
+                    draggable
+                    onDragStart={(e) => {
+                      e.stopPropagation();
+                      setDragIndex(index);
+                    }}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      if (dragIndex === null || dragIndex === index) return;
+                      onReorderSubtasks?.(task.id, dragIndex, index);
+                      setDragIndex(null);
+                    }}
+                    onDragEnd={() => setDragIndex(null)}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
                       gap: 8,
                       fontSize: 12,
-                      color: subtask.done ? 'var(--color-text-secondary)' : 'var(--color-text-primary)'
+                      color: subtask.done ? 'var(--color-text-secondary)' : 'var(--color-text-primary)',
+                      padding: '6px 8px',
+                      borderRadius: 8,
+                      background: dragIndex === index ? 'rgba(23, 107, 135, 0.08)' : 'transparent'
                     }}
                   >
-                    <span style={{ fontWeight: 700, color: subtask.done ? 'var(--color-text-success)' : 'var(--color-text-secondary)' }}>
-                      {subtask.done ? '✓' : '○'}
-                    </span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onToggleSubtaskDone?.(task.id, subtask.id);
+                      }}
+                      aria-label={subtask.done ? 'Marcar subtarea como pendiente' : 'Marcar subtarea como completada'}
+                      style={{
+                        border: '1px solid var(--color-border-tertiary)',
+                        width: 20,
+                        height: 20,
+                        borderRadius: 999,
+                        display: 'grid',
+                        placeItems: 'center',
+                        background: subtask.done ? 'var(--color-background-success)' : 'var(--color-background-primary)',
+                        color: subtask.done ? 'var(--color-text-success)' : 'var(--color-text-secondary)',
+                        cursor: 'pointer',
+                        padding: 0
+                      }}
+                    >
+                      {subtask.done ? '✓' : ''}
+                    </button>
                     <span style={{ textDecoration: subtask.done ? 'line-through' : 'none' }}>{subtask.text}</span>
+                    <span
+                      title="Arrastra para reordenar"
+                      style={{ marginLeft: 'auto', color: 'var(--color-text-secondary)', cursor: 'grab', fontSize: 13 }}
+                    >
+                      ⋮⋮
+                    </span>
                   </div>
                 ))}
               </div>
