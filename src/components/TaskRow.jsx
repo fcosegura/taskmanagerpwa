@@ -201,7 +201,7 @@ export default function TaskRow({ task, onClick, onToggleDone, onToggleSubtaskDo
         </button>
         <Pill s={p} />
         {task.category && <CategoryPill name={task.category} />}
-        <Pill s={s} />
+        <Pill s={s} fixedWidth={82} />
       </div>
     </div>
   );
