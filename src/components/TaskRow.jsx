@@ -1,8 +1,10 @@
+import { useState } from 'react';
 import { STATUS, PRIORITY } from '../constants.js';
 import { fmtDate, linkifyText } from '../utils.jsx';
 import { Pill, CategoryPill } from './shared/index.jsx';
 
 export default function TaskRow({ task, onClick, onToggleDone }) {
+  const [showSubtasks, setShowSubtasks] = useState(false);
   const s = STATUS.find((x) => x.v === task.status) || STATUS[0];
   const p = PRIORITY.find((x) => x.v === task.priority) || PRIORITY[1];
   const subtaskCount = task.subtasks?.length || 0;
@@ -40,9 +42,37 @@ export default function TaskRow({ task, onClick, onToggleDone }) {
         {subtaskCount > 0 && (
           <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
-              <span style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>
-                {completedSubtasks}/{subtaskCount} subtarea{subtaskCount !== 1 ? 's' : ''}
-              </span>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowSubtasks((prev) => !prev);
+                }}
+                aria-label={showSubtasks ? 'Colapsar subtareas' : 'Expandir subtareas'}
+                style={{
+                  border: 'none',
+                  background: 'transparent',
+                  padding: 0,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  cursor: 'pointer',
+                  color: 'var(--color-text-secondary)',
+                  fontSize: 11,
+                  fontWeight: 600
+                }}
+              >
+                <span
+                  style={{
+                    display: 'inline-flex',
+                    transition: 'transform 140ms ease',
+                    transform: showSubtasks ? 'rotate(90deg)' : 'rotate(0deg)'
+                  }}
+                >
+                  ▸
+                </span>
+                <span>{completedSubtasks}/{subtaskCount} subtarea{subtaskCount !== 1 ? 's' : ''}</span>
+              </button>
               <span style={{ fontSize: 11, fontWeight: 700, color: completedSubtasks === subtaskCount ? 'var(--color-text-success)' : 'var(--color-text-info)' }}>
                 {progress}%
               </span>
@@ -50,6 +80,27 @@ export default function TaskRow({ task, onClick, onToggleDone }) {
             <div style={{ width: '100%', height: 6, borderRadius: 999, background: 'rgba(148,163,184,0.18)' }}>
               <div style={{ width: `${progress}%`, height: '100%', borderRadius: 999, background: completedSubtasks === subtaskCount ? 'var(--color-text-success)' : 'var(--color-text-info)' }} />
             </div>
+            {showSubtasks && (
+              <div style={{ marginTop: 4, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {task.subtasks.map((subtask) => (
+                  <div
+                    key={subtask.id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      fontSize: 12,
+                      color: subtask.done ? 'var(--color-text-secondary)' : 'var(--color-text-primary)'
+                    }}
+                  >
+                    <span style={{ fontWeight: 700, color: subtask.done ? 'var(--color-text-success)' : 'var(--color-text-secondary)' }}>
+                      {subtask.done ? '✓' : '○'}
+                    </span>
+                    <span style={{ textDecoration: subtask.done ? 'line-through' : 'none' }}>{subtask.text}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
