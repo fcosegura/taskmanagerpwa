@@ -319,6 +319,19 @@ export default function App() {
       setBackupMessage(`Workspace "${profile.name}" eliminado.`);
       setTimeout(() => setBackupMessage(''), 4500);
     } catch (error) {
+      // If backend says profile no longer exists, refresh from cloud to reconcile stale UI list.
+      if (typeof error?.message === 'string' && error.message.includes('no existe')) {
+        try {
+          const data = await loadData(activeProfileId);
+          if (Array.isArray(data?.profiles)) setProfiles(data.profiles);
+          if (typeof data?.activeProfileId === 'string') {
+            setActiveProfileId(data.activeProfileId);
+            localStorage.setItem(ACTIVE_PROFILE_STORAGE_KEY, data.activeProfileId);
+          }
+        } catch {
+          // Keep original error toast if refresh fails.
+        }
+      }
       setBackupMessage(error.message || 'No se pudo borrar el workspace.');
       setTimeout(() => setBackupMessage(''), 5000);
     }

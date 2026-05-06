@@ -407,7 +407,13 @@ export default {
           ).bind(userId).all();
 
           const existing = userProfiles.find((p) => p.id === targetProfileId);
-          if (!existing) return json({ error: 'El workspace no existe.' }, { status: 404 });
+          if (!existing) {
+            const { results: currentProfiles } = await env.DB.prepare(
+              "SELECT id, name, created_at, updated_at FROM profiles WHERE user_id = ? ORDER BY created_at ASC"
+            ).bind(userId).all();
+            const fallbackProfileId = currentProfiles[0]?.id || null;
+            return json({ error: 'El workspace no existe.', profiles: currentProfiles, activeProfileId: fallbackProfileId }, { status: 404 });
+          }
           if (userProfiles.length <= 1) {
             return json({ error: 'No puedes borrar el único workspace.' }, { status: 400 });
           }
