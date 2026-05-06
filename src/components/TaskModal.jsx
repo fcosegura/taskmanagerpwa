@@ -37,12 +37,24 @@ export default function TaskModal({ task, categories, onSave, onDelete, onClose 
       if (!parsed) throw new Error('No hubo sugerencias válidas.');
       const due = typeof parsed.dueDate === 'string' ? new Date(parsed.dueDate) : null;
       const hasValidDue = due instanceof Date && !Number.isNaN(due.getTime());
+      const localParsed = parseDateTimeFromDescription(text);
+      const localResult = parseDescriptionDateResult(text);
+      let localCleaned = cleanDescriptionSegment(text, localResult?.text || '');
+      if (!localResult?.text || localCleaned === text.trim()) {
+        localCleaned = localCleaned.replace(/(?:\b(?:a|al|a la|a las|el|la|en|para)\b.*)$/i, '').replace(/\s{2,}/g, ' ').trim();
+      }
+      const aiTitle = typeof parsed.title === 'string' && parsed.title.trim() ? parsed.title.trim() : '';
+      const finalDescription = aiTitle || localCleaned || text;
       const suggestedCategory = Array.isArray(parsed.tags) && parsed.tags.length > 0 ? String(parsed.tags[0]) : '';
       setForm((prev) => ({
         ...prev,
-        description: parsed.title || prev.description,
-        date: hasValidDue ? `${due.getFullYear()}-${String(due.getMonth() + 1).padStart(2, '0')}-${String(due.getDate()).padStart(2, '0')}` : prev.date,
-        time: hasValidDue ? `${String(due.getHours()).padStart(2, '0')}:${String(due.getMinutes()).padStart(2, '0')}` : prev.time,
+        description: finalDescription,
+        date: hasValidDue
+          ? `${due.getFullYear()}-${String(due.getMonth() + 1).padStart(2, '0')}-${String(due.getDate()).padStart(2, '0')}`
+          : (localParsed?.date || prev.date),
+        time: hasValidDue
+          ? `${String(due.getHours()).padStart(2, '0')}:${String(due.getMinutes()).padStart(2, '0')}`
+          : (localParsed?.time || prev.time),
         priority: ['low', 'medium', 'high', 'critical'].includes(parsed.priority) ? parsed.priority : prev.priority,
         category: prev.category || suggestedCategory,
       }));
