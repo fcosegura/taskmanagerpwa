@@ -3,7 +3,7 @@ import { STATUS, PRIORITY } from '../constants.js';
 import { fmtDate, linkifyText } from '../utils.jsx';
 import { Pill, CategoryPill } from './shared/index.jsx';
 
-export default function TaskRow({ task, onClick, onToggleDone, onToggleSubtaskDone, onReorderSubtasks }) {
+export default function TaskRow({ task, allTasks = [], onClick, onToggleDone, onToggleSubtaskDone, onReorderSubtasks }) {
   const [showSubtasks, setShowSubtasks] = useState(false);
   const [dragIndex, setDragIndex] = useState(null);
   const [hoverSubtaskIndex, setHoverSubtaskIndex] = useState(null);
@@ -12,6 +12,8 @@ export default function TaskRow({ task, onClick, onToggleDone, onToggleSubtaskDo
   const subtaskCount = task.subtasks?.length || 0;
   const completedSubtasks = task.subtasks?.filter((st) => st.done).length || 0;
   const progress = subtaskCount ? Math.round((completedSubtasks / subtaskCount) * 100) : 0;
+  const dependencies = allTasks.filter((candidate) => (task.dependencyTaskIds || []).includes(candidate.id));
+  const dependents = allTasks.filter((candidate) => (candidate.dependencyTaskIds || []).includes(task.id));
 
   return (
     <div
@@ -179,6 +181,20 @@ export default function TaskRow({ task, onClick, onToggleDone, onToggleSubtaskDo
                 {hoverSubtaskIndex === (task.subtasks?.length || 0) && (
                   <div className="subtask-drop-indicator" />
                 )}
+              </div>
+            )}
+          </div>
+        )}
+        {(dependencies.length > 0 || dependents.length > 0) && (
+          <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 3 }}>
+            {dependencies.length > 0 && (
+              <div style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>
+                Esta tarea depende de: {dependencies.map((dependency) => dependency.description).join(', ')}
+              </div>
+            )}
+            {dependents.length > 0 && (
+              <div style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>
+                Esta tarea tiene como dependientes a: {dependents.map((dependent) => dependent.description).join(', ')}
               </div>
             )}
           </div>

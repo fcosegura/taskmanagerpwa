@@ -256,13 +256,44 @@ export default function App() {
   }, []);
 
   const toggleDone = (id) => {
-    setTasks((p) => p.map((t) => t.id === id ? { ...t, status: t.status === 'done' ? 'not_done' : 'done' } : t));
+    setTasks((previousTasks) => {
+      const task = previousTasks.find((item) => item.id === id);
+      if (!task) return previousTasks;
+      const nextStatus = task.status === 'done' ? 'not_done' : 'done';
+      if (nextStatus === 'done') {
+        const blockedDependents = previousTasks.filter((item) => (
+          item.id !== id &&
+          item.status !== 'done' &&
+          Array.isArray(item.dependencyTaskIds) &&
+          item.dependencyTaskIds.includes(id)
+        ));
+        if (blockedDependents.length > 0) {
+          setBackupMessage(`No se puede completar: ${blockedDependents.length} tarea(s) dependen de esta.`);
+          setTimeout(() => setBackupMessage(''), 4200);
+          return previousTasks;
+        }
+      }
+      return previousTasks.map((item) => item.id === id ? { ...item, status: nextStatus } : item);
+    });
   };
   const moveTaskToStatus = (taskId, targetStatus, targetIndex = null) => {
     setTasks((prev) => {
       const sourceTask = prev.find((task) => task.id === taskId);
       if (!sourceTask) return prev;
       const nextStatus = targetStatus || sourceTask.status;
+      if (nextStatus === 'done') {
+        const blockedDependents = prev.filter((task) => (
+          task.id !== taskId &&
+          task.status !== 'done' &&
+          Array.isArray(task.dependencyTaskIds) &&
+          task.dependencyTaskIds.includes(taskId)
+        ));
+        if (blockedDependents.length > 0) {
+          setBackupMessage(`No se puede mover a Hecha: ${blockedDependents.length} tarea(s) dependen de esta.`);
+          setTimeout(() => setBackupMessage(''), 4200);
+          return prev;
+        }
+      }
       const movedTask = { ...sourceTask, status: nextStatus };
       const remaining = prev.filter((task) => task.id !== taskId);
       const byStatus = STATUS.reduce((acc, status) => {
@@ -359,11 +390,43 @@ export default function App() {
   };
 
   const upsert = (task) => {
-    setTasks((p) => task.id ? p.map((t) => t.id === task.id ? task : t) : [...p, { ...task, id: uid() }]);
+    setTasks((previousTasks) => {
+      const taskId = task.id || uid();
+      const cleanedDependencyIds = [...new Set((task.dependencyTaskIds || []).filter((dependencyId) => (
+        typeof dependencyId === 'string' &&
+        dependencyId !== taskId &&
+        previousTasks.some((item) => item.id === dependencyId)
+      )))];
+      if (task.status === 'done') {
+        const blockedDependents = previousTasks.filter((item) => (
+          item.id !== taskId &&
+          item.status !== 'done' &&
+          Array.isArray(item.dependencyTaskIds) &&
+          item.dependencyTaskIds.includes(taskId)
+        ));
+        if (blockedDependents.length > 0) {
+          setBackupMessage(`No se puede guardar en Hecha: ${blockedDependents.length} tarea(s) dependen de esta.`);
+          setTimeout(() => setBackupMessage(''), 4200);
+          return previousTasks;
+        }
+      }
+      const nextTask = { ...task, id: taskId, dependencyTaskIds: cleanedDependencyIds };
+      return task.id
+        ? previousTasks.map((item) => item.id === task.id ? nextTask : item)
+        : [...previousTasks, nextTask];
+    });
     setModal(null);
   };
-  const del = (id) => { setTasks((p) => p.filter((t) => t.id !== id)); setModal(null); };
-  const open = (init = {}) => setModal({ description: '', status: 'not_done', priority: 'medium', date: '', time: '', subtasks: [], category: '', hideInKanbanDone: false, ...init });
+  const del = (id) => {
+    setTasks((previousTasks) => previousTasks
+      .filter((task) => task.id !== id)
+      .map((task) => ({
+        ...task,
+        dependencyTaskIds: (task.dependencyTaskIds || []).filter((dependencyId) => dependencyId !== id)
+      })));
+    setModal(null);
+  };
+  const open = (init = {}) => setModal({ description: '', status: 'not_done', priority: 'medium', date: '', time: '', subtasks: [], dependencyTaskIds: [], category: '', hideInKanbanDone: false, ...init });
 
   const addBoardNote = (note) => setBoardNotes((p) => [note, ...p]);
   const deleteBoardNote = (id) => setBoardNotes((p) => p.filter((note) => note.id !== id));
@@ -410,6 +473,7 @@ export default function App() {
       status: 'not_done',
       priority: ['low', 'medium', 'high', 'critical'].includes(parsed?.priority) ? parsed.priority : 'medium',
       subtasks: [],
+      dependencyTaskIds: [],
       category
     });
   };
@@ -745,6 +809,7 @@ export default function App() {
 
         {view === 'tasks'
           ? <TasksView
+              allTasks={tasks}
               tasks={sorted} total={totalVisible} filter={filter} setFilter={setFilter}
               searchQuery={searchQuery} setSearchQuery={setSearchQuery}
               categoryFilter={categoryFilter} setCategoryFilter={setCategoryFilter}
@@ -755,6 +820,7 @@ export default function App() {
           : view === 'kanban'
             ? <KanbanView
                 tasks={tasks}
+                allTasks={tasks}
                 onEditTask={(task) => setModal(task)}
                 onMoveTaskStatus={moveTaskToStatus}
               />
@@ -772,7 +838,7 @@ export default function App() {
 
       {modal && (
         <div className="modal-backdrop" onClick={(e) => e.target === e.currentTarget && setModal(null)}>
-          <TaskModal key={modal.id || 'new-task'} task={modal} categories={categories} onSave={upsert} onDelete={modal.id ? () => del(modal.id) : null} onClose={() => setModal(null)} />
+          <TaskModal key={modal.id || 'new-task'} task={modal} categories={categories} allTasks={tasks} onSave={upsert} onDelete={modal.id ? () => del(modal.id) : null} onClose={() => setModal(null)} />
         </div>
       )}
 

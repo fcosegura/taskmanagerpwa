@@ -3,8 +3,15 @@ import { STATUS } from '../constants.js';
 import { uid, fmtDate, parseDateTimeFromDescription, parseDescriptionDateResult, cleanDescriptionSegment } from '../utils.jsx';
 import { parseTaskWithAI } from '../storage.js';
 
-export default function TaskModal({ task, categories, onSave, onDelete, onClose }) {
-  const [form, setForm] = useState({ ...task, subtasks: task.subtasks || [], category: task.category || '', time: task.time || '', hideInKanbanDone: Boolean(task.hideInKanbanDone) });
+export default function TaskModal({ task, categories, allTasks = [], onSave, onDelete, onClose }) {
+  const [form, setForm] = useState({
+    ...task,
+    subtasks: task.subtasks || [],
+    dependencyTaskIds: task.dependencyTaskIds || [],
+    category: task.category || '',
+    time: task.time || '',
+    hideInKanbanDone: Boolean(task.hideInKanbanDone)
+  });
   const [showAdvanced, setShowAdvanced] = useState(Boolean(task.id));
   const [dragSubtaskIndex, setDragSubtaskIndex] = useState(null);
   const [hoverSubtaskIndex, setHoverSubtaskIndex] = useState(null);
@@ -29,6 +36,18 @@ export default function TaskModal({ task, categories, onSave, onDelete, onClose 
   };
 
   const handleChange = (field, value) => setForm((prev) => ({ ...prev, [field]: value }));
+  const toggleDependency = (dependencyId) => {
+    setForm((prev) => {
+      const current = Array.isArray(prev.dependencyTaskIds) ? prev.dependencyTaskIds : [];
+      const exists = current.includes(dependencyId);
+      return {
+        ...prev,
+        dependencyTaskIds: exists
+          ? current.filter((id) => id !== dependencyId)
+          : [...current, dependencyId]
+      };
+    });
+  };
 
   const handleAISuggest = async () => {
     const text = (form.description || '').trim();
@@ -293,6 +312,33 @@ export default function TaskModal({ task, categories, onSave, onDelete, onClose 
           Hide en columna Completado de Kanban
         </label>
       )}
+      <div style={{ marginBottom: 18 }}>
+        <div style={{ fontWeight: 500, fontSize: 13, color: 'var(--color-text-secondary)', marginBottom: 8 }}>
+          Dependencias
+        </div>
+        {allTasks.filter((candidate) => candidate.id !== task.id).length === 0 ? (
+          <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>
+            No hay otras tareas disponibles.
+          </div>
+        ) : (
+          <div style={{ maxHeight: 130, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6, padding: '8px 10px', border: '0.5px solid var(--color-border-secondary)', borderRadius: 'var(--border-radius-md)' }}>
+            {allTasks.filter((candidate) => candidate.id !== task.id).map((candidate) => {
+              const checked = (form.dependencyTaskIds || []).includes(candidate.id);
+              return (
+                <label key={candidate.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--color-text-primary)', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => toggleDependency(candidate.id)}
+                    style={{ width: 14, height: 14, margin: 0 }}
+                  />
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{candidate.description}</span>
+                </label>
+              );
+            })}
+          </div>
+        )}
+      </div>
       </>
       )}
 

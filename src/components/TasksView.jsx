@@ -4,6 +4,7 @@ import { Chip } from './shared/index.jsx';
 import TaskRow from './TaskRow.jsx';
 
 export default function TasksView({
+  allTasks = [],
   tasks, total, filter, setFilter, searchQuery, setSearchQuery,
   categoryFilter, setCategoryFilter, categories,
   statusCounts, categoryCounts,
@@ -112,6 +113,7 @@ export default function TasksView({
             <TaskRow
               key={t.id}
               task={t}
+              allTasks={allTasks}
               onClick={() => onEdit(t)}
               onToggleDone={onToggleDone}
               onToggleSubtaskDone={onToggleSubtaskDone}

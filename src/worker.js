@@ -76,6 +76,10 @@ function isValidTask(task) {
     VALID_PRIORITY.has(task.priority) &&
     (task.hideInKanbanDone === undefined || typeof task.hideInKanbanDone === 'boolean') &&
     Array.isArray(task.subtasks) &&
+    (task.dependencyTaskIds === undefined || (
+      Array.isArray(task.dependencyTaskIds) &&
+      task.dependencyTaskIds.every((dependencyId) => typeof dependencyId === 'string')
+    )) &&
     task.subtasks.every((st) => (
       st &&
       typeof st === 'object' &&
@@ -160,14 +164,14 @@ function normalizeSyncBody(body) {
 
 function prepareTaskUpsert(env, profileId, userId, task) {
   return env.DB.prepare(
-    "INSERT INTO tasks (id, user_id, profile_id, description, status, priority, category, date, time, subtasks, hide_in_kanban_done) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) " +
+    "INSERT INTO tasks (id, user_id, profile_id, description, status, priority, category, date, time, subtasks, dependencies, hide_in_kanban_done) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) " +
     "ON CONFLICT(id) DO UPDATE SET " +
     "description = excluded.description, status = excluded.status, priority = excluded.priority, category = excluded.category, " +
-    "date = excluded.date, time = excluded.time, subtasks = excluded.subtasks, hide_in_kanban_done = excluded.hide_in_kanban_done, updated_at = CURRENT_TIMESTAMP " +
+    "date = excluded.date, time = excluded.time, subtasks = excluded.subtasks, dependencies = excluded.dependencies, hide_in_kanban_done = excluded.hide_in_kanban_done, updated_at = CURRENT_TIMESTAMP " +
     "WHERE tasks.user_id = excluded.user_id AND tasks.profile_id = excluded.profile_id AND (" +
     "tasks.description IS NOT excluded.description OR tasks.status IS NOT excluded.status OR tasks.priority IS NOT excluded.priority OR " +
     "tasks.category IS NOT excluded.category OR tasks.date IS NOT excluded.date OR tasks.time IS NOT excluded.time OR " +
-    "tasks.subtasks IS NOT excluded.subtasks OR tasks.hide_in_kanban_done IS NOT excluded.hide_in_kanban_done)"
+    "tasks.subtasks IS NOT excluded.subtasks OR tasks.dependencies IS NOT excluded.dependencies OR tasks.hide_in_kanban_done IS NOT excluded.hide_in_kanban_done)"
   ).bind(
     scopedEntityId(profileId, task.id),
     userId,
@@ -179,6 +183,7 @@ function prepareTaskUpsert(env, profileId, userId, task) {
     task.date || null,
     task.time || null,
     JSON.stringify(task.subtasks || []),
+    JSON.stringify(task.dependencyTaskIds || []),
     task.hideInKanbanDone ? 1 : 0
   );
 }
@@ -237,6 +242,7 @@ async function ensureProfilesSchema(env) {
   await safeExec("CREATE INDEX IF NOT EXISTS idx_notes_user_profile ON notes(user_id, profile_id)");
   await safeExec("CREATE INDEX IF NOT EXISTS idx_events_user_profile ON events(user_id, profile_id)");
   await safeExec("ALTER TABLE tasks ADD COLUMN hide_in_kanban_done INTEGER DEFAULT 0");
+  await safeExec("ALTER TABLE tasks ADD COLUMN dependencies TEXT DEFAULT '[]'");
 
   const hasProfileColumn = async (tableName) => {
     try {
@@ -657,7 +663,8 @@ export default {
             ...t,
             id: unscopedEntityId(profileId, t.id),
             hideInKanbanDone: Boolean(t.hide_in_kanban_done),
-            subtasks: JSON.parse(t.subtasks || '[]')
+            subtasks: JSON.parse(t.subtasks || '[]'),
+            dependencyTaskIds: JSON.parse(t.dependencies || '[]')
           }));
           const parsedNotes = notes.map(({ created_at, updated_at, ...note }) => ({
             ...note,

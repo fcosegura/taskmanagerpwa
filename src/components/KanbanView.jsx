@@ -2,10 +2,12 @@ import { useMemo, useState } from 'react';
 import { STATUS, PRIORITY } from '../constants.js';
 import { fmtDate } from '../utils.jsx';
 
-function KanbanTaskCard({ task, onEditTask, onDragStart, onDragEnd }) {
+function KanbanTaskCard({ task, allTasks, onEditTask, onDragStart, onDragEnd }) {
   const priority = PRIORITY.find((item) => item.v === task.priority) || PRIORITY[1];
   const doneSubtasks = (task.subtasks || []).filter((subtask) => subtask.done).length;
   const totalSubtasks = (task.subtasks || []).length;
+  const dependencies = allTasks.filter((candidate) => (task.dependencyTaskIds || []).includes(candidate.id));
+  const dependents = allTasks.filter((candidate) => (candidate.dependencyTaskIds || []).includes(task.id));
   return (
     <div
       draggable
@@ -51,6 +53,20 @@ function KanbanTaskCard({ task, onEditTask, onDragStart, onDragEnd }) {
           )}
         </div>
       )}
+      {(dependencies.length > 0 || dependents.length > 0) && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {dependencies.length > 0 && (
+            <div style={{ fontSize: 10, color: 'var(--color-text-secondary)' }}>
+              Depende de: {dependencies.map((dependency) => dependency.description).join(', ')}
+            </div>
+          )}
+          {dependents.length > 0 && (
+            <div style={{ fontSize: 10, color: 'var(--color-text-secondary)' }}>
+              Dependientes: {dependents.map((dependent) => dependent.description).join(', ')}
+            </div>
+          )}
+        </div>
+      )}
       <div
         style={{
           alignSelf: 'flex-start',
@@ -68,7 +84,7 @@ function KanbanTaskCard({ task, onEditTask, onDragStart, onDragEnd }) {
   );
 }
 
-export default function KanbanView({ tasks, onEditTask, onMoveTaskStatus }) {
+export default function KanbanView({ tasks, allTasks = [], onEditTask, onMoveTaskStatus }) {
   const [draggedTaskId, setDraggedTaskId] = useState(null);
   const [hoverStatus, setHoverStatus] = useState(null);
   const [hoverIndex, setHoverIndex] = useState(null);
@@ -139,6 +155,7 @@ export default function KanbanView({ tasks, onEditTask, onMoveTaskStatus }) {
                   >
                     <KanbanTaskCard
                       task={task}
+                      allTasks={allTasks}
                       onEditTask={onEditTask}
                       onDragStart={(event, taskId) => {
                         event.dataTransfer.effectAllowed = 'move';

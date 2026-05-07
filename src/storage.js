@@ -98,7 +98,7 @@ function hasAnyData(payload) {
 
 export function isValidTask(task) {
   if (!task || typeof task !== 'object') return false;
-  const { id, description, status, priority, subtasks, category, date, time } = task;
+  const { id, description, status, priority, subtasks, category, date, time, dependencyTaskIds } = task;
   if (typeof id !== 'string' || typeof description !== 'string') return false;
   if (typeof status !== 'string' || !STATUS.some((s) => s.v === status)) return false;
   if (typeof priority !== 'string' || !PRIORITY.some((p) => p.v === priority)) return false;
@@ -106,15 +106,19 @@ export function isValidTask(task) {
   if (date !== undefined && date !== null && typeof date !== 'string') return false;
   if (time !== undefined && time !== null && typeof time !== 'string') return false;
   if (!Array.isArray(subtasks)) return false;
+  if (dependencyTaskIds !== undefined && !Array.isArray(dependencyTaskIds)) return false;
+  if (Array.isArray(dependencyTaskIds) && !dependencyTaskIds.every((id) => typeof id === 'string')) return false;
   return subtasks.every(
     (st) => st && typeof st === 'object' && typeof st.id === 'string' && typeof st.text === 'string' && typeof st.done === 'boolean'
   );
 }
 
 function normalizeTask(task) {
+  const rawDependencies = Array.isArray(task.dependencyTaskIds) ? task.dependencyTaskIds : [];
   return {
     ...task,
     subtasks: Array.isArray(task.subtasks) ? task.subtasks : [],
+    dependencyTaskIds: [...new Set(rawDependencies.filter((id) => typeof id === 'string'))],
     category: task.category || '',
     date: task.date || '',
     time: task.time || '',
