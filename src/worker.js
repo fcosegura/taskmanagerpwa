@@ -395,6 +395,88 @@ async function parseTaskWithAi(input, env) {
   }
 }
 
+function summarizeWorkspaceFallback(tasks, events) {
+  const statusCounts = tasks.reduce((acc, task) => {
+    const key = typeof task.status === 'string' ? task.status : 'not_done';
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {});
+  const overdue = tasks.filter((task) => task.status !== 'done' && typeof task.date === 'string' && task.date && task.date < new Date().toISOString().slice(0, 10)).length;
+  const highPriorityPending = tasks
+    .filter((task) => task.status !== 'done' && ['high', 'critical'].includes(task.priority))
+    .slice(0, 5)
+    .map((task) => task.description)
+    .filter(Boolean);
+  const summary = `Tienes ${tasks.length} tareas en este workspace. ${statusCounts.done || 0} completadas, ${statusCounts.blocked || 0} bloqueadas y ${overdue} vencidas.`;
+  const actionPlan = [
+    overdue > 0 ? `Resuelve primero ${overdue} tarea(s) vencidas.` : 'No hay tareas vencidas; prioriza las próximas fechas.',
+    highPriorityPending.length > 0 ? `Enfócate en prioridades altas: ${highPriorityPending.slice(0, 2).join(' · ')}` : 'Define 1-2 tareas de alto impacto para hoy.',
+    events.length > 0 ? `Coordina tus ${events.length} eventos del calendario con tareas clave.` : 'Reserva un bloque de tiempo para avanzar en tareas importantes.'
+  ];
+  return {
+    summary,
+    actionPlan,
+    metrics: {
+      totalTasks: tasks.length,
+      completedTasks: statusCounts.done || 0,
+      blockedTasks: statusCounts.blocked || 0,
+      overdueTasks: overdue,
+      events: events.length
+    }
+  };
+}
+
+async function generateWorkspaceSummaryWithAi(tasks, events, env) {
+  if (!env?.AI?.run) return null;
+  const compactTasks = tasks.slice(0, 25).map((task) => ({
+    description: task.description,
+    status: task.status,
+    priority: task.priority,
+    date: task.date || null,
+    category: task.category || null
+  }));
+  const compactEvents = events.slice(0, 12).map((event) => ({
+    title: event.title,
+    startDate: event.startDate,
+    endDate: event.endDate || null
+  }));
+  const prompt = [
+    'Genera un resumen ejecutivo breve del workspace y un plan de accion concreto.',
+    'Responde SOLO JSON valido con este formato exacto:',
+    '{"summary":"string","actionPlan":["paso 1","paso 2","paso 3"],"metrics":{"focus":"string"}}',
+    'summary maximo 240 caracteres.',
+    'actionPlan debe tener 3 items maximo 120 caracteres cada uno.',
+    `Tareas: ${JSON.stringify(compactTasks)}`,
+    `Eventos: ${JSON.stringify(compactEvents)}`
+  ].join('\n');
+  const result = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
+    messages: [{ role: 'user', content: prompt }],
+    max_tokens: 220,
+    temperature: 0.2
+  });
+  const raw = typeof result?.response === 'string' ? result.response.trim() : '';
+  if (!raw) return null;
+  const jsonStart = raw.indexOf('{');
+  const jsonEnd = raw.lastIndexOf('}');
+  if (jsonStart === -1 || jsonEnd === -1 || jsonEnd <= jsonStart) return null;
+  try {
+    const parsed = JSON.parse(raw.slice(jsonStart, jsonEnd + 1));
+    if (!parsed || typeof parsed !== 'object') return null;
+    const summary = typeof parsed.summary === 'string' ? parsed.summary.trim().slice(0, 240) : '';
+    const actionPlan = Array.isArray(parsed.actionPlan)
+      ? parsed.actionPlan.filter((item) => typeof item === 'string' && item.trim()).map((item) => item.trim().slice(0, 120)).slice(0, 3)
+      : [];
+    if (!summary || actionPlan.length === 0) return null;
+    return {
+      summary,
+      actionPlan,
+      metrics: typeof parsed.metrics === 'object' && parsed.metrics ? parsed.metrics : {}
+    };
+  } catch {
+    return null;
+  }
+}
+
 async function verifyGoogleToken(token, env) {
   if (!token) return null;
   const googleResp = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${token}`);
@@ -473,6 +555,28 @@ export default {
             return json({ task: sanitizeParsedTask(aiParsed, text), source: 'ai' });
           } catch {
             return json({ task: fallback, source: 'fallback' });
+          }
+        }
+
+        if (request.method === 'POST' && path === '/ai/workspace-summary') {
+          const { results: tasks } = await env.DB.prepare(
+            "SELECT description, status, priority, category, date FROM tasks WHERE user_id = ? AND profile_id = ?"
+          ).bind(userId, profileId).all();
+          const { results: events } = await env.DB.prepare(
+            "SELECT title, startDate, endDate FROM events WHERE user_id = ? AND profile_id = ?"
+          ).bind(userId, profileId).all();
+          const fallbackSummary = summarizeWorkspaceFallback(tasks || [], events || []);
+          try {
+            const aiSummary = await generateWorkspaceSummaryWithAi(tasks || [], events || [], env);
+            if (!aiSummary) return json({ ...fallbackSummary, source: 'fallback' });
+            return json({
+              ...fallbackSummary,
+              summary: aiSummary.summary,
+              actionPlan: aiSummary.actionPlan,
+              source: 'ai'
+            });
+          } catch {
+            return json({ ...fallbackSummary, source: 'fallback' });
           }
         }
 

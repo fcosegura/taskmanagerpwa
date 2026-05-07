@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { P_ORDER, STATUS } from './constants.js';
 import { uid, toDateStr, parseDateTimeFromDescription, parseDescriptionDateResult, cleanDescriptionSegment } from './utils.jsx';
-import { loadData, saveData, validateBackupPayload, normalizeDataPayload, loginWithGoogleCredential, logoutSession, createProfile, deleteProfile, parseTaskWithAI, checkSession } from './storage.js';
+import { loadData, saveData, validateBackupPayload, normalizeDataPayload, loginWithGoogleCredential, logoutSession, createProfile, deleteProfile, parseTaskWithAI, checkSession, getWorkspaceSummary } from './storage.js';
 import TasksView from './components/TasksView.jsx';
 import CalendarView from './components/CalendarView.jsx';
 import BoardView from './components/BoardView.jsx';
@@ -35,6 +35,9 @@ export default function App() {
   const [activeProfileId, setActiveProfileId] = useState(() => localStorage.getItem(ACTIVE_PROFILE_STORAGE_KEY) || null);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showActionsMenu, setShowActionsMenu] = useState(false);
+  const [workspaceSummary, setWorkspaceSummary] = useState(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [summaryError, setSummaryError] = useState('');
   const fileInputRef = useRef(null);
   const profileMenuRef = useRef(null);
   const actionsMenuRef = useRef(null);
@@ -454,6 +457,8 @@ export default function App() {
     setTasks([]);
     setBoardNotes([]);
     setEvents([]);
+    setWorkspaceSummary(null);
+    setSummaryError('');
     setReady(false);
     setShowProfileMenu(false);
   };
@@ -468,6 +473,20 @@ export default function App() {
     } catch (error) {
       setBackupMessage(error.message || 'No se pudo crear el workspace.');
       setTimeout(() => setBackupMessage(''), 5000);
+    }
+  };
+
+  const handleGenerateWorkspaceSummary = async () => {
+    if (summaryLoading) return;
+    setSummaryLoading(true);
+    setSummaryError('');
+    try {
+      const result = await getWorkspaceSummary(activeProfileId);
+      setWorkspaceSummary(result);
+    } catch (error) {
+      setSummaryError(error.message || 'No se pudo generar el resumen.');
+    } finally {
+      setSummaryLoading(false);
     }
   };
 
@@ -686,6 +705,18 @@ export default function App() {
             <p className="eyebrow">Resumen</p>
             <h1>{view === 'kanban' ? 'Visualiza el flujo real' : view === 'calendar' ? 'Planifica la semana' : view === 'board' ? 'Ordena tus ideas' : 'Prioriza lo importante'}</h1>
           </div>
+          {view === 'tasks' && (
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+              <button
+                type="button"
+                className="ghost-button"
+                onClick={handleGenerateWorkspaceSummary}
+                disabled={summaryLoading}
+              >
+                {summaryLoading ? 'Generando resumen...' : 'Resumen + plan IA'}
+              </button>
+            </div>
+          )}
           <div className="metric-strip">
             {[
               { key: 'active', label: 'Activas', count: activeTasks.length },
@@ -705,6 +736,27 @@ export default function App() {
               </button>
             ))}
           </div>
+          {view === 'tasks' && workspaceSummary && (
+            <div style={{ marginTop: 12, border: '1px solid var(--color-border-tertiary)', borderRadius: 14, padding: 14, background: 'var(--color-background-primary)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, marginBottom: 8, flexWrap: 'wrap' }}>
+                <strong style={{ fontSize: 14 }}>Vista del workspace actual</strong>
+                <span style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>
+                  Fuente: {workspaceSummary.source === 'ai' ? 'IA' : 'local'}
+                </span>
+              </div>
+              <p style={{ margin: 0, fontSize: 13, color: 'var(--color-text-secondary)' }}>{workspaceSummary.summary}</p>
+              {Array.isArray(workspaceSummary.actionPlan) && workspaceSummary.actionPlan.length > 0 && (
+                <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13 }}>
+                  {workspaceSummary.actionPlan.map((item, index) => (
+                    <div key={`${item}-${index}`}>{index + 1}. {item}</div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          {view === 'tasks' && summaryError && (
+            <div style={{ marginTop: 10, fontSize: 12, color: 'var(--color-text-danger)' }}>{summaryError}</div>
+          )}
         </section>
 
         {view === 'tasks'
