@@ -363,6 +363,9 @@ export default {
       const path = url.pathname.replace('/api', '');
       
       try {
+        if (request.method === 'GET' && path === '/session') {
+          return json({ authenticated: true });
+        }
         await ensureProfilesSchema(env);
         const requestedProfileId = url.searchParams.get('profileId');
         const profileId = await resolveProfileId(env, userId, requestedProfileId);

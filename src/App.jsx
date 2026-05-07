@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { P_ORDER, STATUS } from './constants.js';
 import { uid, toDateStr, parseDateTimeFromDescription, parseDescriptionDateResult, cleanDescriptionSegment } from './utils.jsx';
-import { loadData, saveData, validateBackupPayload, normalizeDataPayload, loginWithGoogleCredential, logoutSession, createProfile, deleteProfile, parseTaskWithAI } from './storage.js';
+import { loadData, saveData, validateBackupPayload, normalizeDataPayload, loginWithGoogleCredential, logoutSession, createProfile, deleteProfile, parseTaskWithAI, checkSession } from './storage.js';
 import TasksView from './components/TasksView.jsx';
 import CalendarView from './components/CalendarView.jsx';
 import BoardView from './components/BoardView.jsx';
@@ -100,8 +100,49 @@ export default function App() {
     setProfiles([]);
     setActiveProfileId(null);
     setSyncState('idle');
+    setShowProfileMenu(false);
     localStorage.removeItem(ACTIVE_PROFILE_STORAGE_KEY);
   };
+
+  const forceLogout = () => {
+    setAuthenticated(false);
+    setReady(false);
+    setHydratedSession(null);
+    setTasks([]);
+    setBoardNotes([]);
+    setEvents([]);
+    setProfiles([]);
+    setActiveProfileId(null);
+    setSyncState('idle');
+    setShowProfileMenu(false);
+    localStorage.removeItem(ACTIVE_PROFILE_STORAGE_KEY);
+  };
+
+  useEffect(() => {
+    if (!authenticated) return undefined;
+    let cancelled = false;
+    const verifyActiveSession = async () => {
+      try {
+        const active = await checkSession();
+        if (!cancelled && !active) {
+          forceLogout();
+        }
+      } catch {
+        // Ignore transient network errors and keep current session state.
+      }
+    };
+    const intervalId = window.setInterval(verifyActiveSession, 60000);
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') verifyActiveSession();
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    verifyActiveSession();
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
+  }, [authenticated]);
 
   useEffect(() => {
     if (!ready || !authenticated || hydratedSession !== authenticated) return undefined;
@@ -461,7 +502,6 @@ export default function App() {
 
       <header className="app-header">
         <div className="brand-block">
-          <button className="icon-button subtle" onClick={handleLogout} title="Cerrar sesión" aria-label="Cerrar sesión">↩</button>
           <div className="workspace-switcher" ref={profileMenuRef}>
             <button
               type="button"
@@ -500,6 +540,7 @@ export default function App() {
                   </div>
                 ))}
                 <button type="button" className="workspace-create" onClick={handleCreateProfile}>+ Nuevo workspace</button>
+                <button type="button" className="workspace-logout" onClick={handleLogout}>Log out</button>
               </div>
             )}
           </div>

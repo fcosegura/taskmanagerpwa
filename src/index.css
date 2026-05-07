@@ -148,7 +148,8 @@ select:focus {
 }
 
 .workspace-option,
-.workspace-create {
+.workspace-create,
+.workspace-logout {
   border: none;
   background: transparent;
   color: var(--color-text-primary);
@@ -175,7 +176,8 @@ select:focus {
 
 .workspace-option.active,
 .workspace-option:hover,
-.workspace-create:hover {
+.workspace-create:hover,
+.workspace-logout:hover {
   background: rgba(23, 107, 135, 0.08);
 }
 
@@ -183,6 +185,11 @@ select:focus {
   margin-top: 4px;
   border-top: var(--surface-border);
   padding-top: 10px;
+}
+
+.workspace-logout {
+  margin-top: 2px;
+  color: var(--color-text-danger);
 }
 
 .workspace-delete {

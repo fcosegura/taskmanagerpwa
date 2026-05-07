@@ -144,6 +144,11 @@ export async function logoutSession() {
   });
 }
 
+export async function checkSession() {
+  const resp = await fetch('/api/session', { credentials: 'same-origin' });
+  return resp.ok;
+}
+
 export async function createProfile(name) {
   const resp = await fetch('/api/profiles', {
     method: 'POST',
