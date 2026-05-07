@@ -12,17 +12,17 @@ export default function TaskRow({ task, allTasks = [], onClick, onToggleDone, on
   const subtaskCount = task.subtasks?.length || 0;
   const completedSubtasks = task.subtasks?.filter((st) => st.done).length || 0;
   const progress = subtaskCount ? Math.round((completedSubtasks / subtaskCount) * 100) : 0;
-  const dependencies = allTasks.filter((candidate) => (task.dependencyTaskIds || []).includes(candidate.id));
-  const dependents = allTasks.filter((candidate) => (candidate.dependencyTaskIds || []).includes(task.id));
-  const hasParentTask = dependencies.length > 0;
-  const hasChildTasks = dependents.length > 0;
-  const dependencyRailColor = hasParentTask && hasChildTasks
+  const childTasks = allTasks.filter((candidate) => (task.dependencyTaskIds || []).includes(candidate.id));
+  const parentTasks = allTasks.filter((candidate) => (candidate.dependencyTaskIds || []).includes(task.id));
+  const hasParentTask = parentTasks.length > 0;
+  const hasChildTasks = childTasks.length > 0;
+  const dependencyRailColor = hasChildTasks && hasParentTask
     ? 'linear-gradient(180deg, #f59e0b 0%, #f59e0b 50%, #9333ea 50%, #9333ea 100%)'
-    : hasParentTask
+    : hasChildTasks
+      ? '#9333ea'
+      : hasParentTask
       ? '#f59e0b'
-      : hasChildTasks
-        ? '#9333ea'
-        : 'transparent';
+      : 'transparent';
 
   return (
     <div
@@ -205,16 +205,16 @@ export default function TaskRow({ task, allTasks = [], onClick, onToggleDone, on
             )}
           </div>
         )}
-        {(dependencies.length > 0 || dependents.length > 0) && (
+      {(childTasks.length > 0 || parentTasks.length > 0) && (
           <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 3 }}>
-            {dependencies.length > 0 && (
+            {hasChildTasks && (
               <div style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>
-                Bloqueada por: {dependencies.map((dependency) => dependency.description).join(', ')}
+                Esta tarea depende de: {childTasks.map((childTask) => childTask.description).join(', ')}
               </div>
             )}
-            {dependents.length > 0 && (
+            {hasParentTask && (
               <div style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>
-                Desbloquea a: {dependents.map((dependent) => dependent.description).join(', ')}
+                Esta tarea es parte de: {parentTasks.map((parentTask) => parentTask.description).join(', ')}
               </div>
             )}
           </div>

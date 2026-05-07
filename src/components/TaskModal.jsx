@@ -4,8 +4,12 @@ import { uid, fmtDate, parseDateTimeFromDescription, parseDescriptionDateResult,
 import { parseTaskWithAI } from '../storage.js';
 
 export default function TaskModal({ task, categories, allTasks = [], onSave, onDelete, onClose }) {
+  const parentTasks = allTasks.filter((candidate) => (candidate.dependencyTaskIds || []).includes(task.id));
+  const isChildTask = parentTasks.length > 0;
   const availableDependencyTasks = allTasks.filter((candidate) => (
-    candidate.id !== task.id && candidate.status !== 'done'
+    candidate.id !== task.id &&
+    candidate.status !== 'done' &&
+    !parentTasks.some((parentTask) => parentTask.id === candidate.id)
   ));
   const [form, setForm] = useState({
     ...task,
@@ -317,9 +321,14 @@ export default function TaskModal({ task, categories, allTasks = [], onSave, onD
       )}
       <div style={{ marginBottom: 18 }}>
         <div style={{ fontWeight: 500, fontSize: 13, color: 'var(--color-text-secondary)', marginBottom: 8 }}>
-          Dependencias
+          Dependencias (esta tarea depende de)
         </div>
-        {availableDependencyTasks.length === 0 ? (
+        {isChildTask ? (
+          <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>
+            Esta tarea es hija de: {parentTasks.map((parentTask) => parentTask.description).join(', ')}.
+            Solo la tarea padre puede elegir sus hijas.
+          </div>
+        ) : availableDependencyTasks.length === 0 ? (
           <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>
             No hay tareas abiertas disponibles para depender.
           </div>

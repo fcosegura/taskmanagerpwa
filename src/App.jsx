@@ -261,23 +261,12 @@ export default function App() {
       if (!task) return previousTasks;
       const nextStatus = task.status === 'done' ? 'not_done' : 'done';
       if (nextStatus === 'done') {
-        const openDependencies = previousTasks.filter((item) => (
+        const openChildTasks = previousTasks.filter((item) => (
           (task.dependencyTaskIds || []).includes(item.id) &&
           item.status !== 'done'
         ));
-        if (openDependencies.length > 0) {
-          setBackupMessage(`No se puede completar: tiene ${openDependencies.length} dependencia(s) abierta(s).`);
-          setTimeout(() => setBackupMessage(''), 4200);
-          return previousTasks;
-        }
-        const blockedDependents = previousTasks.filter((item) => (
-          item.id !== id &&
-          item.status !== 'done' &&
-          Array.isArray(item.dependencyTaskIds) &&
-          item.dependencyTaskIds.includes(id)
-        ));
-        if (blockedDependents.length > 0) {
-          setBackupMessage(`No se puede completar: ${blockedDependents.length} tarea(s) dependen de esta.`);
+        if (openChildTasks.length > 0) {
+          setBackupMessage(`No se puede completar: tiene ${openChildTasks.length} tarea(s) hija(s) abierta(s).`);
           setTimeout(() => setBackupMessage(''), 4200);
           return previousTasks;
         }
@@ -291,23 +280,12 @@ export default function App() {
       if (!sourceTask) return prev;
       const nextStatus = targetStatus || sourceTask.status;
       if (nextStatus === 'done') {
-        const openDependencies = prev.filter((task) => (
+        const openChildTasks = prev.filter((task) => (
           (sourceTask.dependencyTaskIds || []).includes(task.id) &&
           task.status !== 'done'
         ));
-        if (openDependencies.length > 0) {
-          setBackupMessage(`No se puede mover a Hecha: tiene ${openDependencies.length} dependencia(s) abierta(s).`);
-          setTimeout(() => setBackupMessage(''), 4200);
-          return prev;
-        }
-        const blockedDependents = prev.filter((task) => (
-          task.id !== taskId &&
-          task.status !== 'done' &&
-          Array.isArray(task.dependencyTaskIds) &&
-          task.dependencyTaskIds.includes(taskId)
-        ));
-        if (blockedDependents.length > 0) {
-          setBackupMessage(`No se puede mover a Hecha: ${blockedDependents.length} tarea(s) dependen de esta.`);
+        if (openChildTasks.length > 0) {
+          setBackupMessage(`No se puede mover a Hecha: tiene ${openChildTasks.length} tarea(s) hija(s) abierta(s).`);
           setTimeout(() => setBackupMessage(''), 4200);
           return prev;
         }
@@ -415,29 +393,24 @@ export default function App() {
         dependencyId !== taskId &&
         previousTasks.some((item) => item.id === dependencyId)
       )))];
+      const parentTasks = previousTasks.filter((item) => (
+        item.id !== taskId &&
+        Array.isArray(item.dependencyTaskIds) &&
+        item.dependencyTaskIds.includes(taskId)
+      ));
+      const finalDependencyIds = parentTasks.length > 0 ? [] : cleanedDependencyIds;
       if (task.status === 'done') {
-        const openDependencies = previousTasks.filter((item) => (
-          cleanedDependencyIds.includes(item.id) &&
+        const openChildTasks = previousTasks.filter((item) => (
+          finalDependencyIds.includes(item.id) &&
           item.status !== 'done'
         ));
-        if (openDependencies.length > 0) {
-          setBackupMessage(`No se puede guardar en Hecha: tiene ${openDependencies.length} dependencia(s) abierta(s).`);
-          setTimeout(() => setBackupMessage(''), 4200);
-          return previousTasks;
-        }
-        const blockedDependents = previousTasks.filter((item) => (
-          item.id !== taskId &&
-          item.status !== 'done' &&
-          Array.isArray(item.dependencyTaskIds) &&
-          item.dependencyTaskIds.includes(taskId)
-        ));
-        if (blockedDependents.length > 0) {
-          setBackupMessage(`No se puede guardar en Hecha: ${blockedDependents.length} tarea(s) dependen de esta.`);
+        if (openChildTasks.length > 0) {
+          setBackupMessage(`No se puede guardar en Hecha: tiene ${openChildTasks.length} tarea(s) hija(s) abierta(s).`);
           setTimeout(() => setBackupMessage(''), 4200);
           return previousTasks;
         }
       }
-      const nextTask = { ...task, id: taskId, dependencyTaskIds: cleanedDependencyIds };
+      const nextTask = { ...task, id: taskId, dependencyTaskIds: finalDependencyIds };
       return task.id
         ? previousTasks.map((item) => item.id === task.id ? nextTask : item)
         : [...previousTasks, nextTask];
