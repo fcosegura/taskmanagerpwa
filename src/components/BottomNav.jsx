@@ -64,8 +64,8 @@ export default function BottomNav({ currentView, setView }) {
             transition: 'color 0.2s'
           }}
         >
-          <span style={{ display: 'grid', placeItems: 'center' }}>{iconFor(tab.id)}</span>
-          <span style={{ fontSize: 10, fontWeight: currentView === tab.id ? 700 : 500 }}>
+          <span className="mobile-tab-icon">{iconFor(tab.id)}</span>
+          <span className="mobile-tab-label" style={{ fontWeight: currentView === tab.id ? 700 : 500 }}>
             {tab.label}
           </span>
         </button>
