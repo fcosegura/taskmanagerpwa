@@ -38,6 +38,7 @@ export default function App() {
   const [workspaceSummary, setWorkspaceSummary] = useState(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [summaryError, setSummaryError] = useState('');
+  const [showSummaryModal, setShowSummaryModal] = useState(false);
   const fileInputRef = useRef(null);
   const profileMenuRef = useRef(null);
   const actionsMenuRef = useRef(null);
@@ -483,6 +484,7 @@ export default function App() {
     try {
       const result = await getWorkspaceSummary(activeProfileId);
       setWorkspaceSummary(result);
+      setShowSummaryModal(true);
     } catch (error) {
       setSummaryError(error.message || 'No se pudo generar el resumen.');
     } finally {
@@ -736,24 +738,6 @@ export default function App() {
               </button>
             ))}
           </div>
-          {view === 'tasks' && workspaceSummary && (
-            <div style={{ marginTop: 12, border: '1px solid var(--color-border-tertiary)', borderRadius: 14, padding: 14, background: 'var(--color-background-primary)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, marginBottom: 8, flexWrap: 'wrap' }}>
-                <strong style={{ fontSize: 14 }}>Vista del workspace actual</strong>
-                <span style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>
-                  Fuente: {workspaceSummary.source === 'ai' ? 'IA' : 'local'}
-                </span>
-              </div>
-              <p style={{ margin: 0, fontSize: 13, color: 'var(--color-text-secondary)' }}>{workspaceSummary.summary}</p>
-              {Array.isArray(workspaceSummary.actionPlan) && workspaceSummary.actionPlan.length > 0 && (
-                <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13 }}>
-                  {workspaceSummary.actionPlan.map((item, index) => (
-                    <div key={`${item}-${index}`}>{index + 1}. {item}</div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
           {view === 'tasks' && summaryError && (
             <div style={{ marginTop: 10, fontSize: 12, color: 'var(--color-text-danger)' }}>{summaryError}</div>
           )}
@@ -795,6 +779,30 @@ export default function App() {
       {eventModal && (
         <div className="modal-backdrop" onClick={(e) => e.target === e.currentTarget && setEventModal(null)}>
           <EventModal key={eventModal.id || 'new-event'} event={eventModal} onSave={upsertEvent} onDelete={eventModal.id ? () => deleteEvent(eventModal.id) : null} onClose={() => setEventModal(null)} />
+        </div>
+      )}
+
+      {showSummaryModal && workspaceSummary && (
+        <div className="modal-backdrop" onClick={(e) => e.target === e.currentTarget && setShowSummaryModal(false)}>
+          <div style={{ width: 'min(620px, 100%)', maxWidth: 'calc(100% - 32px)', background: 'var(--color-background-primary)', borderRadius: 'var(--border-radius-lg)', boxShadow: 'var(--shadow-card)', padding: 24, color: 'var(--color-text-primary)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, gap: 12 }}>
+              <div>
+                <div style={{ fontSize: 18, fontWeight: 700 }}>Resumen del workspace</div>
+                <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 4 }}>
+                  Fuente: {workspaceSummary.source === 'ai' ? 'IA' : 'local'}
+                </div>
+              </div>
+              <button type="button" onClick={() => setShowSummaryModal(false)} aria-label="Cerrar resumen" style={{ border: 'none', background: 'transparent', color: 'var(--color-text-secondary)', cursor: 'pointer', fontSize: 22, lineHeight: 1 }}>×</button>
+            </div>
+            <p style={{ margin: 0, fontSize: 14, color: 'var(--color-text-secondary)' }}>{workspaceSummary.summary}</p>
+            {Array.isArray(workspaceSummary.actionPlan) && workspaceSummary.actionPlan.length > 0 && (
+              <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8, fontSize: 14 }}>
+                {workspaceSummary.actionPlan.map((item, index) => (
+                  <div key={`${item}-${index}`}>{index + 1}. {item}</div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
