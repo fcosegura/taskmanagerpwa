@@ -4,6 +4,9 @@ import { uid, fmtDate, parseDateTimeFromDescription, parseDescriptionDateResult,
 import { parseTaskWithAI } from '../storage.js';
 
 export default function TaskModal({ task, categories, allTasks = [], onSave, onDelete, onClose }) {
+  const availableDependencyTasks = allTasks.filter((candidate) => (
+    candidate.id !== task.id && candidate.status !== 'done'
+  ));
   const [form, setForm] = useState({
     ...task,
     subtasks: task.subtasks || [],
@@ -316,13 +319,13 @@ export default function TaskModal({ task, categories, allTasks = [], onSave, onD
         <div style={{ fontWeight: 500, fontSize: 13, color: 'var(--color-text-secondary)', marginBottom: 8 }}>
           Dependencias
         </div>
-        {allTasks.filter((candidate) => candidate.id !== task.id).length === 0 ? (
+        {availableDependencyTasks.length === 0 ? (
           <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>
-            No hay otras tareas disponibles.
+            No hay tareas abiertas disponibles para depender.
           </div>
         ) : (
           <div style={{ maxHeight: 130, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6, padding: '8px 10px', border: '0.5px solid var(--color-border-secondary)', borderRadius: 'var(--border-radius-md)' }}>
-            {allTasks.filter((candidate) => candidate.id !== task.id).map((candidate) => {
+            {availableDependencyTasks.map((candidate) => {
               const checked = (form.dependencyTaskIds || []).includes(candidate.id);
               return (
                 <label key={candidate.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--color-text-primary)', cursor: 'pointer' }}>
