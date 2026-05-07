@@ -269,6 +269,25 @@ export async function parseTaskWithAI(text) {
   };
 }
 
+export async function getWorkspaceSummary(profileId = null) {
+  const query = profileId ? `?profileId=${encodeURIComponent(profileId)}` : '';
+  const resp = await fetch(`/api/ai/workspace-summary${query}`, {
+    method: 'POST',
+    credentials: 'same-origin',
+  });
+  if (!resp.ok) {
+    let message = 'No se pudo generar el resumen.';
+    try {
+      const data = await resp.json();
+      if (typeof data?.error === 'string') message = data.error;
+    } catch {
+      // Keep default error message.
+    }
+    throw new Error(message);
+  }
+  return resp.json();
+}
+
 export async function loadData(profileId = null) {
   let localData = readLocalPayload(profileId);
 
