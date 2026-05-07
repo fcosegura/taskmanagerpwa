@@ -3,6 +3,48 @@ import { toDateStr, fmtDate } from '../utils.jsx';
 import { NBtn } from './shared/index.jsx';
 import TaskRow from './TaskRow.jsx';
 
+function getEasterSunday(year) {
+  const a = year % 19;
+  const b = Math.floor(year / 100);
+  const c = year % 100;
+  const d = Math.floor(b / 4);
+  const e = b % 4;
+  const f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4);
+  const k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const month = Math.floor((h + l - 7 * m + 114) / 31) - 1;
+  const day = ((h + l - 7 * m + 114) % 31) + 1;
+  return new Date(year, month, day);
+}
+
+function addDays(date, days) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function getSpainNationalHolidaySet(year) {
+  const set = new Set([
+    toDateStr(year, 0, 1),  // Año Nuevo
+    toDateStr(year, 0, 6),  // Reyes
+    toDateStr(year, 4, 1),  // Día del Trabajo
+    toDateStr(year, 7, 15), // Asunción
+    toDateStr(year, 9, 12), // Fiesta Nacional
+    toDateStr(year, 10, 1), // Todos los Santos
+    toDateStr(year, 11, 6), // Constitución
+    toDateStr(year, 11, 8), // Inmaculada
+    toDateStr(year, 11, 25), // Navidad
+  ]);
+  const easter = getEasterSunday(year);
+  const goodFriday = addDays(easter, -2);
+  set.add(toDateStr(goodFriday.getFullYear(), goodFriday.getMonth(), goodFriday.getDate()));
+  return set;
+}
+
 export default function CalendarView({ y, mo, dIM, fD, tByDate, eByDate, todayStr, prev, next, selDay, setSelDay, onAddTaskForDay, onEditTask, onAddEventForDay, onEditEvent }) {
   const cells = [...Array(fD).fill(null), ...Array.from({ length: dIM }, (_, i) => i + 1)];
   const selDs = selDay ? toDateStr(y, mo, selDay) : null;
@@ -10,6 +52,7 @@ export default function CalendarView({ y, mo, dIM, fD, tByDate, eByDate, todaySt
   const isCurrentMonth = today.getFullYear() === y && today.getMonth() === mo;
   const fallbackDay = isCurrentMonth ? today.getDate() : 1;
   const eventCreateDate = selDs || toDateStr(y, mo, fallbackDay);
+  const holidaySet = getSpainNationalHolidaySet(y);
 
   return (
     <div className="calendar-view" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -33,16 +76,33 @@ export default function CalendarView({ y, mo, dIM, fD, tByDate, eByDate, todaySt
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: '4px 8px', marginBottom: 8, color: 'var(--color-text-secondary)', fontSize: 11, fontWeight: 600 }}>
-          {DAYS.map((day) => <div key={day} style={{ textAlign: 'center' }}>{day.slice(0, 3)}</div>)}
+          {DAYS.map((day, dayIndex) => {
+            const isWeekendHeader = dayIndex === 0 || dayIndex === 6;
+            return (
+              <div
+                key={day}
+                style={{
+                  textAlign: 'center',
+                  color: isWeekendHeader ? 'var(--color-text-danger)' : 'var(--color-text-secondary)'
+                }}
+              >
+                {day.slice(0, 3)}
+              </div>
+            );
+          })}
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 8 }}>
           {cells.map((day, index) => {
             const dateStr = day ? toDateStr(y, mo, day) : null;
+            const dayOfWeek = day ? new Date(y, mo, day).getDay() : null;
+            const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+            const isNationalHoliday = dateStr ? holidaySet.has(dateStr) : false;
             const eventsForDay = dateStr ? eByDate[dateStr] || [] : [];
             const tasksForDay = dateStr ? tByDate[dateStr] || [] : [];
             const isToday = dateStr === todayStr;
             const isSelected = dateStr === selDs;
+            const holidayLike = isWeekend || isNationalHoliday;
 
             return (
               <div
@@ -51,8 +111,8 @@ export default function CalendarView({ y, mo, dIM, fD, tByDate, eByDate, todaySt
                 style={{
                   position: 'relative', minHeight: 65, padding: '8px 4px',
                   borderRadius: 12,
-                  background: isSelected ? '#eef6ff' : isToday ? '#ecfdf5' : '#ffffff',
-                  border: `1px solid ${isSelected ? '#93c5fd' : isToday ? '#4ade80' : 'rgba(148,163,184,0.12)'}`,
+                  background: isSelected ? '#eef6ff' : isToday ? '#ecfdf5' : holidayLike ? '#fff8f6' : '#ffffff',
+                  border: `1px solid ${isSelected ? '#93c5fd' : isToday ? '#4ade80' : holidayLike ? 'rgba(248,113,113,0.28)' : 'rgba(148,163,184,0.12)'}`,
                   color: day ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
                   cursor: day ? 'pointer' : 'default',
                   display: 'flex', flexDirection: 'column',
@@ -63,7 +123,7 @@ export default function CalendarView({ y, mo, dIM, fD, tByDate, eByDate, todaySt
               >
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', marginBottom: 4 }}>
-                    <span style={{ fontSize: 13, fontWeight: isToday ? 700 : 500, color: day ? (isToday ? 'var(--color-text-success)' : 'var(--color-text-primary)') : 'var(--color-text-secondary)', width: 24, height: 24, display: 'grid', placeItems: 'center', borderRadius: 999, background: isToday ? '#d1fae5' : undefined }}>
+                    <span style={{ fontSize: 13, fontWeight: isToday ? 700 : 500, color: day ? (isToday ? 'var(--color-text-success)' : holidayLike ? 'var(--color-text-danger)' : 'var(--color-text-primary)') : 'var(--color-text-secondary)', width: 24, height: 24, display: 'grid', placeItems: 'center', borderRadius: 999, background: isToday ? '#d1fae5' : undefined }}>
                       {day || ''}
                     </span>
                   </div>
