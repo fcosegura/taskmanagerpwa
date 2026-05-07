@@ -451,7 +451,7 @@ async function generateWorkspaceSummaryWithAi(tasks, events, env) {
   ].join('\n');
   const result = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
     messages: [{ role: 'user', content: prompt }],
-    max_tokens: 220,
+    max_tokens: 280,
     temperature: 0.2
   });
   const raw = typeof result?.response === 'string' ? result.response.trim() : '';
@@ -475,6 +475,18 @@ async function generateWorkspaceSummaryWithAi(tasks, events, env) {
   } catch {
     return null;
   }
+}
+
+function normalizeGeneratedSummary(summary, fallbackSummary) {
+  if (typeof summary !== 'string') return fallbackSummary;
+  const clean = summary.replace(/\s+/g, ' ').trim();
+  if (!clean) return fallbackSummary;
+  if (/[.!?]$/.test(clean)) return clean;
+  const lastSentenceEnd = Math.max(clean.lastIndexOf('.'), clean.lastIndexOf('!'), clean.lastIndexOf('?'));
+  if (lastSentenceEnd >= 35) {
+    return clean.slice(0, lastSentenceEnd + 1).trim();
+  }
+  return fallbackSummary;
 }
 
 async function verifyGoogleToken(token, env) {
@@ -571,7 +583,7 @@ export default {
             if (!aiSummary) return json({ ...fallbackSummary, source: 'fallback' });
             return json({
               ...fallbackSummary,
-              summary: aiSummary.summary,
+              summary: normalizeGeneratedSummary(aiSummary.summary, fallbackSummary.summary),
               actionPlan: aiSummary.actionPlan,
               source: 'ai'
             });

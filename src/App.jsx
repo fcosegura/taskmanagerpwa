@@ -794,7 +794,7 @@ export default function App() {
               </div>
               <button type="button" onClick={() => setShowSummaryModal(false)} aria-label="Cerrar resumen" style={{ border: 'none', background: 'transparent', color: 'var(--color-text-secondary)', cursor: 'pointer', fontSize: 22, lineHeight: 1 }}>×</button>
             </div>
-            <p style={{ margin: 0, fontSize: 14, color: 'var(--color-text-secondary)' }}>{workspaceSummary.summary}</p>
+            <p style={{ margin: 0, fontSize: 14, color: 'var(--color-text-secondary)', whiteSpace: 'normal', wordBreak: 'break-word' }}>{workspaceSummary.summary}</p>
             {Array.isArray(workspaceSummary.actionPlan) && workspaceSummary.actionPlan.length > 0 && (
               <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8, fontSize: 14 }}>
                 {workspaceSummary.actionPlan.map((item, index) => (
