@@ -209,12 +209,12 @@ export default function TaskRow({ task, allTasks = [], onClick, onToggleDone, on
           <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 3 }}>
             {dependencies.length > 0 && (
               <div style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>
-                Esta tarea depende de: {dependencies.map((dependency) => dependency.description).join(', ')}
+                Bloqueada por: {dependencies.map((dependency) => dependency.description).join(', ')}
               </div>
             )}
             {dependents.length > 0 && (
               <div style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>
-                Esta tarea tiene como dependientes a: {dependents.map((dependent) => dependent.description).join(', ')}
+                Desbloquea a: {dependents.map((dependent) => dependent.description).join(', ')}
               </div>
             )}
           </div>

@@ -72,12 +72,12 @@ function KanbanTaskCard({ task, allTasks, onEditTask, onDragStart, onDragEnd }) 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           {dependencies.length > 0 && (
             <div style={{ fontSize: 10, color: 'var(--color-text-secondary)' }}>
-              Depende de: {dependencies.map((dependency) => dependency.description).join(', ')}
+              Bloqueada por: {dependencies.map((dependency) => dependency.description).join(', ')}
             </div>
           )}
           {dependents.length > 0 && (
             <div style={{ fontSize: 10, color: 'var(--color-text-secondary)' }}>
-              Dependientes: {dependents.map((dependent) => dependent.description).join(', ')}
+              Desbloquea a: {dependents.map((dependent) => dependent.description).join(', ')}
             </div>
           )}
         </div>
