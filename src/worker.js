@@ -126,12 +126,97 @@ function isValidPayload(payload) {
 function normalizeSyncBody(body) {
   if (!body || typeof body !== 'object') return null;
   if (isValidPayload(body)) {
-    return { profileId: typeof body.profileId === 'string' ? body.profileId : null, payload: body };
+    return { profileId: typeof body.profileId === 'string' ? body.profileId : null, mode: 'payload', payload: body };
   }
   if (body.payload && isValidPayload(body.payload)) {
-    return { profileId: typeof body.profileId === 'string' ? body.profileId : null, payload: body.payload };
+    return { profileId: typeof body.profileId === 'string' ? body.profileId : null, mode: 'payload', payload: body.payload };
+  }
+
+  const isValidDeleteList = (list) => Array.isArray(list) && list.every((id) => typeof id === 'string');
+  const isValidOpsGroup = (group, validator) => (
+    group &&
+    typeof group === 'object' &&
+    Array.isArray(group.upserts) &&
+    group.upserts.every(validator) &&
+    isValidDeleteList(group.deletes)
+  );
+
+  if (body.ops && typeof body.ops === 'object') {
+    const { tasks, notes, events } = body.ops;
+    if (
+      isValidOpsGroup(tasks, isValidTask) &&
+      isValidOpsGroup(notes, isValidNote) &&
+      isValidOpsGroup(events, isValidEvent)
+    ) {
+      return {
+        profileId: typeof body.profileId === 'string' ? body.profileId : null,
+        mode: 'ops',
+        ops: { tasks, notes, events }
+      };
+    }
   }
   return null;
+}
+
+function prepareTaskUpsert(env, profileId, userId, task) {
+  return env.DB.prepare(
+    "INSERT INTO tasks (id, user_id, profile_id, description, status, priority, category, date, time, subtasks, hide_in_kanban_done) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) " +
+    "ON CONFLICT(id) DO UPDATE SET " +
+    "description = excluded.description, status = excluded.status, priority = excluded.priority, category = excluded.category, " +
+    "date = excluded.date, time = excluded.time, subtasks = excluded.subtasks, hide_in_kanban_done = excluded.hide_in_kanban_done, updated_at = CURRENT_TIMESTAMP " +
+    "WHERE tasks.user_id = excluded.user_id AND tasks.profile_id = excluded.profile_id AND (" +
+    "tasks.description IS NOT excluded.description OR tasks.status IS NOT excluded.status OR tasks.priority IS NOT excluded.priority OR " +
+    "tasks.category IS NOT excluded.category OR tasks.date IS NOT excluded.date OR tasks.time IS NOT excluded.time OR " +
+    "tasks.subtasks IS NOT excluded.subtasks OR tasks.hide_in_kanban_done IS NOT excluded.hide_in_kanban_done)"
+  ).bind(
+    scopedEntityId(profileId, task.id),
+    userId,
+    profileId,
+    task.description,
+    task.status,
+    task.priority,
+    task.category || null,
+    task.date || null,
+    task.time || null,
+    JSON.stringify(task.subtasks || []),
+    task.hideInKanbanDone ? 1 : 0
+  );
+}
+
+function prepareNoteUpsert(env, profileId, userId, note) {
+  return env.DB.prepare(
+    "INSERT INTO notes (id, user_id, profile_id, title, text, x, y) VALUES (?, ?, ?, ?, ?, ?, ?) " +
+    "ON CONFLICT(id) DO UPDATE SET " +
+    "title = excluded.title, text = excluded.text, x = excluded.x, y = excluded.y, updated_at = CURRENT_TIMESTAMP " +
+    "WHERE notes.user_id = excluded.user_id AND notes.profile_id = excluded.profile_id AND (" +
+    "notes.title IS NOT excluded.title OR notes.text IS NOT excluded.text OR notes.x IS NOT excluded.x OR notes.y IS NOT excluded.y)"
+  ).bind(
+    scopedEntityId(profileId, note.id),
+    userId,
+    profileId,
+    note.title || '',
+    note.text || '',
+    note.x || 0,
+    note.y || 0
+  );
+}
+
+function prepareEventUpsert(env, profileId, userId, event) {
+  return env.DB.prepare(
+    "INSERT INTO events (id, user_id, profile_id, title, startDate, endDate, color) VALUES (?, ?, ?, ?, ?, ?, ?) " +
+    "ON CONFLICT(id) DO UPDATE SET " +
+    "title = excluded.title, startDate = excluded.startDate, endDate = excluded.endDate, color = excluded.color, updated_at = CURRENT_TIMESTAMP " +
+    "WHERE events.user_id = excluded.user_id AND events.profile_id = excluded.profile_id AND (" +
+    "events.title IS NOT excluded.title OR events.startDate IS NOT excluded.startDate OR events.endDate IS NOT excluded.endDate OR events.color IS NOT excluded.color)"
+  ).bind(
+    scopedEntityId(profileId, event.id),
+    userId,
+    profileId,
+    event.title,
+    event.startDate,
+    event.endDate || null,
+    event.color || '#3b82f6'
+  );
 }
 
 async function ensureProfilesSchema(env) {
@@ -472,34 +557,86 @@ export default {
         }
 
         if (request.method === 'POST' && path === '/sync') {
+          const syncStartedAt = Date.now();
           const body = await request.json();
           const normalizedBody = normalizeSyncBody(body);
           if (!normalizedBody) {
             return json({ error: 'Payload inválido' }, { status: 400 });
           }
           const syncProfileId = await resolveProfileId(env, userId, normalizedBody.profileId);
-          const { tasks, boardNotes, events } = normalizedBody.payload;
+          const batch = [];
+          let taskCount = 0;
+          let noteCount = 0;
+          let eventCount = 0;
 
-          const batch = [
-            env.DB.prepare("DELETE FROM tasks WHERE user_id = ? AND profile_id = ?").bind(userId, syncProfileId),
-            env.DB.prepare("DELETE FROM notes WHERE user_id = ? AND profile_id = ?").bind(userId, syncProfileId),
-            env.DB.prepare("DELETE FROM events WHERE user_id = ? AND profile_id = ?").bind(userId, syncProfileId)
-          ];
+          if (normalizedBody.mode === 'payload') {
+            const { tasks, boardNotes, events } = normalizedBody.payload;
+            taskCount = tasks.length;
+            noteCount = boardNotes.length;
+            eventCount = events.length;
 
-          for (const t of tasks) {
-            batch.push(env.DB.prepare("INSERT OR REPLACE INTO tasks (id, user_id, profile_id, description, status, priority, category, date, time, subtasks, hide_in_kanban_done) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-              .bind(scopedEntityId(syncProfileId, t.id), userId, syncProfileId, t.description, t.status, t.priority, t.category || null, t.date || null, t.time || null, JSON.stringify(t.subtasks || []), t.hideInKanbanDone ? 1 : 0));
-          }
-          for (const n of boardNotes) {
-            batch.push(env.DB.prepare("INSERT OR REPLACE INTO notes (id, user_id, profile_id, title, text, x, y) VALUES (?, ?, ?, ?, ?, ?, ?)")
-              .bind(scopedEntityId(syncProfileId, n.id), userId, syncProfileId, n.title || '', n.text || '', n.x || 0, n.y || 0));
-          }
-          for (const e of events) {
-            batch.push(env.DB.prepare("INSERT OR REPLACE INTO events (id, user_id, profile_id, title, startDate, endDate, color) VALUES (?, ?, ?, ?, ?, ?, ?)")
-              .bind(scopedEntityId(syncProfileId, e.id), userId, syncProfileId, e.title, e.startDate, e.endDate || null, e.color || '#3b82f6'));
+            batch.push(
+              env.DB.prepare("DELETE FROM tasks WHERE user_id = ? AND profile_id = ?").bind(userId, syncProfileId),
+              env.DB.prepare("DELETE FROM notes WHERE user_id = ? AND profile_id = ?").bind(userId, syncProfileId),
+              env.DB.prepare("DELETE FROM events WHERE user_id = ? AND profile_id = ?").bind(userId, syncProfileId)
+            );
+
+            for (const t of tasks) {
+              batch.push(prepareTaskUpsert(env, syncProfileId, userId, t));
+            }
+            for (const n of boardNotes) {
+              batch.push(prepareNoteUpsert(env, syncProfileId, userId, n));
+            }
+            for (const e of events) {
+              batch.push(prepareEventUpsert(env, syncProfileId, userId, e));
+            }
+          } else {
+            const { tasks, notes, events } = normalizedBody.ops;
+            taskCount = tasks.upserts.length + tasks.deletes.length;
+            noteCount = notes.upserts.length + notes.deletes.length;
+            eventCount = events.upserts.length + events.deletes.length;
+
+            for (const taskId of tasks.deletes) {
+              batch.push(
+                env.DB.prepare("DELETE FROM tasks WHERE user_id = ? AND profile_id = ? AND id = ?")
+                  .bind(userId, syncProfileId, scopedEntityId(syncProfileId, taskId))
+              );
+            }
+            for (const noteId of notes.deletes) {
+              batch.push(
+                env.DB.prepare("DELETE FROM notes WHERE user_id = ? AND profile_id = ? AND id = ?")
+                  .bind(userId, syncProfileId, scopedEntityId(syncProfileId, noteId))
+              );
+            }
+            for (const eventId of events.deletes) {
+              batch.push(
+                env.DB.prepare("DELETE FROM events WHERE user_id = ? AND profile_id = ? AND id = ?")
+                  .bind(userId, syncProfileId, scopedEntityId(syncProfileId, eventId))
+              );
+            }
+
+            for (const t of tasks.upserts) {
+              batch.push(prepareTaskUpsert(env, syncProfileId, userId, t));
+            }
+            for (const n of notes.upserts) {
+              batch.push(prepareNoteUpsert(env, syncProfileId, userId, n));
+            }
+            for (const e of events.upserts) {
+              batch.push(prepareEventUpsert(env, syncProfileId, userId, e));
+            }
           }
 
-          await env.DB.batch(batch);
+          if (batch.length > 0) await env.DB.batch(batch);
+          console.log('[sync] write batch completed', {
+            userId,
+            profileId: syncProfileId,
+            mode: normalizedBody.mode,
+            taskCount,
+            noteCount,
+            eventCount,
+            statementCount: batch.length,
+            elapsedMs: Date.now() - syncStartedAt
+          });
           return json({ success: true, activeProfileId: syncProfileId });
         }
       } catch (err) {
