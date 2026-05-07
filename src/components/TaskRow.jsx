@@ -14,6 +14,15 @@ export default function TaskRow({ task, allTasks = [], onClick, onToggleDone, on
   const progress = subtaskCount ? Math.round((completedSubtasks / subtaskCount) * 100) : 0;
   const dependencies = allTasks.filter((candidate) => (task.dependencyTaskIds || []).includes(candidate.id));
   const dependents = allTasks.filter((candidate) => (candidate.dependencyTaskIds || []).includes(task.id));
+  const hasParentTask = dependencies.length > 0;
+  const hasChildTasks = dependents.length > 0;
+  const dependencyRailColor = hasParentTask && hasChildTasks
+    ? 'linear-gradient(180deg, #f59e0b 0%, #f59e0b 50%, #9333ea 50%, #9333ea 100%)'
+    : hasParentTask
+      ? '#f59e0b'
+      : hasChildTasks
+        ? '#9333ea'
+        : 'transparent';
 
   return (
     <div
@@ -34,6 +43,17 @@ export default function TaskRow({ task, allTasks = [], onClick, onToggleDone, on
       onMouseLeave={(e) => (e.currentTarget.style.transform = 'translateY(0)')}
     >
       <div className="priority-rail" style={{ width: 4, minHeight: 34, borderRadius: 4, background: `var(${p.tv})`, flexShrink: 0 }} />
+      {(hasParentTask || hasChildTasks) && (
+        <div
+          className="dependency-rail"
+          title={hasParentTask && hasChildTasks
+            ? 'Esta tarea depende de otra y también tiene tareas hijas'
+            : hasParentTask
+              ? 'Esta tarea depende de otra tarea'
+              : 'Esta tarea tiene tareas hijas'}
+          style={{ width: 4, minHeight: 34, borderRadius: 4, background: dependencyRailColor, flexShrink: 0 }}
+        />
+      )}
       <div className="task-content" style={{ flex: 1, minWidth: 0 }}>
         <div className="task-title" style={{ fontSize: 14, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textDecoration: task.status === 'done' ? 'line-through' : 'none' }}>
           {linkifyText(task.description)}

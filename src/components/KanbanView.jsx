@@ -8,6 +8,15 @@ function KanbanTaskCard({ task, allTasks, onEditTask, onDragStart, onDragEnd }) 
   const totalSubtasks = (task.subtasks || []).length;
   const dependencies = allTasks.filter((candidate) => (task.dependencyTaskIds || []).includes(candidate.id));
   const dependents = allTasks.filter((candidate) => (candidate.dependencyTaskIds || []).includes(task.id));
+  const hasParentTask = dependencies.length > 0;
+  const hasChildTasks = dependents.length > 0;
+  const dependencyRailColor = hasParentTask && hasChildTasks
+    ? 'linear-gradient(180deg, #f59e0b 0%, #f59e0b 50%, #9333ea 50%, #9333ea 100%)'
+    : hasParentTask
+      ? '#f59e0b'
+      : hasChildTasks
+        ? '#9333ea'
+        : 'transparent';
   return (
     <div
       draggable
@@ -26,6 +35,12 @@ function KanbanTaskCard({ task, allTasks, onEditTask, onDragStart, onDragEnd }) 
         gap: 8
       }}
     >
+      {(hasParentTask || hasChildTasks) && (
+        <div style={{ display: 'flex', gap: 6 }}>
+          <div style={{ width: 4, borderRadius: 999, background: `var(${priority.tv})` }} />
+          <div style={{ width: 4, borderRadius: 999, background: dependencyRailColor }} />
+        </div>
+      )}
       <div
         style={{
           fontSize: 13,
