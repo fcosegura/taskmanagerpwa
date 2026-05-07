@@ -39,6 +39,60 @@ export default function App() {
   const profileMenuRef = useRef(null);
   const actionsMenuRef = useRef(null);
   const syncFeedbackTimerRef = useRef(null);
+  const syncDebounceTimerRef = useRef(null);
+  const lastSyncedPayloadRef = useRef('');
+  const latestPayloadRef = useRef({ tasks: [], boardNotes: [], events: [] });
+  const syncInFlightRef = useRef(false);
+  const pendingSyncRef = useRef(false);
+
+  const serializePayload = (payload) => {
+    try {
+      return JSON.stringify(payload);
+    } catch {
+      return '';
+    }
+  };
+
+  const clearSyncDebounce = () => {
+    if (syncDebounceTimerRef.current) {
+      window.clearTimeout(syncDebounceTimerRef.current);
+      syncDebounceTimerRef.current = null;
+    }
+  };
+
+  const syncNow = async ({ immediate = false } = {}) => {
+    if (!ready || !authenticated || hydratedSession !== authenticated || !activeProfileId) return false;
+    const payload = latestPayloadRef.current;
+    const serialized = serializePayload(payload);
+    if (!serialized || serialized === lastSyncedPayloadRef.current) return false;
+
+    if (syncInFlightRef.current) {
+      pendingSyncRef.current = true;
+      return false;
+    }
+
+    if (immediate) clearSyncDebounce();
+
+    syncInFlightRef.current = true;
+    setSyncState('saving');
+    try {
+      await saveData(payload, authenticated, activeProfileId);
+      lastSyncedPayloadRef.current = serialized;
+      setSyncState('saved');
+      if (syncFeedbackTimerRef.current) window.clearTimeout(syncFeedbackTimerRef.current);
+      syncFeedbackTimerRef.current = window.setTimeout(() => setSyncState('idle'), 1600);
+      return true;
+    } catch {
+      setSyncState('error');
+      return false;
+    } finally {
+      syncInFlightRef.current = false;
+      if (pendingSyncRef.current) {
+        pendingSyncRef.current = false;
+        void syncNow({ immediate: true });
+      }
+    }
+  };
 
   useEffect(() => {
     localStorage.removeItem('userToken');
@@ -51,6 +105,13 @@ export default function App() {
       setTasks(data.tasks);
       setBoardNotes(data.boardNotes);
       setEvents(data.events || []);
+      const loadedPayload = {
+        tasks: data.tasks,
+        boardNotes: data.boardNotes,
+        events: data.events || []
+      };
+      latestPayloadRef.current = loadedPayload;
+      lastSyncedPayloadRef.current = serializePayload(loadedPayload);
       if (Array.isArray(data.profiles)) {
         setProfiles(data.profiles);
       }
@@ -90,6 +151,11 @@ export default function App() {
   };
 
   const handleLogout = async () => {
+    try {
+      await syncNow({ immediate: true });
+    } catch {
+      // Best-effort flush before ending session.
+    }
     await logoutSession();
     setAuthenticated(false);
     setReady(false);
@@ -145,25 +211,38 @@ export default function App() {
   }, [authenticated]);
 
   useEffect(() => {
-    if (!ready || !authenticated || hydratedSession !== authenticated) return undefined;
-    if (!activeProfileId) return undefined;
-    const timer = window.setTimeout(() => {
-      setSyncState('saving');
-      saveData({ tasks, boardNotes, events }, authenticated, activeProfileId)
-        .then(() => {
-          setSyncState('saved');
-          if (syncFeedbackTimerRef.current) window.clearTimeout(syncFeedbackTimerRef.current);
-          syncFeedbackTimerRef.current = window.setTimeout(() => setSyncState('idle'), 1600);
-        })
-        .catch(() => {
-          setSyncState('error');
-        });
-    }, 500);
-    return () => window.clearTimeout(timer);
+    latestPayloadRef.current = { tasks, boardNotes, events };
+    if (!ready || !authenticated || hydratedSession !== authenticated || !activeProfileId) return undefined;
+    clearSyncDebounce();
+    syncDebounceTimerRef.current = window.setTimeout(() => {
+      void syncNow();
+    }, 2000);
+    return () => clearSyncDebounce();
   }, [tasks, boardNotes, events, ready, authenticated, hydratedSession, activeProfileId]);
+
+  useEffect(() => {
+    if (!authenticated) return undefined;
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        void syncNow({ immediate: true });
+      }
+    };
+    const onBeforeUnload = () => {
+      void syncNow({ immediate: true });
+    };
+
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      window.removeEventListener('beforeunload', onBeforeUnload);
+    };
+  }, [authenticated, ready, hydratedSession, activeProfileId]);
 
   useEffect(() => () => {
     if (syncFeedbackTimerRef.current) window.clearTimeout(syncFeedbackTimerRef.current);
+    clearSyncDebounce();
   }, []);
 
   useEffect(() => {
