@@ -1,22 +1,44 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
-function BoardNoteCard({ note, onDelete, onUpdate, onPointerDown, isDragging }) {
+function BoardNoteCard({ note, onDelete, onUpdate, onDragHandlePointerDown, isDragging, noteWidth }) {
   return (
     <div
       className="board-note"
-      onPointerDown={onPointerDown}
       style={{
         position: 'absolute', left: note.x ?? 0, top: note.y ?? 0,
         zIndex: isDragging ? 50 : 10,
-        cursor: isDragging ? 'grabbing' : 'grab',
+        cursor: 'default',
         background: '#fef3c7', border: '1px solid #fcd34d',
-        borderRadius: 16, padding: 12, minHeight: 180, width: 180,
+        borderRadius: 16, padding: 12, minHeight: 180, width: noteWidth,
         display: 'flex', flexDirection: 'column', gap: 8,
         boxShadow: isDragging ? '0 25px 50px -12px rgba(0,0,0,0.25)' : '0 12px 24px rgba(15,23,42,0.08)',
         transition: isDragging ? 'none' : 'box-shadow 0.2s',
         touchAction: 'none'
       }}
     >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <button
+          type="button"
+          onPointerDown={onDragHandlePointerDown}
+          aria-label="Mover nota"
+          title="Mover nota"
+          style={{
+            border: 'none',
+            background: 'transparent',
+            color: '#6b7280',
+            cursor: isDragging ? 'grabbing' : 'grab',
+            fontSize: 14,
+            lineHeight: 1,
+            padding: 0,
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 4
+          }}
+        >
+          <span style={{ fontSize: 13 }}>⋮⋮</span>
+          <span style={{ fontSize: 11, fontWeight: 600 }}>Mover</span>
+        </button>
+      </div>
       <button
         type="button"
         onClick={(e) => { e.stopPropagation(); onDelete(note.id); }}
@@ -44,29 +66,62 @@ function BoardNoteCard({ note, onDelete, onUpdate, onPointerDown, isDragging }) 
 
 export default function BoardView({ notes, onAddNote, onUpdateNote, onDeleteNote }) {
   const boardRef = useRef(null);
+  const dragCaptureRef = useRef(null);
   const [draggedId, setDraggedId] = useState(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const [boardWidth, setBoardWidth] = useState(0);
+  const noteWidth = Math.max(150, Math.min(180, boardWidth > 0 ? boardWidth - 16 : 180));
+
+  useEffect(() => {
+    if (!boardRef.current) return undefined;
+    const updateWidth = () => setBoardWidth(boardRef.current?.clientWidth || 0);
+    updateWidth();
+    const observer = new ResizeObserver(updateWidth);
+    observer.observe(boardRef.current);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!boardWidth) return;
+    const maxX = Math.max(boardWidth - noteWidth - 8, 8);
+    notes.forEach((note) => {
+      const originalX = typeof note.x === 'number' ? note.x : 8;
+      const clampedX = Math.min(Math.max(originalX, 8), maxX);
+      if (clampedX !== originalX) {
+        onUpdateNote(note.id, { x: clampedX });
+      }
+    });
+  }, [boardWidth, noteWidth, notes, onUpdateNote]);
 
   const handlePointerDown = (e, note) => {
-    if (['INPUT', 'TEXTAREA', 'BUTTON'].includes(e.target.tagName)) return;
     e.preventDefault();
     e.currentTarget.setPointerCapture(e.pointerId);
+    dragCaptureRef.current = e.currentTarget;
     setDraggedId(note.id);
-    const rect = e.currentTarget.getBoundingClientRect();
-    setDragOffset({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+    const boardRect = boardRef.current?.getBoundingClientRect();
+    if (!boardRect) return;
+    setDragOffset({ x: e.clientX - boardRect.left - (note.x ?? 0), y: e.clientY - boardRect.top - (note.y ?? 0) });
   };
 
   const handlePointerMove = (e) => {
     if (!draggedId || !boardRef.current) return;
     const rect = boardRef.current.getBoundingClientRect();
-    const x = Math.min(Math.max(e.clientX - rect.left - dragOffset.x, 0), Math.max(rect.width - 180, 0));
-    const y = Math.max(e.clientY - rect.top - dragOffset.y, 0);
+    const x = Math.min(Math.max(e.clientX - rect.left - dragOffset.x, 8), Math.max(rect.width - noteWidth - 8, 8));
+    const y = Math.max(e.clientY - rect.top - dragOffset.y, 8);
     onUpdateNote(draggedId, { x, y });
   };
 
   const handlePointerUp = (e) => {
     if (draggedId) {
-      e.currentTarget.releasePointerCapture(e.pointerId);
+      const captureEl = dragCaptureRef.current;
+      if (captureEl?.hasPointerCapture?.(e.pointerId)) {
+        try {
+          captureEl.releasePointerCapture(e.pointerId);
+        } catch {
+          // Pointer might already be released.
+        }
+      }
+      dragCaptureRef.current = null;
       setDraggedId(null);
     }
   };
@@ -118,8 +173,11 @@ export default function BoardView({ notes, onAddNote, onUpdateNote, onDeleteNote
         ) : notes.map((note, index) => {
           const displayNote = {
             ...note,
-            x: note.x ?? (index % 2) * 200 + 20,
-            y: note.y ?? Math.floor(index / 2) * 200 + 20,
+            x: Math.min(
+              Math.max(note.x ?? (index % 2) * (noteWidth + 20) + 12, 8),
+              Math.max(boardWidth - noteWidth - 8, 8)
+            ),
+            y: Math.max(note.y ?? Math.floor(index / 2) * 200 + 20, 8),
             createdAt: note.createdAt || note.created_at || new Date().toISOString(),
           };
           return (
@@ -128,8 +186,9 @@ export default function BoardView({ notes, onAddNote, onUpdateNote, onDeleteNote
               note={displayNote}
               onDelete={onDeleteNote}
               onUpdate={onUpdateNote}
-              onPointerDown={(e) => handlePointerDown(e, displayNote)}
+              onDragHandlePointerDown={(e) => handlePointerDown(e, displayNote)}
               isDragging={draggedId === note.id}
+              noteWidth={noteWidth}
             />
           );
         })}
