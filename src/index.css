@@ -39,6 +39,42 @@
   --surface-border: 1px solid rgba(119, 132, 158, 0.16);
 }
 
+[data-theme="dark"] {
+  --shadow-card: 0 20px 48px rgba(2, 6, 23, 0.5);
+  --shadow-soft: 0 12px 28px rgba(2, 6, 23, 0.45);
+
+  --color-background-primary: #0f172a;
+  --color-background-secondary: #111827;
+  --color-background-tertiary: #1f2937;
+
+  --color-text-primary: #e5e7eb;
+  --color-text-secondary: #9ca3af;
+
+  --color-border-primary: #475569;
+  --color-border-secondary: #334155;
+  --color-border-tertiary: #1e293b;
+  --color-accent: #38bdf8;
+  --color-accent-soft: #0c4a6e;
+
+  --color-text-info: #93c5fd;
+  --color-background-info: #172554;
+  --color-border-info: #3b82f6;
+
+  --color-text-warning: #fbbf24;
+  --color-background-warning: #451a03;
+  --color-border-warning: #b45309;
+
+  --color-text-danger: #fca5a5;
+  --color-background-danger: #4c0519;
+  --color-border-danger: #be123c;
+
+  --color-text-success: #86efac;
+  --color-background-success: #052e16;
+  --color-border-success: #15803d;
+
+  --surface-border: 1px solid rgba(148, 163, 184, 0.2);
+}
+
 *,
 *::before,
 *::after {
@@ -57,6 +93,12 @@ body {
   color: var(--color-text-primary);
   line-height: 1.5;
   padding-bottom: env(safe-area-inset-bottom);
+}
+
+[data-theme="dark"] body {
+  background:
+    linear-gradient(135deg, rgba(14, 116, 144, 0.24), rgba(15, 23, 42, 0.95) 36%, rgba(67, 20, 7, 0.32) 100%),
+    #020617;
 }
 
 input,
@@ -93,6 +135,11 @@ select:focus {
   background: rgba(255, 255, 255, 0.78);
   backdrop-filter: blur(18px);
   box-shadow: 0 10px 32px rgba(25, 35, 56, 0.06);
+}
+
+[data-theme="dark"] .app-header {
+  background: rgba(2, 6, 23, 0.78);
+  box-shadow: 0 10px 32px rgba(2, 6, 23, 0.55);
 }
 
 .brand-block,
@@ -145,6 +192,10 @@ select:focus {
   flex-direction: column;
   gap: 4px;
   z-index: 200;
+}
+
+[data-theme="dark"] .workspace-menu {
+  background: rgba(15, 23, 42, 0.97);
 }
 
 .workspace-option,
@@ -244,6 +295,10 @@ select:focus {
   background: rgba(245, 247, 250, 0.92);
 }
 
+[data-theme="dark"] .desktop-tabs {
+  background: rgba(15, 23, 42, 0.9);
+}
+
 .desktop-tabs button,
 .ghost-button,
 .primary-button,
@@ -269,6 +324,11 @@ select:focus {
   box-shadow: 0 8px 20px rgba(25, 35, 56, 0.08);
 }
 
+[data-theme="dark"] .desktop-tabs button.active {
+  background: rgba(30, 41, 59, 0.95);
+  box-shadow: 0 8px 20px rgba(2, 6, 23, 0.35);
+}
+
 .header-actions {
   justify-self: end;
   gap: 9px;
@@ -292,6 +352,10 @@ select:focus {
   background: rgba(255, 255, 255, 0.96);
   box-shadow: 0 18px 38px rgba(15, 23, 42, 0.18);
   z-index: 200;
+}
+
+[data-theme="dark"] .header-actions-menu {
+  background: rgba(15, 23, 42, 0.97);
 }
 
 .header-actions-menu button {
@@ -321,6 +385,10 @@ select:focus {
   font-weight: 700;
   padding: 7px 10px;
   pointer-events: none;
+}
+
+[data-theme="dark"] .sync-indicator {
+  background: rgba(15, 23, 42, 0.85);
 }
 
 .sync-indicator.visible {
@@ -355,6 +423,10 @@ select:focus {
   font-weight: 800;
 }
 
+[data-theme="dark"] .ghost-button {
+  background: rgba(15, 23, 42, 0.82);
+}
+
 .primary-button {
   padding: 11px 18px;
   border-radius: 999px;
@@ -363,6 +435,11 @@ select:focus {
   font-size: 13px;
   font-weight: 850;
   box-shadow: 0 16px 30px rgba(23, 32, 51, 0.18);
+}
+
+[data-theme="dark"] .primary-button {
+  background: #0b1220;
+  box-shadow: 0 16px 30px rgba(2, 6, 23, 0.5);
 }
 
 .primary-button:hover,
@@ -389,6 +466,10 @@ select:focus {
   border-radius: 20px;
   background: rgba(255, 255, 255, 0.7);
   box-shadow: var(--shadow-soft);
+}
+
+[data-theme="dark"] .overview-panel {
+  background: rgba(15, 23, 42, 0.76);
 }
 
 .overview-panel.compact {
@@ -423,6 +504,10 @@ select:focus {
   text-align: left;
   cursor: pointer;
   transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
+}
+
+[data-theme="dark"] .metric-strip .metric-card {
+  background: rgba(15, 23, 42, 0.9);
 }
 
 .metric-strip .metric-card:hover {
@@ -469,6 +554,11 @@ select:focus {
   font-weight: 700;
 }
 
+[data-theme="dark"] .toast-message {
+  border-color: rgba(56, 189, 248, 0.4);
+  background: rgba(12, 74, 110, 0.55);
+}
+
 .toolbar-panel {
   margin-bottom: 18px !important;
   padding: 14px !important;
@@ -476,6 +566,10 @@ select:focus {
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.72);
   box-shadow: var(--shadow-soft);
+}
+
+[data-theme="dark"] .toolbar-panel {
+  background: rgba(15, 23, 42, 0.72);
 }
 
 .toolbar-row {
@@ -511,6 +605,10 @@ select:focus {
   font-size: 14px !important;
 }
 
+[data-theme="dark"] .search-box input {
+  background: rgba(15, 23, 42, 0.92) !important;
+}
+
 .toolbar-actions {
   flex: 1 1 auto;
   justify-content: flex-end;
@@ -536,6 +634,10 @@ select:focus {
   background: rgba(255, 255, 255, 0.62) !important;
 }
 
+[data-theme="dark"] .filter-group {
+  background: rgba(15, 23, 42, 0.62) !important;
+}
+
 .task-list {
   gap: 10px !important;
 }
@@ -544,6 +646,10 @@ select:focus {
   border: var(--surface-border) !important;
   border-radius: 16px !important;
   box-shadow: 0 8px 26px rgba(25, 35, 56, 0.06) !important;
+}
+
+[data-theme="dark"] .task-card {
+  box-shadow: 0 8px 26px rgba(2, 6, 23, 0.35) !important;
 }
 
 .task-title {
@@ -568,6 +674,10 @@ select:focus {
   box-shadow: 0 18px 48px rgba(25, 35, 56, 0.16) !important;
 }
 
+[data-theme="dark"] .quick-add {
+  box-shadow: 0 18px 48px rgba(2, 6, 23, 0.52) !important;
+}
+
 .quick-add button[type="submit"] {
   border-radius: 14px !important;
   background: var(--color-accent) !important;
@@ -577,6 +687,10 @@ select:focus {
   border: 1px dashed rgba(100, 112, 132, 0.3);
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.56);
+}
+
+[data-theme="dark"] .empty-state {
+  background: rgba(15, 23, 42, 0.56);
 }
 
 .calendar-panel,
@@ -605,6 +719,10 @@ select:focus {
   flex-direction: column;
   background: rgba(255, 255, 255, 0.75);
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+[data-theme="dark"] .kanban-column {
+  background: rgba(15, 23, 42, 0.78);
 }
 
 .kanban-column.active-drop {
@@ -694,6 +812,10 @@ select:focus {
   background: #eef8ea !important;
 }
 
+[data-theme="dark"] .calendar-cell.today {
+  background: rgba(22, 101, 52, 0.35) !important;
+}
+
 .board-canvas {
   background-color: #f5f7fa !important;
   background-image:
@@ -702,11 +824,23 @@ select:focus {
   background-size: 32px 32px !important;
 }
 
+[data-theme="dark"] .board-canvas {
+  background-color: #111827 !important;
+  background-image:
+    linear-gradient(rgba(56, 189, 248, 0.1) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(56, 189, 248, 0.1) 1px, transparent 1px) !important;
+}
+
 .board-note {
   border-radius: 14px !important;
   background: #fff1d6 !important;
   border-color: #f6c66f !important;
   transform: rotate(-0.4deg);
+}
+
+[data-theme="dark"] .board-note {
+  background: #3f2b08 !important;
+  border-color: #b45309 !important;
 }
 
 .board-note:focus-within,
@@ -901,6 +1035,11 @@ nav.show-mobile {
   background: rgba(255, 255, 255, 0.86);
   box-shadow: 0 18px 48px rgba(25, 35, 56, 0.16);
   backdrop-filter: blur(18px);
+}
+
+[data-theme="dark"] nav.show-mobile {
+  background: rgba(2, 6, 23, 0.88);
+  box-shadow: 0 18px 48px rgba(2, 6, 23, 0.5);
 }
 
 nav.show-mobile button {
