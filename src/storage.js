@@ -279,14 +279,16 @@ export async function parseTaskWithAI(text) {
   };
 }
 
-export async function getWorkspaceSummary(profileId = null) {
+export async function generateTasksFromText(text, profileId = null) {
   const query = profileId ? `?profileId=${encodeURIComponent(profileId)}` : '';
-  const resp = await fetch(`/api/ai/workspace-summary${query}`, {
+  const resp = await fetch(`/api/ai/generate-tasks${query}`, {
     method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
     credentials: 'same-origin',
+    body: JSON.stringify({ text }),
   });
   if (!resp.ok) {
-    let message = 'No se pudo generar el resumen.';
+    let message = 'No se pudo generar tareas con IA.';
     try {
       const data = await resp.json();
       if (typeof data?.error === 'string') message = data.error;
@@ -295,7 +297,17 @@ export async function getWorkspaceSummary(profileId = null) {
     }
     throw new Error(message);
   }
-  return resp.json();
+  const data = await resp.json();
+  const parentTask = data?.parentTask && typeof data.parentTask === 'object' ? data.parentTask : null;
+  const childTasks = Array.isArray(data?.childTasks) ? data.childTasks.filter((item) => item && typeof item === 'object') : [];
+  if (!parentTask) {
+    throw new Error('Respuesta IA invalida: parentTask faltante.');
+  }
+  return {
+    parentTask,
+    childTasks,
+    source: data?.source === 'ai' ? 'ai' : 'fallback',
+  };
 }
 
 export async function loadData(profileId = null) {

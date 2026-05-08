@@ -333,7 +333,7 @@ async function ensureProfilesSchema(env) {
     throw new Error('D1 schema mismatch: profile_id column missing in one or more tables.');
   }
 
-  let taskColumns = [];
+  let taskColumns;
   try {
     const { results } = await env.DB.prepare("PRAGMA table_info(tasks)").all();
     taskColumns = Array.isArray(results) ? results.map((col) => col?.name).filter(Boolean) : [];
@@ -488,64 +488,88 @@ async function parseTaskWithAi(input, env) {
   }
 }
 
-function summarizeWorkspaceFallback(tasks, events) {
-  const statusCounts = tasks.reduce((acc, task) => {
-    const key = typeof task.status === 'string' ? task.status : 'not_done';
-    acc[key] = (acc[key] || 0) + 1;
-    return acc;
-  }, {});
-  const overdue = tasks.filter((task) => task.status !== 'done' && typeof task.date === 'string' && task.date && task.date < new Date().toISOString().slice(0, 10)).length;
-  const highPriorityPending = tasks
-    .filter((task) => task.status !== 'done' && ['high', 'critical'].includes(task.priority))
-    .slice(0, 5)
-    .map((task) => task.name)
-    .filter(Boolean);
-  const summary = `Tienes ${tasks.length} tareas en este workspace. ${statusCounts.done || 0} completadas, ${statusCounts.blocked || 0} bloqueadas y ${overdue} vencidas.`;
-  const actionPlan = [
-    overdue > 0 ? `Resuelve primero ${overdue} tarea(s) vencidas.` : 'No hay tareas vencidas; prioriza las próximas fechas.',
-    highPriorityPending.length > 0 ? `Enfócate en prioridades altas: ${highPriorityPending.slice(0, 2).join(' · ')}` : 'Define 1-2 tareas de alto impacto para hoy.',
-    events.length > 0 ? `Coordina tus ${events.length} eventos del calendario con tareas clave.` : 'Reserva un bloque de tiempo para avanzar en tareas importantes.'
-  ];
-  return {
-    summary,
-    actionPlan,
-    metrics: {
-      totalTasks: tasks.length,
-      completedTasks: statusCounts.done || 0,
-      blockedTasks: statusCounts.blocked || 0,
-      overdueTasks: overdue,
-      events: events.length
+function parseDateInCurrentWeek(text) {
+  if (typeof text !== 'string' || !text.trim()) return '';
+  const cleaned = text.toLowerCase();
+  const explicitDate = cleaned.match(/\b(\d{4})-(\d{2})-(\d{2})\b/);
+  if (explicitDate) return `${explicitDate[1]}-${explicitDate[2]}-${explicitDate[3]}`;
+
+  const weekdays = new Map([
+    ['domingo', 0],
+    ['lunes', 1],
+    ['martes', 2],
+    ['miercoles', 3],
+    ['miércoles', 3],
+    ['jueves', 4],
+    ['viernes', 5],
+    ['sabado', 6],
+    ['sábado', 6],
+  ]);
+  let requestedWeekday = null;
+  for (const [word, value] of weekdays.entries()) {
+    if (new RegExp(`\\b${word}\\b`, 'i').test(cleaned)) {
+      requestedWeekday = value;
+      break;
     }
+  }
+  if (requestedWeekday === null) return '';
+
+  const now = new Date();
+  const currentWeekday = now.getDay();
+  const mondayOffset = currentWeekday === 0 ? -6 : 1 - currentWeekday;
+  const monday = new Date(now);
+  monday.setHours(12, 0, 0, 0);
+  monday.setDate(now.getDate() + mondayOffset);
+  const target = new Date(monday);
+  const dayOffset = requestedWeekday === 0 ? 6 : requestedWeekday - 1;
+  target.setDate(monday.getDate() + dayOffset);
+  return `${target.getFullYear()}-${String(target.getMonth() + 1).padStart(2, '0')}-${String(target.getDate()).padStart(2, '0')}`;
+}
+
+function parseChildrenFallback(input) {
+  if (typeof input !== 'string') return [];
+  const childrenMatch = input.match(/(?:subtareas?|subtasks?)\s*[:,-]?\s*(.+)$/i);
+  if (!childrenMatch || !childrenMatch[1]) return [];
+  return childrenMatch[1]
+    .split(/(?:,|;|\sy\s|\sand\s)/i)
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .slice(0, 8)
+    .map((name) => ({ name, priority: 'medium', notes: '', date: '', time: '' }));
+}
+
+function generateTaskTreeFallback(input) {
+  const parsed = parseTaskFallback(input);
+  const parentDate = parseDateInCurrentWeek(input);
+  return {
+    parent: {
+      name: parsed.title || 'Nueva tarea',
+      date: parentDate || '',
+      time: '',
+      priority: parsed.priority || 'medium',
+      notes: '',
+      category: parsed.tags?.[0] || ''
+    },
+    children: parseChildrenFallback(input)
   };
 }
 
-async function generateWorkspaceSummaryWithAi(tasks, events, env) {
+async function generateTasksFromTextWithAi(input, env) {
   if (!env?.AI?.run) return null;
-  const compactTasks = tasks.slice(0, 25).map((task) => ({
-    name: task.name,
-    status: task.status,
-    priority: task.priority,
-    date: task.date || null,
-    category: task.category || null
-  }));
-  const compactEvents = events.slice(0, 12).map((event) => ({
-    title: event.title,
-    startDate: event.startDate,
-    endDate: event.endDate || null
-  }));
   const prompt = [
-    'Genera un resumen ejecutivo breve del workspace y un plan de accion concreto.',
-    'Responde SOLO JSON valido con este formato exacto:',
-    '{"summary":"string","actionPlan":["paso 1","paso 2","paso 3"],"metrics":{"focus":"string"}}',
-    'summary maximo 240 caracteres.',
-    'actionPlan debe tener 3 items maximo 120 caracteres cada uno.',
-    `Tareas: ${JSON.stringify(compactTasks)}`,
-    `Eventos: ${JSON.stringify(compactEvents)}`
+    'Convierte texto libre en una tarea padre y sus tareas hijas.',
+    'Responde SOLO JSON valido.',
+    'Formato exacto:',
+    '{"parent":{"name":"string","date":"YYYY-MM-DD|","time":"HH:MM|","priority":"low|medium|high|critical","notes":"string","category":"string"},"children":[{"name":"string","date":"YYYY-MM-DD|","time":"HH:MM|","priority":"low|medium|high|critical","notes":"string","category":"string"}]}',
+    'Si no hay fecha/hora clara, devolver string vacio.',
+    'Si menciona subtareas, devolverlas como children.',
+    'Maximo 8 children.',
+    `Texto: ${input}`
   ].join('\n');
   const result = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
     messages: [{ role: 'user', content: prompt }],
-    max_tokens: 280,
-    temperature: 0.2
+    max_tokens: 420,
+    temperature: 0.1
   });
   const raw = typeof result?.response === 'string' ? result.response.trim() : '';
   if (!raw) return null;
@@ -555,31 +579,45 @@ async function generateWorkspaceSummaryWithAi(tasks, events, env) {
   try {
     const parsed = JSON.parse(raw.slice(jsonStart, jsonEnd + 1));
     if (!parsed || typeof parsed !== 'object') return null;
-    const summary = typeof parsed.summary === 'string' ? parsed.summary.trim().slice(0, 240) : '';
-    const actionPlan = Array.isArray(parsed.actionPlan)
-      ? parsed.actionPlan.filter((item) => typeof item === 'string' && item.trim()).map((item) => item.trim().slice(0, 120)).slice(0, 3)
-      : [];
-    if (!summary || actionPlan.length === 0) return null;
-    return {
-      summary,
-      actionPlan,
-      metrics: typeof parsed.metrics === 'object' && parsed.metrics ? parsed.metrics : {}
-    };
+    return parsed;
   } catch {
     return null;
   }
 }
 
-function normalizeGeneratedSummary(summary, fallbackSummary) {
-  if (typeof summary !== 'string') return fallbackSummary;
-  const clean = summary.replace(/\s+/g, ' ').trim();
-  if (!clean) return fallbackSummary;
-  if (/[.!?]$/.test(clean)) return clean;
-  const lastSentenceEnd = Math.max(clean.lastIndexOf('.'), clean.lastIndexOf('!'), clean.lastIndexOf('?'));
-  if (lastSentenceEnd >= 35) {
-    return clean.slice(0, lastSentenceEnd + 1).trim();
+function normalizeGeneratedTaskTree(aiParsed, sourceText) {
+  const fallback = generateTaskTreeFallback(sourceText);
+  const inputParent = aiParsed && typeof aiParsed === 'object' && aiParsed.parent && typeof aiParsed.parent === 'object'
+    ? aiParsed.parent
+    : fallback.parent;
+  const inputChildren = aiParsed && typeof aiParsed === 'object' && Array.isArray(aiParsed.children)
+    ? aiParsed.children
+    : fallback.children;
+
+  const normalizeItem = (item, fallbackName) => {
+    const rawDate = typeof item?.date === 'string' ? item.date.trim() : '';
+    const derivedDate = rawDate || parseDateInCurrentWeek(sourceText);
+    return {
+      name: typeof item?.name === 'string' && item.name.trim() ? item.name.trim().slice(0, 120) : fallbackName,
+      date: derivedDate || '',
+      time: typeof item?.time === 'string' ? item.time.trim().slice(0, 5) : '',
+      priority: normalizePriority(item?.priority),
+      notes: typeof item?.notes === 'string' ? item.notes.trim().slice(0, 400) : '',
+      category: typeof item?.category === 'string' ? item.category.trim().slice(0, 30) : '',
+    };
+  };
+
+  const parent = normalizeItem(inputParent, fallback.parent.name || 'Nueva tarea');
+  const children = inputChildren
+    .filter((item) => item && typeof item === 'object')
+    .slice(0, 8)
+    .map((item, index) => normalizeItem(item, `Subtarea ${index + 1}`))
+    .filter((item) => item.name);
+
+  if (!parent.name) {
+    parent.name = fallback.parent.name || 'Nueva tarea';
   }
-  return fallbackSummary;
+  return { parent, children };
 }
 
 async function verifyGoogleToken(token, env) {
@@ -663,26 +701,39 @@ export default {
           }
         }
 
-        if (request.method === 'POST' && path === '/ai/workspace-summary') {
-          const summaryTaskSelect = taskSchema.hasName
-            ? "SELECT name, status, priority, category, date FROM tasks WHERE user_id = ? AND profile_id = ?"
-            : "SELECT description AS name, status, priority, category, date FROM tasks WHERE user_id = ? AND profile_id = ?";
-          const { results: tasks } = await env.DB.prepare(summaryTaskSelect).bind(userId, profileId).all();
-          const { results: events } = await env.DB.prepare(
-            "SELECT title, startDate, endDate FROM events WHERE user_id = ? AND profile_id = ?"
-          ).bind(userId, profileId).all();
-          const fallbackSummary = summarizeWorkspaceFallback(tasks || [], events || []);
+        if (request.method === 'POST' && path === '/ai/generate-tasks') {
+          let body = null;
           try {
-            const aiSummary = await generateWorkspaceSummaryWithAi(tasks || [], events || [], env);
-            if (!aiSummary) return json({ ...fallbackSummary, source: 'fallback' });
+            body = await request.json();
+          } catch {
+            return json({ error: 'Body inválido' }, { status: 400 });
+          }
+          const text = typeof body?.text === 'string' ? body.text.trim() : '';
+          if (!text) return json({ error: 'text es requerido' }, { status: 400 });
+          if (text.length > 700) return json({ error: 'text demasiado largo (max 700)' }, { status: 400 });
+          const fallbackTree = normalizeGeneratedTaskTree(null, text);
+
+          try {
+            const aiTree = await generateTasksFromTextWithAi(text, env);
+            if (!aiTree) {
+              return json({
+                parentTask: fallbackTree.parent,
+                childTasks: fallbackTree.children,
+                source: 'fallback'
+              });
+            }
+            const normalized = normalizeGeneratedTaskTree(aiTree, text);
             return json({
-              ...fallbackSummary,
-              summary: normalizeGeneratedSummary(aiSummary.summary, fallbackSummary.summary),
-              actionPlan: aiSummary.actionPlan,
+              parentTask: normalized.parent,
+              childTasks: normalized.children,
               source: 'ai'
             });
           } catch {
-            return json({ ...fallbackSummary, source: 'fallback' });
+            return json({
+              parentTask: fallbackTree.parent,
+              childTasks: fallbackTree.children,
+              source: 'fallback'
+            });
           }
         }
 

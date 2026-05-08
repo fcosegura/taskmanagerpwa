@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { P_ORDER, STATUS } from './constants.js';
 import { uid, toDateStr, parseDateTimeFromDescription, parseDescriptionDateResult, cleanDescriptionSegment } from './utils.jsx';
-import { loadData, saveData, validateBackupPayload, normalizeDataPayload, loginWithGoogleCredential, logoutSession, createProfile, deleteProfile, parseTaskWithAI, checkSession, getWorkspaceSummary } from './storage.js';
+import { loadData, saveData, validateBackupPayload, normalizeDataPayload, loginWithGoogleCredential, logoutSession, createProfile, deleteProfile, parseTaskWithAI, checkSession, generateTasksFromText } from './storage.js';
 import TasksView from './components/TasksView.jsx';
 import CalendarView from './components/CalendarView.jsx';
 import BoardView from './components/BoardView.jsx';
@@ -35,10 +35,8 @@ export default function App() {
   const [activeProfileId, setActiveProfileId] = useState(() => localStorage.getItem(ACTIVE_PROFILE_STORAGE_KEY) || null);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showActionsMenu, setShowActionsMenu] = useState(false);
-  const [workspaceSummary, setWorkspaceSummary] = useState(null);
-  const [summaryLoading, setSummaryLoading] = useState(false);
-  const [summaryError, setSummaryError] = useState('');
-  const [showSummaryModal, setShowSummaryModal] = useState(false);
+  const [aiGenerationLoading, setAiGenerationLoading] = useState(false);
+  const [aiGenerationError, setAiGenerationError] = useState('');
   const fileInputRef = useRef(null);
   const profileMenuRef = useRef(null);
   const actionsMenuRef = useRef(null);
@@ -500,8 +498,7 @@ export default function App() {
     setTasks([]);
     setBoardNotes([]);
     setEvents([]);
-    setWorkspaceSummary(null);
-    setSummaryError('');
+    setAiGenerationError('');
     setReady(false);
     setShowProfileMenu(false);
   };
@@ -519,18 +516,57 @@ export default function App() {
     }
   };
 
-  const handleGenerateWorkspaceSummary = async () => {
-    if (summaryLoading) return;
-    setSummaryLoading(true);
-    setSummaryError('');
+  const handleGenerateTasksFromAi = async () => {
+    if (aiGenerationLoading) return;
+    const input = window.prompt('Describe las tareas que quieres crear con IA');
+    const text = typeof input === 'string' ? input.trim() : '';
+    if (!text) return;
+
+    setAiGenerationLoading(true);
+    setAiGenerationError('');
     try {
-      const result = await getWorkspaceSummary(activeProfileId);
-      setWorkspaceSummary(result);
-      setShowSummaryModal(true);
+      const result = await generateTasksFromText(text, activeProfileId);
+      const parentInput = result?.parentTask && typeof result.parentTask === 'object' ? result.parentTask : null;
+      const childInputs = Array.isArray(result?.childTasks) ? result.childTasks : [];
+      if (!parentInput) throw new Error('No se pudo interpretar una tarea principal.');
+
+      const normalizeTaskInput = (taskInput, fallbackName) => {
+        const name = typeof taskInput?.name === 'string' && taskInput.name.trim()
+          ? taskInput.name.trim()
+          : fallbackName;
+        return {
+          name,
+          date: typeof taskInput?.date === 'string' ? taskInput.date : '',
+          time: typeof taskInput?.time === 'string' ? taskInput.time : '',
+          status: 'not_done',
+          priority: ['low', 'medium', 'high', 'critical'].includes(taskInput?.priority) ? taskInput.priority : 'medium',
+          subtasks: [],
+          dependencyTaskIds: [],
+          category: typeof taskInput?.category === 'string' ? taskInput.category : '',
+          url: '',
+          notes: typeof taskInput?.notes === 'string' ? taskInput.notes : '',
+          hideInKanbanDone: false,
+        };
+      };
+
+      setTasks((previousTasks) => {
+        const parentId = uid();
+        const parentTask = { ...normalizeTaskInput(parentInput, text), id: parentId };
+        const generatedChildren = childInputs
+          .map((child, index) => ({ ...normalizeTaskInput(child, `Subtarea ${index + 1}`), id: uid() }))
+          .filter((child) => child.name);
+        const childIds = generatedChildren.map((child) => child.id);
+        const parentWithChildren = { ...parentTask, dependencyTaskIds: childIds };
+        return [...previousTasks, ...generatedChildren, parentWithChildren];
+      });
+
+      const sourceLabel = result?.source === 'ai' ? 'IA' : 'fallback';
+      setBackupMessage(`Tareas generadas (${sourceLabel}).`);
+      setTimeout(() => setBackupMessage(''), 3500);
     } catch (error) {
-      setSummaryError(error.message || 'No se pudo generar el resumen.');
+      setAiGenerationError(error.message || 'No se pudo generar tareas con IA.');
     } finally {
-      setSummaryLoading(false);
+      setAiGenerationLoading(false);
     }
   };
 
@@ -754,10 +790,10 @@ export default function App() {
               <button
                 type="button"
                 className="ghost-button"
-                onClick={handleGenerateWorkspaceSummary}
-                disabled={summaryLoading}
+                onClick={handleGenerateTasksFromAi}
+                disabled={aiGenerationLoading}
               >
-                {summaryLoading ? 'Generando resumen...' : 'Resumen + plan IA'}
+                {aiGenerationLoading ? 'Generando tareas...' : 'Generar tareas IA'}
               </button>
             </div>
           )}
@@ -780,8 +816,8 @@ export default function App() {
               </button>
             ))}
           </div>
-          {view === 'tasks' && summaryError && (
-            <div style={{ marginTop: 10, fontSize: 12, color: 'var(--color-text-danger)' }}>{summaryError}</div>
+          {view === 'tasks' && aiGenerationError && (
+            <div style={{ marginTop: 10, fontSize: 12, color: 'var(--color-text-danger)' }}>{aiGenerationError}</div>
           )}
         </section>
 
@@ -823,30 +859,6 @@ export default function App() {
       {eventModal && (
         <div className="modal-backdrop" onClick={(e) => e.target === e.currentTarget && setEventModal(null)}>
           <EventModal key={eventModal.id || 'new-event'} event={eventModal} onSave={upsertEvent} onDelete={eventModal.id ? () => deleteEvent(eventModal.id) : null} onClose={() => setEventModal(null)} />
-        </div>
-      )}
-
-      {showSummaryModal && workspaceSummary && (
-        <div className="modal-backdrop" onClick={(e) => e.target === e.currentTarget && setShowSummaryModal(false)}>
-          <div style={{ width: 'min(620px, 100%)', maxWidth: 'calc(100% - 32px)', background: 'var(--color-background-primary)', borderRadius: 'var(--border-radius-lg)', boxShadow: 'var(--shadow-card)', padding: 24, color: 'var(--color-text-primary)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, gap: 12 }}>
-              <div>
-                <div style={{ fontSize: 18, fontWeight: 700 }}>Resumen del workspace</div>
-                <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 4 }}>
-                  Fuente: {workspaceSummary.source === 'ai' ? 'IA' : 'local'}
-                </div>
-              </div>
-              <button type="button" onClick={() => setShowSummaryModal(false)} aria-label="Cerrar resumen" style={{ border: 'none', background: 'transparent', color: 'var(--color-text-secondary)', cursor: 'pointer', fontSize: 22, lineHeight: 1 }}>×</button>
-            </div>
-            <p style={{ margin: 0, fontSize: 14, color: 'var(--color-text-secondary)', whiteSpace: 'normal', wordBreak: 'break-word' }}>{workspaceSummary.summary}</p>
-            {Array.isArray(workspaceSummary.actionPlan) && workspaceSummary.actionPlan.length > 0 && (
-              <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8, fontSize: 14 }}>
-                {workspaceSummary.actionPlan.map((item, index) => (
-                  <div key={`${item}-${index}`}>{index + 1}. {item}</div>
-                ))}
-              </div>
-            )}
-          </div>
         </div>
       )}
 
