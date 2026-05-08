@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { STATUS } from '../constants.js';
+import { STATUS, PRIORITY } from '../constants.js';
 import { fmtDate, parseDateTimeFromDescription, parseDescriptionDateResult, cleanDescriptionSegment } from '../utils.jsx';
 import { parseTaskWithAI } from '../storage.js';
 
@@ -192,6 +192,12 @@ export default function TaskModal({ task, categories, allTasks = [], onSave, onD
           <input value={newCategory} onChange={(e) => setNewCategory(e.target.value)} placeholder="Nombre de categoría" style={{ width: '100%', height: 44, boxSizing: 'border-box', borderRadius: 'var(--border-radius-md)', border: '0.5px solid var(--color-border-secondary)', padding: '10px 12px', fontSize: 13, background: 'var(--color-background-primary)' }} />
         </label>
       </div>
+      <label style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 14, fontSize: 13, color: 'var(--color-text-secondary)' }}>
+        <span style={{ fontWeight: 500 }}>Prioridad</span>
+        <select value={form.priority || 'medium'} onChange={(e) => handleChange('priority', e.target.value)} style={{ width: '100%', minHeight: 44, boxSizing: 'border-box', borderRadius: 'var(--border-radius-md)', border: '0.5px solid var(--color-border-secondary)', padding: '10px 12px', fontSize: 13, background: 'var(--color-background-primary)', appearance: 'none' }}>
+          {PRIORITY.map((option) => <option key={option.v} value={option.v}>{option.label}</option>)}
+        </select>
+      </label>
       <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 14 }}>
         Elige una categoría existente o escribe una nueva; la nueva categoría reemplazará la selección.
       </div>
