@@ -13,6 +13,7 @@ import Login from './components/Login.jsx';
 
 export default function App() {
   const ACTIVE_PROFILE_STORAGE_KEY = 'taskmanager_active_profile';
+  const THEME_STORAGE_KEY = 'taskmanager_theme';
   const [authenticated, setAuthenticated] = useState(null);
   const [authVersion, setAuthVersion] = useState(0);
   const [tasks, setTasks] = useState([]);
@@ -35,6 +36,10 @@ export default function App() {
   const [activeProfileId, setActiveProfileId] = useState(() => localStorage.getItem(ACTIVE_PROFILE_STORAGE_KEY) || null);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showActionsMenu, setShowActionsMenu] = useState(false);
+  const [theme, setTheme] = useState(() => {
+    const storedTheme = localStorage.getItem(THEME_STORAGE_KEY);
+    return storedTheme === 'dark' ? 'dark' : 'light';
+  });
   const [aiGenerationLoading, setAiGenerationLoading] = useState(false);
   const [aiGenerationError, setAiGenerationError] = useState('');
   const fileInputRef = useRef(null);
@@ -99,6 +104,15 @@ export default function App() {
   useEffect(() => {
     localStorage.removeItem('userToken');
   }, []);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    localStorage.setItem(THEME_STORAGE_KEY, theme);
+    const themeMeta = document.querySelector('meta[name="theme-color"]');
+    if (themeMeta) {
+      themeMeta.setAttribute('content', theme === 'dark' ? '#111827' : '#2563eb');
+    }
+  }, [theme]);
 
   useEffect(() => {
     let cancelled = false;
@@ -413,6 +427,10 @@ export default function App() {
       setTimeout(() => setBackupMessage(''), 5000);
     };
     reader.readAsText(file);
+  };
+
+  const toggleTheme = () => {
+    setTheme((currentTheme) => (currentTheme === 'dark' ? 'light' : 'dark'));
   };
 
   const upsert = (task) => {
@@ -831,6 +849,9 @@ export default function App() {
             </button>
             {showActionsMenu && (
               <div className="header-actions-menu" role="menu">
+                <button type="button" role="menuitem" onClick={() => { toggleTheme(); setShowActionsMenu(false); }}>
+                  {theme === 'dark' ? 'Modo claro' : 'Modo oscuro'}
+                </button>
                 <button type="button" role="menuitem" onClick={() => { downloadBackup(); setShowActionsMenu(false); }}>Exportar backup</button>
                 <button type="button" role="menuitem" onClick={() => { fileInputRef.current?.click(); setShowActionsMenu(false); }}>Importar backup</button>
               </div>
