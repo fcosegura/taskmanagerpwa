@@ -2,7 +2,17 @@ import { STATUS, PRIORITY } from '../constants.js';
 import { fmtDate, linkifyText } from '../utils.jsx';
 import { Pill, CategoryPill } from './shared/index.jsx';
 
-export default function TaskRow({ task, allTasks = [], onClick, onToggleDone }) {
+export default function TaskRow({
+  task,
+  allTasks = [],
+  onClick,
+  onToggleDone,
+  draggable = false,
+  onDragStart,
+  onDragEnd,
+  isDragOver = false,
+  dragMode = null,
+}) {
   const s = STATUS.find((x) => x.v === task.status) || STATUS[0];
   const p = PRIORITY.find((x) => x.v === task.priority) || PRIORITY[1];
   const childTasks = allTasks.filter((candidate) => (task.dependencyTaskIds || []).includes(candidate.id));
@@ -31,8 +41,13 @@ export default function TaskRow({ task, allTasks = [], onClick, onToggleDone }) 
         opacity: task.status === 'done' ? 0.8 : 1,
         transform: 'translateZ(0)',
         boxShadow: 'var(--shadow-card)',
-        transition: 'transform 150ms ease, box-shadow 150ms ease',
+        transition: 'transform 150ms ease, box-shadow 150ms ease, border 150ms ease, background 150ms ease',
+        border: isDragOver ? (dragMode === 'link' ? '1px dashed #2563eb' : '1px dashed var(--color-border-tertiary)') : '1px solid transparent',
+        background: isDragOver && dragMode === 'link' ? 'rgba(37,99,235,0.06)' : 'var(--color-background-primary)',
       }}
+      draggable={draggable}
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
       onMouseEnter={(e) => (e.currentTarget.style.transform = 'translateY(-1px)')}
       onMouseLeave={(e) => (e.currentTarget.style.transform = 'translateY(0)')}
     >
@@ -66,6 +81,11 @@ export default function TaskRow({ task, allTasks = [], onClick, onToggleDone }) 
           <span style={{ fontSize: 12, lineHeight: 1 }}>⋮⋮</span>
           <span>Arrastrar</span>
         </div>
+        {isDragOver && dragMode === 'link' && (
+          <div style={{ marginBottom: 6, fontSize: 10, fontWeight: 700, color: 'var(--color-accent)' }}>
+            Soltar para crear dependencia
+          </div>
+        )}
         <div className="task-title" style={{ fontSize: 14, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textDecoration: task.status === 'done' ? 'line-through' : 'none' }}>
           {linkifyText(task.name)}
         </div>

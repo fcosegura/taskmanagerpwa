@@ -8,12 +8,15 @@ export default function TasksView({
   tasks, total, filter, setFilter, searchQuery, setSearchQuery,
   categoryFilter, setCategoryFilter, categories,
   statusCounts, categoryCounts,
-  onEdit, onToggleDone, onQuickAdd, onQuickSuggest,
+  onEdit, onToggleDone, onQuickAdd, onQuickSuggest, onDropTaskOnTask,
 }) {
   const [quickText, setQuickText] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [quickAiLoading, setQuickAiLoading] = useState(false);
   const [quickFeedback, setQuickFeedback] = useState('');
+  const [draggedTaskId, setDraggedTaskId] = useState(null);
+  const [hoverTaskId, setHoverTaskId] = useState(null);
+  const [hoverDragMode, setHoverDragMode] = useState(null);
 
   const handleQuickSubmit = (e) => {
     e.preventDefault();
@@ -41,6 +44,22 @@ export default function TasksView({
   STATUS.forEach((s) => { if (cnt[s.v] === undefined) cnt[s.v] = 0; });
   const catCount = {};
   categories.forEach((cat) => { catCount[cat] = categoryCounts[cat] || 0; });
+
+  const canLinkAsChild = (sourceTaskId, targetTaskId) => {
+    if (!sourceTaskId || !targetTaskId || sourceTaskId === targetTaskId) return false;
+    const sourceTask = allTasks.find((task) => task.id === sourceTaskId);
+    const targetTask = allTasks.find((task) => task.id === targetTaskId);
+    if (!sourceTask || !targetTask) return false;
+    const hasParent = (taskId) => allTasks.some((task) => (
+      Array.isArray(task.dependencyTaskIds) &&
+      task.dependencyTaskIds.includes(taskId)
+    ));
+    const sourceHasParent = hasParent(sourceTaskId);
+    const sourceHasChildren = Array.isArray(sourceTask.dependencyTaskIds) && sourceTask.dependencyTaskIds.length > 0;
+    const targetHasParent = hasParent(targetTaskId);
+    const alreadyLinked = (targetTask.dependencyTaskIds || []).includes(sourceTaskId);
+    return !sourceHasParent && !sourceHasChildren && !targetHasParent && !alreadyLinked;
+  };
 
   const orderedTasks = (() => {
     const visibleIds = new Set(tasks.map((task) => task.id));
@@ -156,13 +175,46 @@ export default function TasksView({
       ) : (
         <div className="task-list" style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
           {orderedTasks.map((t) => (
-            <TaskRow
+            <div
               key={t.id}
-              task={t}
-              allTasks={allTasks}
-              onClick={() => onEdit(t)}
-              onToggleDone={onToggleDone}
-            />
+              onDragOver={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                setHoverTaskId(t.id);
+                setHoverDragMode(canLinkAsChild(draggedTaskId, t.id) ? 'link' : 'blocked');
+              }}
+              onDragLeave={() => {
+                setHoverTaskId((current) => (current === t.id ? null : current));
+                setHoverDragMode(null);
+              }}
+              onDrop={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                onDropTaskOnTask?.(draggedTaskId, t.id);
+                setDraggedTaskId(null);
+                setHoverTaskId(null);
+                setHoverDragMode(null);
+              }}
+            >
+              <TaskRow
+                task={t}
+                allTasks={allTasks}
+                onClick={() => onEdit(t)}
+                onToggleDone={onToggleDone}
+                draggable
+                onDragStart={(event) => {
+                  event.dataTransfer.effectAllowed = 'move';
+                  setDraggedTaskId(t.id);
+                }}
+                onDragEnd={() => {
+                  setDraggedTaskId(null);
+                  setHoverTaskId(null);
+                  setHoverDragMode(null);
+                }}
+                isDragOver={hoverTaskId === t.id}
+                dragMode={hoverDragMode}
+              />
+            </div>
           ))}
         </div>
       )}

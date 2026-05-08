@@ -2,7 +2,15 @@ import { useMemo, useState } from 'react';
 import { STATUS, PRIORITY } from '../constants.js';
 import { fmtDate } from '../utils.jsx';
 
-function KanbanTaskCard({ task, allTasks, onEditTask, onDragStart, onDragEnd }) {
+function KanbanTaskCard({
+  task,
+  allTasks,
+  onEditTask,
+  onDragStart,
+  onDragEnd,
+  isDragOver = false,
+  dragMode = null,
+}) {
   const priority = PRIORITY.find((item) => item.v === task.priority) || PRIORITY[1];
   const childTasks = allTasks.filter((candidate) => (task.dependencyTaskIds || []).includes(candidate.id));
   const parentTasks = allTasks.filter((candidate) => (candidate.dependencyTaskIds || []).includes(task.id));
@@ -23,14 +31,16 @@ function KanbanTaskCard({ task, allTasks, onEditTask, onDragStart, onDragEnd }) 
       onClick={() => onEditTask(task)}
       style={{
         border: '1px solid var(--color-border-tertiary)',
+        borderColor: isDragOver && dragMode === 'link' ? '#2563eb' : 'var(--color-border-tertiary)',
         borderRadius: 12,
-        background: 'var(--color-background-primary)',
+        background: isDragOver && dragMode === 'link' ? 'rgba(37,99,235,0.06)' : 'var(--color-background-primary)',
         padding: 12,
         cursor: 'grab',
         boxShadow: '0 8px 22px rgba(15,23,42,0.07)',
         display: 'flex',
         flexDirection: 'column',
-        gap: 8
+        gap: 8,
+        transition: 'background 140ms ease, border-color 140ms ease, transform 140ms ease'
       }}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', minHeight: 10, gap: 10 }}>
@@ -67,6 +77,11 @@ function KanbanTaskCard({ task, allTasks, onEditTask, onDragStart, onDragEnd }) 
         <div style={{ display: 'flex', gap: 6 }}>
           <div style={{ width: 4, borderRadius: 999, background: `var(${priority.tv})` }} />
           <div style={{ width: 4, borderRadius: 999, background: dependencyRailColor }} />
+        </div>
+      )}
+      {isDragOver && (
+        <div style={{ fontSize: 10, fontWeight: 700, color: dragMode === 'link' ? 'var(--color-accent)' : 'var(--color-text-secondary)' }}>
+          {dragMode === 'link' ? 'Soltar para crear dependencia' : 'Soltar para mover/reordenar'}
         </div>
       )}
       <div
@@ -126,6 +141,24 @@ export default function KanbanView({ tasks, allTasks = [], onEditTask, onMoveTas
   const [draggedTaskId, setDraggedTaskId] = useState(null);
   const [hoverStatus, setHoverStatus] = useState(null);
   const [hoverIndex, setHoverIndex] = useState(null);
+  const [hoverTaskId, setHoverTaskId] = useState(null);
+  const [hoverDragMode, setHoverDragMode] = useState(null);
+
+  const canLinkAsChild = (sourceTaskId, targetTaskId) => {
+    if (!sourceTaskId || !targetTaskId || sourceTaskId === targetTaskId) return false;
+    const sourceTask = allTasks.find((task) => task.id === sourceTaskId);
+    const targetTask = allTasks.find((task) => task.id === targetTaskId);
+    if (!sourceTask || !targetTask) return false;
+    const hasParent = (taskId) => allTasks.some((task) => (
+      Array.isArray(task.dependencyTaskIds) &&
+      task.dependencyTaskIds.includes(taskId)
+    ));
+    const sourceHasParent = hasParent(sourceTaskId);
+    const sourceHasChildren = Array.isArray(sourceTask.dependencyTaskIds) && sourceTask.dependencyTaskIds.length > 0;
+    const targetHasParent = hasParent(targetTaskId);
+    const alreadyLinked = (targetTask.dependencyTaskIds || []).includes(sourceTaskId);
+    return !sourceHasParent && !sourceHasChildren && !targetHasParent && !alreadyLinked;
+  };
 
   const groupedTasks = useMemo(() => (
     STATUS.reduce((accumulator, status) => {
@@ -142,6 +175,8 @@ export default function KanbanView({ tasks, allTasks = [], onEditTask, onMoveTas
     setDraggedTaskId(null);
     setHoverStatus(null);
     setHoverIndex(null);
+    setHoverTaskId(null);
+    setHoverDragMode(null);
   };
 
   return (
@@ -161,6 +196,8 @@ export default function KanbanView({ tasks, allTasks = [], onEditTask, onMoveTas
               if (hoverStatus === status.v) {
                 setHoverStatus(null);
                 setHoverIndex(null);
+                setHoverTaskId(null);
+                setHoverDragMode(null);
               }
             }}
             onDrop={(event) => {
@@ -184,6 +221,8 @@ export default function KanbanView({ tasks, allTasks = [], onEditTask, onMoveTas
                       event.stopPropagation();
                       if (hoverStatus !== status.v) setHoverStatus(status.v);
                       if (hoverIndex !== index) setHoverIndex(index);
+                      setHoverTaskId(task.id);
+                      setHoverDragMode(canLinkAsChild(draggedTaskId, task.id) ? 'link' : 'move');
                     }}
                     onDrop={(event) => {
                       event.preventDefault();
@@ -193,6 +232,8 @@ export default function KanbanView({ tasks, allTasks = [], onEditTask, onMoveTas
                         setDraggedTaskId(null);
                         setHoverStatus(null);
                         setHoverIndex(null);
+                        setHoverTaskId(null);
+                        setHoverDragMode(null);
                         return;
                       }
                       handleDropOnColumn(status.v, index);
@@ -210,7 +251,11 @@ export default function KanbanView({ tasks, allTasks = [], onEditTask, onMoveTas
                         setDraggedTaskId(null);
                         setHoverStatus(null);
                         setHoverIndex(null);
+                        setHoverTaskId(null);
+                        setHoverDragMode(null);
                       }}
+                      isDragOver={hoverTaskId === task.id}
+                      dragMode={hoverDragMode}
                     />
                   </div>
                 </div>

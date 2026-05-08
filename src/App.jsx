@@ -887,6 +887,7 @@ export default function App() {
               categories={categories} statusCounts={statusCounts} categoryCounts={categoryCounts}
               onEdit={(t) => setModal(t)} onToggleDone={toggleDone}
               onQuickAdd={handleQuickAdd} onQuickSuggest={handleQuickSuggest}
+              onDropTaskOnTask={linkStandaloneTaskAsChild}
             />
           : view === 'kanban'
             ? <KanbanView
