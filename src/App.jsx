@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { P_ORDER, STATUS } from './constants.js';
-import { uid, toDateStr, parseDateTimeFromDescription, parseDescriptionDateResult, cleanDescriptionSegment } from './utils.jsx';
+import { uid, toDateStr, parseDateTimeFromDescription, parseDescriptionDateResult, cleanDescriptionSegment, isJiraCategory, normalizeTicketNumber, applyTicketNumberToTaskName, inheritTicketFromParentTask } from './utils.jsx';
 import { loadData, saveData, validateBackupPayload, normalizeDataPayload, loginWithGoogleCredential, logoutSession, createProfile, deleteProfile, parseTaskWithAI, checkSession, generateTasksFromText } from './storage.js';
 import TasksView from './components/TasksView.jsx';
 import CalendarView from './components/CalendarView.jsx';
@@ -258,6 +258,20 @@ export default function App() {
     setTimeout(() => setBackupMessage(''), 4200);
   };
 
+  const normalizeTaskWithTicket = (taskInput) => {
+    const category = typeof taskInput?.category === 'string' ? taskInput.category : '';
+    const ticketNumber = normalizeTicketNumber(taskInput?.ticketNumber || '');
+    const normalizedName = isJiraCategory(category) && ticketNumber
+      ? applyTicketNumberToTaskName(taskInput?.name || '', ticketNumber)
+      : (typeof taskInput?.name === 'string' ? taskInput.name.trim() : '');
+    return {
+      ...taskInput,
+      category,
+      ticketNumber,
+      name: normalizedName,
+    };
+  };
+
   const toggleDone = (id) => {
     setTasks((previousTasks) => {
       const task = previousTasks.find((item) => item.id === id);
@@ -333,11 +347,15 @@ export default function App() {
       }
 
       linked = true;
-      return previousTasks.map((task) => (
-        task.id === targetTaskId
-          ? { ...task, dependencyTaskIds: [...(task.dependencyTaskIds || []), sourceTaskId] }
-          : task
-      ));
+      return previousTasks.map((task) => {
+        if (task.id === targetTaskId) {
+          return { ...task, dependencyTaskIds: [...(task.dependencyTaskIds || []), sourceTaskId] };
+        }
+        if (task.id === sourceTaskId) {
+          return normalizeTaskWithTicket(inheritTicketFromParentTask(targetTask, task));
+        }
+        return task;
+      });
     });
     if (linked) {
       setBackupMessage('Dependencia creada: la tarea arrastrada ahora es hija de la tarea destino.');
@@ -398,9 +416,10 @@ export default function App() {
   };
 
   const upsert = (task) => {
+    const normalizedTask = normalizeTaskWithTicket(task);
     setTasks((previousTasks) => {
-      const taskId = task.id || uid();
-      const cleanedDependencyIds = [...new Set((task.dependencyTaskIds || []).filter((dependencyId) => (
+      const taskId = normalizedTask.id || uid();
+      const cleanedDependencyIds = [...new Set((normalizedTask.dependencyTaskIds || []).filter((dependencyId) => (
         typeof dependencyId === 'string' &&
         dependencyId !== taskId &&
         previousTasks.some((item) => item.id === dependencyId)
@@ -411,7 +430,7 @@ export default function App() {
         item.dependencyTaskIds.includes(taskId)
       ));
       const finalDependencyIds = parentTasks.length > 0 ? [] : cleanedDependencyIds;
-      if (task.status === 'done') {
+      if (normalizedTask.status === 'done') {
         const openChildTasks = previousTasks.filter((item) => (
           finalDependencyIds.includes(item.id) &&
           item.status !== 'done'
@@ -422,9 +441,9 @@ export default function App() {
           return previousTasks;
         }
       }
-      const nextTask = { ...task, id: taskId, dependencyTaskIds: finalDependencyIds };
-      return task.id
-        ? previousTasks.map((item) => item.id === task.id ? nextTask : item)
+      const nextTask = { ...normalizedTask, id: taskId, dependencyTaskIds: finalDependencyIds };
+      return normalizedTask.id
+        ? previousTasks.map((item) => item.id === normalizedTask.id ? nextTask : item)
         : [...previousTasks, nextTask];
     });
     setModal(null);
@@ -457,7 +476,7 @@ export default function App() {
     }
     setModal(null);
   };
-  const open = (init = {}) => setModal({ name: '', url: '', notes: '', status: 'not_done', priority: 'medium', date: '', time: '', subtasks: [], dependencyTaskIds: [], category: '', hideInKanbanDone: false, ...init });
+  const open = (init = {}) => setModal({ name: '', url: '', notes: '', status: 'not_done', priority: 'medium', date: '', time: '', subtasks: [], dependencyTaskIds: [], category: '', ticketNumber: '', hideInKanbanDone: false, ...init });
 
   const addBoardNote = (note) => setBoardNotes((p) => [note, ...p]);
   const deleteBoardNote = (id) => setBoardNotes((p) => p.filter((note) => note.id !== id));

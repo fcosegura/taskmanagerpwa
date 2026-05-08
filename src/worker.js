@@ -75,6 +75,7 @@ function isValidTask(task) {
     typeof task === 'object' &&
     typeof task.id === 'string' &&
     typeof taskName === 'string' &&
+    (task.ticketNumber === undefined || typeof task.ticketNumber === 'string') &&
     VALID_STATUS.has(task.status) &&
     VALID_PRIORITY.has(task.priority) &&
     (task.url === undefined || typeof task.url === 'string') &&
@@ -175,6 +176,7 @@ function prepareTaskUpsert(env, profileId, userId, task, taskSchema) {
   const hasDescription = Boolean(taskSchema?.hasDescription);
   const hasUrl = Boolean(taskSchema?.hasUrl);
   const hasNotes = Boolean(taskSchema?.hasNotes);
+  const hasTicketNumber = Boolean(taskSchema?.hasTicketNumber);
 
   const columns = ['id', 'user_id', 'profile_id'];
   const placeholders = ['?', '?', '?'];
@@ -214,6 +216,13 @@ function prepareTaskUpsert(env, profileId, userId, task, taskSchema) {
     bindings.push(task.notes || null);
     updates.push('notes = excluded.notes');
     changeChecks.push('tasks.notes IS NOT excluded.notes');
+  }
+  if (hasTicketNumber) {
+    columns.push('ticket_number');
+    placeholders.push('?');
+    bindings.push(typeof task.ticketNumber === 'string' ? task.ticketNumber.trim() : null);
+    updates.push('ticket_number = excluded.ticket_number');
+    changeChecks.push('tasks.ticket_number IS NOT excluded.ticket_number');
   }
 
   columns.push('status', 'priority', 'category', 'date', 'time', 'subtasks', 'dependencies', 'hide_in_kanban_done');
@@ -315,6 +324,7 @@ async function ensureProfilesSchema(env) {
   await safeExec("ALTER TABLE tasks ADD COLUMN name TEXT");
   await safeExec("ALTER TABLE tasks ADD COLUMN url TEXT");
   await safeExec("ALTER TABLE tasks ADD COLUMN notes TEXT");
+  await safeExec("ALTER TABLE tasks ADD COLUMN ticket_number TEXT");
   await safeExec("UPDATE tasks SET name = description WHERE name IS NULL");
 
   const hasProfileColumn = async (tableName) => {
@@ -344,7 +354,8 @@ async function ensureProfilesSchema(env) {
     hasName: taskColumns.includes('name'),
     hasDescription: taskColumns.includes('description'),
     hasUrl: taskColumns.includes('url'),
-    hasNotes: taskColumns.includes('notes')
+    hasNotes: taskColumns.includes('notes'),
+    hasTicketNumber: taskColumns.includes('ticket_number')
   };
 }
 
@@ -806,7 +817,8 @@ export default {
             id: unscopedEntityId(profileId, t.id),
             hideInKanbanDone: Boolean(t.hide_in_kanban_done),
             subtasks: JSON.parse(t.subtasks || '[]'),
-            dependencyTaskIds: JSON.parse(t.dependencies || '[]')
+            dependencyTaskIds: JSON.parse(t.dependencies || '[]'),
+            ticketNumber: typeof t.ticket_number === 'string' ? t.ticket_number : ''
           }));
           const parsedNotes = notes.map(({ created_at, updated_at, ...note }) => ({
             ...note,

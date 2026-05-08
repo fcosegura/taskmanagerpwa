@@ -98,7 +98,7 @@ function hasAnyData(payload) {
 
 export function isValidTask(task) {
   if (!task || typeof task !== 'object') return false;
-  const { id, name, status, priority, subtasks, category, date, time, dependencyTaskIds, url, notes } = task;
+  const { id, name, status, priority, subtasks, category, date, time, dependencyTaskIds, url, notes, ticketNumber } = task;
   if (typeof id !== 'string' || typeof name !== 'string') return false;
   if (typeof status !== 'string' || !STATUS.some((s) => s.v === status)) return false;
   if (typeof priority !== 'string' || !PRIORITY.some((p) => p.v === priority)) return false;
@@ -107,6 +107,7 @@ export function isValidTask(task) {
   if (time !== undefined && time !== null && typeof time !== 'string') return false;
   if (url !== undefined && url !== null && typeof url !== 'string') return false;
   if (notes !== undefined && notes !== null && typeof notes !== 'string') return false;
+  if (ticketNumber !== undefined && ticketNumber !== null && typeof ticketNumber !== 'string') return false;
   if (!Array.isArray(subtasks)) return false;
   if (dependencyTaskIds !== undefined && !Array.isArray(dependencyTaskIds)) return false;
   if (Array.isArray(dependencyTaskIds) && !dependencyTaskIds.every((id) => typeof id === 'string')) return false;
@@ -128,6 +129,7 @@ function normalizeTask(task) {
     time: task.time || '',
     url: task.url || '',
     notes: task.notes || '',
+    ticketNumber: task.ticketNumber || '',
     hideInKanbanDone: Boolean(task.hideInKanbanDone),
   };
 }
