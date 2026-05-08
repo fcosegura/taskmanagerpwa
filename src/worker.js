@@ -537,44 +537,92 @@ function parseDateInCurrentWeek(text) {
   return `${target.getFullYear()}-${String(target.getMonth() + 1).padStart(2, '0')}-${String(target.getDate()).padStart(2, '0')}`;
 }
 
-function parseChildrenFallback(input) {
+function parseMainTasksFallback(input) {
   if (typeof input !== 'string') return [];
-  const childrenMatch = input.match(/(?:subtareas?|subtasks?)\s*[:,-]?\s*(.+)$/i);
-  if (!childrenMatch || !childrenMatch[1]) return [];
-  return childrenMatch[1]
+  const tasksMatch = input.match(/(?:crear?|agregar?)\s+(?:tasks?|tareas?)\s+para\s+(.+?)(?:,|$)/i);
+  if (tasksMatch?.[1]) {
+    const rawMain = tasksMatch[1]
+      .split(/(?:,|;|\sy\s|\sand\s)/i)
+      .map((item) => item.trim())
+      .filter(Boolean)
+      .slice(0, 8);
+    if (rawMain.length > 0) {
+      return rawMain.map((name, index) => ({
+        ref: `main_${index + 1}`,
+        name,
+        date: parseDateInCurrentWeek(input),
+        time: '',
+        priority: 'medium',
+        notes: '',
+        category: ''
+      }));
+    }
+  }
+
+  const parsed = parseTaskFallback(input);
+  return [{
+    ref: 'main_1',
+    name: parsed.title || 'Nueva tarea',
+    date: parseDateInCurrentWeek(input),
+    time: '',
+    priority: parsed.priority || 'medium',
+    notes: '',
+    category: parsed.tags?.[0] || ''
+  }];
+}
+
+function parseChildTasksFallback(input, mainTasks) {
+  if (typeof input !== 'string') return [];
+  const childMatch = input.match(/(?:subtareas?|subtasks?)\s+(?:para|de)\s+(?:tarea\s+)?(.+?)(?:\s*[:,-]\s*|\s+)(.+)$/i);
+  if (childMatch?.[1] && childMatch?.[2]) {
+    const parentHint = childMatch[1].trim().toLowerCase();
+    const childName = childMatch[2].trim();
+    const parentCandidate = mainTasks.find((task) => task.name.toLowerCase().includes(parentHint) || parentHint.includes(task.name.toLowerCase()));
+    return [{
+      name: childName,
+      parentRef: parentCandidate?.ref || mainTasks[0]?.ref || 'main_1',
+      date: '',
+      time: '',
+      priority: 'medium',
+      notes: '',
+      category: ''
+    }];
+  }
+
+  const genericChildrenMatch = input.match(/(?:subtareas?|subtasks?)\s*[:,-]?\s*(.+)$/i);
+  if (!genericChildrenMatch?.[1]) return [];
+  return genericChildrenMatch[1]
     .split(/(?:,|;|\sy\s|\sand\s)/i)
     .map((item) => item.trim())
     .filter(Boolean)
     .slice(0, 8)
-    .map((name) => ({ name, priority: 'medium', notes: '', date: '', time: '' }));
+    .map((name) => ({
+      name,
+      parentRef: mainTasks[0]?.ref || 'main_1',
+      date: '',
+      time: '',
+      priority: 'medium',
+      notes: '',
+      category: ''
+    }));
 }
 
-function generateTaskTreeFallback(input) {
-  const parsed = parseTaskFallback(input);
-  const parentDate = parseDateInCurrentWeek(input);
-  return {
-    parent: {
-      name: parsed.title || 'Nueva tarea',
-      date: parentDate || '',
-      time: '',
-      priority: parsed.priority || 'medium',
-      notes: '',
-      category: parsed.tags?.[0] || ''
-    },
-    children: parseChildrenFallback(input)
-  };
+function generateTaskPlanFallback(input) {
+  const mainTasks = parseMainTasksFallback(input);
+  const childTasks = parseChildTasksFallback(input, mainTasks);
+  return { mainTasks, childTasks };
 }
 
 async function generateTasksFromTextWithAi(input, env) {
   if (!env?.AI?.run) return null;
   const prompt = [
-    'Convierte texto libre en una tarea padre y sus tareas hijas.',
+    'Convierte texto libre en varias tareas principales y tareas hijas dependientes.',
     'Responde SOLO JSON valido.',
     'Formato exacto:',
-    '{"parent":{"name":"string","date":"YYYY-MM-DD|","time":"HH:MM|","priority":"low|medium|high|critical","notes":"string","category":"string"},"children":[{"name":"string","date":"YYYY-MM-DD|","time":"HH:MM|","priority":"low|medium|high|critical","notes":"string","category":"string"}]}',
+    '{"mainTasks":[{"ref":"main_1","name":"string","date":"YYYY-MM-DD|","time":"HH:MM|","priority":"low|medium|high|critical","notes":"string","category":"string"}],"childTasks":[{"name":"string","parentRef":"main_1","date":"YYYY-MM-DD|","time":"HH:MM|","priority":"low|medium|high|critical","notes":"string","category":"string"}]}',
     'Si no hay fecha/hora clara, devolver string vacio.',
-    'Si menciona subtareas, devolverlas como children.',
-    'Maximo 8 children.',
+    'Si menciona subtareas, devolverlas como childTasks con parentRef.',
+    'Maximo 8 mainTasks y 12 childTasks.',
     `Texto: ${input}`
   ].join('\n');
   const result = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
@@ -596,19 +644,20 @@ async function generateTasksFromTextWithAi(input, env) {
   }
 }
 
-function normalizeGeneratedTaskTree(aiParsed, sourceText) {
-  const fallback = generateTaskTreeFallback(sourceText);
-  const inputParent = aiParsed && typeof aiParsed === 'object' && aiParsed.parent && typeof aiParsed.parent === 'object'
-    ? aiParsed.parent
-    : fallback.parent;
-  const inputChildren = aiParsed && typeof aiParsed === 'object' && Array.isArray(aiParsed.children)
-    ? aiParsed.children
-    : fallback.children;
+function normalizeGeneratedTaskPlan(aiParsed, sourceText) {
+  const fallback = generateTaskPlanFallback(sourceText);
+  const inputMain = aiParsed && typeof aiParsed === 'object' && Array.isArray(aiParsed.mainTasks)
+    ? aiParsed.mainTasks
+    : fallback.mainTasks;
+  const inputChildren = aiParsed && typeof aiParsed === 'object' && Array.isArray(aiParsed.childTasks)
+    ? aiParsed.childTasks
+    : fallback.childTasks;
 
-  const normalizeItem = (item, fallbackName) => {
+  const normalizeMain = (item, fallbackName, fallbackRef) => {
     const rawDate = typeof item?.date === 'string' ? item.date.trim() : '';
     const derivedDate = rawDate || parseDateInCurrentWeek(sourceText);
     return {
+      ref: typeof item?.ref === 'string' && item.ref.trim() ? item.ref.trim().slice(0, 30) : fallbackRef,
       name: typeof item?.name === 'string' && item.name.trim() ? item.name.trim().slice(0, 120) : fallbackName,
       date: derivedDate || '',
       time: typeof item?.time === 'string' ? item.time.trim().slice(0, 5) : '',
@@ -618,17 +667,32 @@ function normalizeGeneratedTaskTree(aiParsed, sourceText) {
     };
   };
 
-  const parent = normalizeItem(inputParent, fallback.parent.name || 'Nueva tarea');
-  const children = inputChildren
+  const normalizeChild = (item, fallbackName, defaultParentRef) => ({
+    name: typeof item?.name === 'string' && item.name.trim() ? item.name.trim().slice(0, 120) : fallbackName,
+    parentRef: typeof item?.parentRef === 'string' && item.parentRef.trim() ? item.parentRef.trim().slice(0, 30) : defaultParentRef,
+    date: typeof item?.date === 'string' ? item.date.trim().slice(0, 10) : '',
+    time: typeof item?.time === 'string' ? item.time.trim().slice(0, 5) : '',
+    priority: normalizePriority(item?.priority),
+    notes: typeof item?.notes === 'string' ? item.notes.trim().slice(0, 400) : '',
+    category: typeof item?.category === 'string' ? item.category.trim().slice(0, 30) : '',
+  });
+
+  const mainTasks = inputMain
     .filter((item) => item && typeof item === 'object')
     .slice(0, 8)
-    .map((item, index) => normalizeItem(item, `Subtarea ${index + 1}`))
+    .map((item, index) => normalizeMain(item, `Tarea ${index + 1}`, `main_${index + 1}`))
     .filter((item) => item.name);
+  if (mainTasks.length === 0) mainTasks.push(...fallback.mainTasks);
+  const validRefs = new Set(mainTasks.map((item) => item.ref));
+  const defaultParentRef = mainTasks[0]?.ref || 'main_1';
+  const childTasks = inputChildren
+    .filter((item) => item && typeof item === 'object')
+    .slice(0, 12)
+    .map((item, index) => normalizeChild(item, `Subtarea ${index + 1}`, defaultParentRef))
+    .filter((item) => item.name)
+    .map((item) => ({ ...item, parentRef: validRefs.has(item.parentRef) ? item.parentRef : defaultParentRef }));
 
-  if (!parent.name) {
-    parent.name = fallback.parent.name || 'Nueva tarea';
-  }
-  return { parent, children };
+  return { mainTasks, childTasks };
 }
 
 async function verifyGoogleToken(token, env) {
@@ -722,27 +786,27 @@ export default {
           const text = typeof body?.text === 'string' ? body.text.trim() : '';
           if (!text) return json({ error: 'text es requerido' }, { status: 400 });
           if (text.length > 700) return json({ error: 'text demasiado largo (max 700)' }, { status: 400 });
-          const fallbackTree = normalizeGeneratedTaskTree(null, text);
+          const fallbackPlan = normalizeGeneratedTaskPlan(null, text);
 
           try {
-            const aiTree = await generateTasksFromTextWithAi(text, env);
-            if (!aiTree) {
+            const aiPlan = await generateTasksFromTextWithAi(text, env);
+            if (!aiPlan) {
               return json({
-                parentTask: fallbackTree.parent,
-                childTasks: fallbackTree.children,
+                mainTasks: fallbackPlan.mainTasks,
+                childTasks: fallbackPlan.childTasks,
                 source: 'fallback'
               });
             }
-            const normalized = normalizeGeneratedTaskTree(aiTree, text);
+            const normalized = normalizeGeneratedTaskPlan(aiPlan, text);
             return json({
-              parentTask: normalized.parent,
-              childTasks: normalized.children,
+              mainTasks: normalized.mainTasks,
+              childTasks: normalized.childTasks,
               source: 'ai'
             });
           } catch {
             return json({
-              parentTask: fallbackTree.parent,
-              childTasks: fallbackTree.children,
+              mainTasks: fallbackPlan.mainTasks,
+              childTasks: fallbackPlan.childTasks,
               source: 'fallback'
             });
           }
