@@ -33,7 +33,23 @@ function KanbanTaskCard({ task, allTasks, onEditTask, onDragStart, onDragEnd }) 
         gap: 8
       }}
     >
-      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', minHeight: 10, gap: 6 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', minHeight: 10, gap: 10 }}>
+        <div
+          title="Arrastra desde aquí para mover o crear dependencia"
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            color: 'var(--color-text-secondary)',
+            fontSize: 10,
+            fontWeight: 700,
+            letterSpacing: '0.01em',
+            userSelect: 'none'
+          }}
+        >
+          <span style={{ fontSize: 12, lineHeight: 1 }}>⋮⋮</span>
+          <span>Arrastrar</span>
+        </div>
         {hasChildTasks && (
           <span
             title="Tarea padre"
