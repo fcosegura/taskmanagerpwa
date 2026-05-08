@@ -8,7 +8,7 @@ function BoardNoteCard({ note, onDelete, onUpdate, onDragHandlePointerDown, isDr
         position: 'absolute', left: note.x ?? 0, top: note.y ?? 0,
         zIndex: isDragging ? 50 : 10,
         cursor: 'default',
-        background: '#fef3c7', border: '1px solid #fcd34d',
+        background: 'var(--board-note-bg)', border: '1px solid var(--board-note-border)',
         borderRadius: 16, padding: 12, minHeight: 180, width: noteWidth,
         display: 'flex', flexDirection: 'column', gap: 8,
         boxShadow: isDragging ? '0 25px 50px -12px rgba(0,0,0,0.25)' : '0 12px 24px rgba(15,23,42,0.08)',
@@ -25,7 +25,7 @@ function BoardNoteCard({ note, onDelete, onUpdate, onDragHandlePointerDown, isDr
           style={{
             border: 'none',
             background: 'transparent',
-            color: '#6b7280',
+            color: 'var(--color-text-secondary)',
             cursor: isDragging ? 'grabbing' : 'grab',
             fontSize: 14,
             lineHeight: 1,
@@ -43,19 +43,19 @@ function BoardNoteCard({ note, onDelete, onUpdate, onDragHandlePointerDown, isDr
         type="button"
         onClick={(e) => { e.stopPropagation(); onDelete(note.id); }}
         aria-label="Eliminar nota"
-        style={{ position: 'absolute', top: 8, right: 8, border: 'none', background: 'transparent', color: '#6b7280', cursor: 'pointer', fontSize: 18, lineHeight: 1, zIndex: 5 }}
+        style={{ position: 'absolute', top: 8, right: 8, border: 'none', background: 'transparent', color: 'var(--color-text-secondary)', cursor: 'pointer', fontSize: 18, lineHeight: 1, zIndex: 5 }}
       >×</button>
       <input
         value={note.title}
         onChange={(e) => onUpdate(note.id, { title: e.target.value })}
         placeholder="Título"
-        style={{ width: '100%', border: 'none', background: 'transparent', fontSize: 13, fontWeight: 700, color: '#92400e', outline: 'none' }}
+        style={{ width: '100%', border: 'none', background: 'transparent', fontSize: 13, fontWeight: 700, color: 'var(--board-note-title)', outline: 'none' }}
       />
       <textarea
         value={note.text}
         onChange={(e) => onUpdate(note.id, { text: e.target.value })}
         placeholder="Escribe aquí..."
-        style={{ flex: 1, width: '100%', minHeight: 120, resize: 'none', border: 'none', background: 'transparent', fontSize: 13, color: '#374151', lineHeight: 1.4, outline: 'none', whiteSpace: 'pre-wrap' }}
+        style={{ flex: 1, width: '100%', minHeight: 120, resize: 'none', border: 'none', background: 'transparent', fontSize: 13, color: 'var(--board-note-text)', lineHeight: 1.4, outline: 'none', whiteSpace: 'pre-wrap' }}
       />
       <div style={{ fontSize: 10, color: '#6b7280', textAlign: 'right' }}>
         {new Date(note.createdAt || note.created_at).toLocaleDateString()}
@@ -145,7 +145,7 @@ export default function BoardView({ notes, onAddNote, onUpdateNote, onDeleteNote
           <button
             type="button"
             onClick={handleAddNote}
-            style={{ width: 40, height: 40, borderRadius: 999, border: 'none', background: '#f59e0b', color: 'white', fontSize: 24, fontWeight: 700, cursor: 'pointer', boxShadow: '0 10px 20px rgba(245,158,11,0.24)' }}
+            style={{ width: 40, height: 40, borderRadius: 999, border: 'none', background: 'var(--board-add-button-bg)', color: 'var(--board-add-button-text)', fontSize: 24, fontWeight: 700, cursor: 'pointer', boxShadow: '0 10px 20px rgba(245,158,11,0.24)' }}
           >+</button>
         </div>
         <div className="hide-mobile" style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>Las notas son libres. Añade post-its, muévelos donde quieras y organiza tus ideas.</div>
@@ -159,8 +159,8 @@ export default function BoardView({ notes, onAddNote, onUpdateNote, onDeleteNote
         onPointerCancel={handlePointerUp}
         style={{
           position: 'relative', minHeight: 'calc(100vh - 280px)', width: '100%',
-          backgroundColor: '#f8fafc',
-          backgroundImage: 'radial-gradient(#cbd5e1 1.5px, transparent 1.5px)',
+          backgroundColor: 'var(--board-canvas-bg)',
+          backgroundImage: 'radial-gradient(var(--board-canvas-dot) 1.5px, transparent 1.5px)',
           backgroundSize: '24px 24px',
           borderRadius: 'var(--border-radius-lg)', overflow: 'hidden',
           border: '1px solid var(--color-border-tertiary)', boxShadow: 'var(--shadow-soft)',

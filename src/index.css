@@ -37,6 +37,24 @@
 
   --nav-height: 76px;
   --surface-border: 1px solid rgba(119, 132, 158, 0.16);
+
+  --calendar-selected-bg: #eef6ff;
+  --calendar-selected-border: #93c5fd;
+  --calendar-today-bg: #ecfdf5;
+  --calendar-today-border: #4ade80;
+  --calendar-holiday-bg: #fff8f6;
+  --calendar-holiday-border: rgba(248, 113, 113, 0.28);
+  --calendar-default-border: rgba(148, 163, 184, 0.12);
+  --calendar-today-pill-bg: #d1fae5;
+
+  --board-canvas-bg: #f8fafc;
+  --board-canvas-dot: #cbd5e1;
+  --board-note-bg: #fff1d6;
+  --board-note-border: #f6c66f;
+  --board-note-title: #92400e;
+  --board-note-text: #374151;
+  --board-add-button-bg: #f59e0b;
+  --board-add-button-text: #ffffff;
 }
 
 [data-theme="dark"] {
@@ -73,6 +91,24 @@
   --color-border-success: #15803d;
 
   --surface-border: 1px solid rgba(148, 163, 184, 0.2);
+
+  --calendar-selected-bg: #132a4a;
+  --calendar-selected-border: #3b82f6;
+  --calendar-today-bg: #0f3b2a;
+  --calendar-today-border: #22c55e;
+  --calendar-holiday-bg: #2a1a23;
+  --calendar-holiday-border: rgba(251, 113, 133, 0.38);
+  --calendar-default-border: rgba(148, 163, 184, 0.22);
+  --calendar-today-pill-bg: #14532d;
+
+  --board-canvas-bg: #111827;
+  --board-canvas-dot: rgba(56, 189, 248, 0.25);
+  --board-note-bg: #3f2b08;
+  --board-note-border: #b45309;
+  --board-note-title: #fcd34d;
+  --board-note-text: #fde68a;
+  --board-add-button-bg: #f59e0b;
+  --board-add-button-text: #111827;
 }
 
 *,
