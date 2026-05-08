@@ -67,11 +67,14 @@ function clearSessionCookie(request) {
 }
 
 function isValidTask(task) {
+  const taskName = typeof task?.name === 'string'
+    ? task.name
+    : (typeof task?.description === 'string' ? task.description : null);
   return (
     task &&
     typeof task === 'object' &&
     typeof task.id === 'string' &&
-    typeof task.name === 'string' &&
+    typeof taskName === 'string' &&
     VALID_STATUS.has(task.status) &&
     VALID_PRIORITY.has(task.priority) &&
     (task.url === undefined || typeof task.url === 'string') &&
@@ -165,6 +168,9 @@ function normalizeSyncBody(body) {
 }
 
 function prepareTaskUpsert(env, profileId, userId, task, taskSchema) {
+  const taskName = typeof task?.name === 'string'
+    ? task.name
+    : (typeof task?.description === 'string' ? task.description : '');
   const hasName = Boolean(taskSchema?.hasName);
   const hasDescription = Boolean(taskSchema?.hasDescription);
   const hasUrl = Boolean(taskSchema?.hasUrl);
@@ -183,7 +189,7 @@ function prepareTaskUpsert(env, profileId, userId, task, taskSchema) {
   if (hasName) {
     columns.push('name');
     placeholders.push('?');
-    bindings.push(task.name);
+    bindings.push(taskName);
     updates.push('name = excluded.name');
     changeChecks.push('tasks.name IS NOT excluded.name');
   }
@@ -191,7 +197,7 @@ function prepareTaskUpsert(env, profileId, userId, task, taskSchema) {
     // Legacy compatibility: keep description in sync when the old column still exists.
     columns.push('description');
     placeholders.push('?');
-    bindings.push(task.name);
+    bindings.push(taskName);
     updates.push('description = excluded.description');
     changeChecks.push('tasks.description IS NOT excluded.description');
   }
@@ -658,9 +664,10 @@ export default {
         }
 
         if (request.method === 'POST' && path === '/ai/workspace-summary') {
-          const { results: tasks } = await env.DB.prepare(
-            "SELECT name, status, priority, category, date FROM tasks WHERE user_id = ? AND profile_id = ?"
-          ).bind(userId, profileId).all();
+          const summaryTaskSelect = taskSchema.hasName
+            ? "SELECT name, status, priority, category, date FROM tasks WHERE user_id = ? AND profile_id = ?"
+            : "SELECT description AS name, status, priority, category, date FROM tasks WHERE user_id = ? AND profile_id = ?";
+          const { results: tasks } = await env.DB.prepare(summaryTaskSelect).bind(userId, profileId).all();
           const { results: events } = await env.DB.prepare(
             "SELECT title, startDate, endDate FROM events WHERE user_id = ? AND profile_id = ?"
           ).bind(userId, profileId).all();
@@ -742,6 +749,9 @@ export default {
           
           const parsedTasks = tasks.map((t) => ({
             ...t,
+            name: typeof t.name === 'string' ? t.name : (typeof t.description === 'string' ? t.description : ''),
+            url: typeof t.url === 'string' ? t.url : '',
+            notes: typeof t.notes === 'string' ? t.notes : '',
             id: unscopedEntityId(profileId, t.id),
             hideInKanbanDone: Boolean(t.hide_in_kanban_done),
             subtasks: JSON.parse(t.subtasks || '[]'),
