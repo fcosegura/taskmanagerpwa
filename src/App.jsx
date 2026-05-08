@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { P_ORDER, STATUS } from './constants.js';
 import { uid, toDateStr, parseDateTimeFromDescription, parseDescriptionDateResult, cleanDescriptionSegment, isJiraCategory, normalizeTicketNumber, applyTicketNumberToTaskName, inheritTicketFromParentTask } from './utils.jsx';
-import { loadData, saveData, validateBackupPayload, normalizeDataPayload, loginWithGoogleCredential, logoutSession, createProfile, deleteProfile, parseTaskWithAI, checkSession, generateTasksFromText } from './storage.js';
+import { loadData, saveData, validateBackupPayload, normalizeDataPayload, loginWithGoogleCredential, logoutSession, createProfile, deleteProfile, parseTaskWithAI, checkSession, generateTasksFromText, fetchWorkspaceData, isMultiBackupPayload, validateMultiBackupPayload, normalizeMultiBackupPayload } from './storage.js';
 import TasksView from './components/TasksView.jsx';
 import CalendarView from './components/CalendarView.jsx';
 import BoardView from './components/BoardView.jsx';
@@ -378,54 +378,158 @@ export default function App() {
     }
     return linked;
   };
-  const downloadBackup = () => {
-    const date = new Date().toISOString().slice(0, 10);
-    const fileName = `taskmanager-backup-${date}.json`;
-    const payload = { tasks, boardNotes, events };
-    if (!validateBackupPayload(payload)) {
-      setBackupMessage('Error: los datos internos están corruptos y no se puede exportar el backup.');
-      setTimeout(() => setBackupMessage(''), 5000);
-      return;
-    }
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const triggerJsonDownload = (data, fileName) => {
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url; a.download = fileName; a.click();
     URL.revokeObjectURL(url);
-    setBackupMessage(`Exportado ${fileName}`);
-    setTimeout(() => setBackupMessage(''), 3500);
+  };
+
+  const downloadBackup = async () => {
+    const date = new Date().toISOString().slice(0, 10);
+    const fileName = `taskmanager-backup-${date}.json`;
+
+    // Sin sesión activa o sin lista de workspaces, conservamos el formato legacy con el workspace actual.
+    if (!authenticated || !Array.isArray(profiles) || profiles.length === 0) {
+      const payload = { tasks, boardNotes, events };
+      if (!validateBackupPayload(payload)) {
+        setBackupMessage('Error: los datos internos están corruptos y no se puede exportar el backup.');
+        setTimeout(() => setBackupMessage(''), 5000);
+        return;
+      }
+      triggerJsonDownload(payload, fileName);
+      setBackupMessage(`Exportado ${fileName}`);
+      setTimeout(() => setBackupMessage(''), 3500);
+      return;
+    }
+
+    setBackupMessage('Exportando todos los workspaces...');
+    try {
+      const activePayload = { tasks, boardNotes, events };
+      const workspacesData = await Promise.all(
+        profiles.map(async (profile) => {
+          const data = profile.id === activeProfileId
+            ? activePayload
+            : await fetchWorkspaceData(profile.id);
+          return { id: profile.id, name: profile.name, ...data };
+        })
+      );
+      const backup = {
+        version: 2,
+        exportedAt: new Date().toISOString(),
+        workspaces: workspacesData,
+      };
+      if (!validateMultiBackupPayload(backup)) {
+        setBackupMessage('Error: los datos exportados están corruptos.');
+        setTimeout(() => setBackupMessage(''), 5000);
+        return;
+      }
+      triggerJsonDownload(backup, fileName);
+      setBackupMessage(`Exportado ${fileName} (${workspacesData.length} workspace${workspacesData.length === 1 ? '' : 's'})`);
+      setTimeout(() => setBackupMessage(''), 4000);
+    } catch (err) {
+      setBackupMessage(`Error al exportar: ${err.message}`);
+      setTimeout(() => setBackupMessage(''), 5000);
+    }
+  };
+
+  const importLegacyBackup = (parsed) => {
+    const normalized = normalizeDataPayload(parsed);
+    const hasImportShape = Array.isArray(parsed) || (parsed && typeof parsed === 'object' && Array.isArray(parsed.tasks));
+    const sourceTasks = Array.isArray(parsed) ? parsed : parsed?.tasks;
+    const sourceNotes = Array.isArray(parsed?.boardNotes) ? parsed.boardNotes : null;
+    const sourceEvents = Array.isArray(parsed?.events) ? parsed.events : null;
+    const droppedInvalidItems =
+      normalized.tasks.length !== sourceTasks?.length ||
+      (sourceNotes && normalized.boardNotes.length !== sourceNotes.length) ||
+      (sourceEvents && normalized.events.length !== sourceEvents.length);
+    if (!hasImportShape || droppedInvalidItems || !validateBackupPayload(normalized)) {
+      throw new Error('El archivo JSON no tiene la estructura esperada.');
+    }
+    setTasks(normalized.tasks);
+    setBoardNotes(normalized.boardNotes);
+    setEvents(normalized.events);
+    setFilter('all'); setCategoryFilter('all'); setModal(null); setEventModal(null);
+    setSummaryFilter('none');
+    setBackupMessage('Importación completada correctamente.');
+  };
+
+  const importMultiBackup = async (parsed) => {
+    const normalized = normalizeMultiBackupPayload(parsed);
+    if (!normalized || !validateMultiBackupPayload(normalized)) {
+      throw new Error('El archivo de backup multi-workspace no es válido.');
+    }
+    if (!authenticated) {
+      throw new Error('Necesitas iniciar sesión para importar un backup con varios workspaces.');
+    }
+
+    setBackupMessage(`Importando ${normalized.workspaces.length} workspace${normalized.workspaces.length === 1 ? '' : 's'}...`);
+
+    const existingByName = new Map(
+      (profiles || []).map((profile) => [profile.name.trim().toLowerCase(), profile])
+    );
+    const createdProfiles = [];
+    const errors = [];
+    let restoredCount = 0;
+
+    for (const workspace of normalized.workspaces) {
+      const key = workspace.name.trim().toLowerCase();
+      let targetProfile = existingByName.get(key);
+      try {
+        if (!targetProfile) {
+          targetProfile = await createProfile(workspace.name);
+          if (targetProfile) {
+            existingByName.set(key, targetProfile);
+            createdProfiles.push(targetProfile);
+          }
+        }
+        if (!targetProfile?.id) throw new Error('No se pudo resolver el workspace destino.');
+        const payload = {
+          tasks: workspace.tasks,
+          boardNotes: workspace.boardNotes,
+          events: workspace.events,
+        };
+        await saveData(payload, true, targetProfile.id);
+        restoredCount += 1;
+      } catch (err) {
+        errors.push(`"${workspace.name}": ${err.message}`);
+      }
+    }
+
+    if (createdProfiles.length > 0) {
+      setProfiles((prev) => [...prev, ...createdProfiles]);
+    }
+
+    setFilter('all'); setCategoryFilter('all'); setModal(null); setEventModal(null);
+    setSummaryFilter('none');
+    setReady(false);
+    setAuthVersion((version) => version + 1);
+
+    if (errors.length === 0) {
+      setBackupMessage(`Importados ${restoredCount} workspace${restoredCount === 1 ? '' : 's'} correctamente.`);
+    } else {
+      setBackupMessage(`Importación parcial (${restoredCount} ok, ${errors.length} con errores): ${errors.join(' | ')}`);
+    }
   };
 
   const handleImportFile = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       try {
         const parsed = JSON.parse(event.target.result);
-        const normalized = normalizeDataPayload(parsed);
-        const hasImportShape = Array.isArray(parsed) || (parsed && typeof parsed === 'object' && Array.isArray(parsed.tasks));
-        const sourceTasks = Array.isArray(parsed) ? parsed : parsed?.tasks;
-        const sourceNotes = Array.isArray(parsed?.boardNotes) ? parsed.boardNotes : null;
-        const sourceEvents = Array.isArray(parsed?.events) ? parsed.events : null;
-        const droppedInvalidItems =
-          normalized.tasks.length !== sourceTasks?.length ||
-          (sourceNotes && normalized.boardNotes.length !== sourceNotes.length) ||
-          (sourceEvents && normalized.events.length !== sourceEvents.length);
-        if (!hasImportShape || droppedInvalidItems || !validateBackupPayload(normalized)) {
-          throw new Error('El archivo JSON no tiene la estructura esperada.');
+        if (isMultiBackupPayload(parsed)) {
+          await importMultiBackup(parsed);
+        } else {
+          importLegacyBackup(parsed);
         }
-        setTasks(normalized.tasks);
-        setBoardNotes(normalized.boardNotes);
-        setEvents(normalized.events);
-        setFilter('all'); setCategoryFilter('all'); setModal(null); setEventModal(null);
-        setSummaryFilter('none');
-        setBackupMessage('Importación completada correctamente.');
       } catch (err) {
         setBackupMessage(`Error al importar: ${err.message}`);
       }
       e.target.value = '';
-      setTimeout(() => setBackupMessage(''), 5000);
+      setTimeout(() => setBackupMessage(''), 6000);
     };
     reader.readAsText(file);
   };
@@ -907,7 +1011,7 @@ export default function App() {
                 <button type="button" role="menuitem" onClick={() => { toggleTheme(); setShowActionsMenu(false); }}>
                   {theme === 'dark' ? 'Modo claro' : 'Modo oscuro'}
                 </button>
-                <button type="button" role="menuitem" onClick={() => { downloadBackup(); setShowActionsMenu(false); }}>Exportar backup</button>
+                <button type="button" role="menuitem" onClick={() => { void downloadBackup(); setShowActionsMenu(false); }}>Exportar backup</button>
                 <button type="button" role="menuitem" onClick={() => { fileInputRef.current?.click(); setShowActionsMenu(false); }}>Importar backup</button>
               </div>
             )}
