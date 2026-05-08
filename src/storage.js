@@ -202,6 +202,53 @@ export function normalizeDataPayload(parsed) {
   return { tasks: [], boardNotes: [], events: [] };
 }
 
+export function isMultiBackupPayload(parsed) {
+  return Boolean(
+    parsed &&
+    typeof parsed === 'object' &&
+    !Array.isArray(parsed) &&
+    Array.isArray(parsed.workspaces)
+  );
+}
+
+export function validateMultiBackupPayload(payload) {
+  if (!isMultiBackupPayload(payload)) return false;
+  return payload.workspaces.every((workspace) => (
+    workspace &&
+    typeof workspace === 'object' &&
+    typeof workspace.name === 'string' &&
+    workspace.name.trim().length > 0 &&
+    validateBackupPayload(workspace)
+  ));
+}
+
+export function normalizeMultiBackupPayload(parsed) {
+  if (!isMultiBackupPayload(parsed)) return null;
+  const workspaces = parsed.workspaces
+    .map((raw) => {
+      if (!raw || typeof raw !== 'object') return null;
+      const name = typeof raw.name === 'string' ? raw.name.trim() : '';
+      if (!name) return null;
+      const normalized = normalizeDataPayload(raw);
+      const sourceTaskCount = Array.isArray(raw.tasks) ? raw.tasks.length : 0;
+      const sourceNoteCount = Array.isArray(raw.boardNotes) ? raw.boardNotes.length : 0;
+      const sourceEventCount = Array.isArray(raw.events) ? raw.events.length : 0;
+      const droppedItems =
+        normalized.tasks.length !== sourceTaskCount ||
+        normalized.boardNotes.length !== sourceNoteCount ||
+        normalized.events.length !== sourceEventCount;
+      if (droppedItems) return null;
+      return {
+        id: typeof raw.id === 'string' ? raw.id : null,
+        name,
+        ...normalized,
+      };
+    })
+    .filter(Boolean);
+  if (workspaces.length === 0) return null;
+  return { workspaces };
+}
+
 export async function loginWithGoogleCredential(credential) {
   const resp = await fetch('/api/login', {
     method: 'POST',
@@ -314,6 +361,16 @@ export async function generateTasksFromText(text, profileId = null) {
     childTasks,
     source: data?.source === 'ai' ? 'ai' : 'fallback',
   };
+}
+
+export async function fetchWorkspaceData(profileId) {
+  if (!profileId) throw new Error('profileId es requerido para fetchWorkspaceData.');
+  const resp = await fetch(`/api/data?profileId=${encodeURIComponent(profileId)}`, { credentials: 'same-origin' });
+  if (!resp.ok) {
+    throw new Error(`No se pudo leer el workspace (${resp.status}).`);
+  }
+  const cloudData = await resp.json();
+  return normalizeDataPayload(cloudData);
 }
 
 export async function loadData(profileId = null) {
