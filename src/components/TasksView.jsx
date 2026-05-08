@@ -42,6 +42,52 @@ export default function TasksView({
   const catCount = {};
   categories.forEach((cat) => { catCount[cat] = categoryCounts[cat] || 0; });
 
+  const orderedTasks = (() => {
+    const visibleIds = new Set(tasks.map((task) => task.id));
+    const indexById = new Map(tasks.map((task, index) => [task.id, index]));
+    const parentByChild = new Map();
+    const childrenByParent = new Map();
+
+    for (const parent of tasks) {
+      for (const childId of (parent.dependencyTaskIds || [])) {
+        if (!visibleIds.has(childId)) continue;
+        if (!parentByChild.has(childId)) parentByChild.set(childId, parent.id);
+        if (!childrenByParent.has(parent.id)) childrenByParent.set(parent.id, []);
+        childrenByParent.get(parent.id).push(childId);
+      }
+    }
+
+    for (const [parentId, childIds] of childrenByParent.entries()) {
+      childIds.sort((left, right) => (indexById.get(left) ?? 0) - (indexById.get(right) ?? 0));
+      childrenByParent.set(parentId, [...new Set(childIds)]);
+    }
+
+    const ordered = [];
+    const visited = new Set();
+
+    const pushWithChildren = (taskId) => {
+      if (visited.has(taskId)) return;
+      const task = tasks.find((item) => item.id === taskId);
+      if (!task) return;
+      visited.add(taskId);
+      ordered.push(task);
+      for (const childId of (childrenByParent.get(taskId) || [])) {
+        pushWithChildren(childId);
+      }
+    };
+
+    for (const task of tasks) {
+      if (!parentByChild.has(task.id)) {
+        pushWithChildren(task.id);
+      }
+    }
+    for (const task of tasks) {
+      if (!visited.has(task.id)) pushWithChildren(task.id);
+    }
+
+    return ordered;
+  })();
+
   return (
     <div className="tasks-view">
       <div className="toolbar-panel">
@@ -109,7 +155,7 @@ export default function TasksView({
         </div>
       ) : (
         <div className="task-list" style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-          {tasks.map((t) => (
+          {orderedTasks.map((t) => (
             <TaskRow
               key={t.id}
               task={t}

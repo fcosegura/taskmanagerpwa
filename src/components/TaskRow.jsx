@@ -26,6 +26,7 @@ export default function TaskRow({ task, allTasks = [], onClick, onToggleDone }) 
         border: 'none',
         borderRadius: 'var(--border-radius-lg)',
         padding: '18px 18px',
+        marginLeft: hasParentTask ? 18 : 0,
         cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 14,
         opacity: task.status === 'done' ? 0.8 : 1,
         transform: 'translateZ(0)',
