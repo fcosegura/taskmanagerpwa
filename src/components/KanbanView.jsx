@@ -33,6 +33,20 @@ function KanbanTaskCard({ task, allTasks, onEditTask, onDragStart, onDragEnd }) 
         gap: 8
       }}
     >
+      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', minHeight: 10, gap: 6 }}>
+        {hasChildTasks && (
+          <span
+            title="Tarea padre"
+            style={{ width: 8, height: 8, borderRadius: '50%', background: '#9333ea', display: 'inline-block' }}
+          />
+        )}
+        {hasParentTask && (
+          <span
+            title="Tarea hija"
+            style={{ width: 8, height: 8, borderRadius: '50%', background: '#f59e0b', display: 'inline-block' }}
+          />
+        )}
+      </div>
       {(hasParentTask || hasChildTasks) && (
         <div style={{ display: 'flex', gap: 6 }}>
           <div style={{ width: 4, borderRadius: 999, background: `var(${priority.tv})` }} />
