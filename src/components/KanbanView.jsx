@@ -54,7 +54,7 @@ function KanbanTaskCard({ task, allTasks, onEditTask, onDragStart, onDragEnd }) 
           wordBreak: 'break-word'
         }}
       >
-        {task.description}
+        {task.name}
       </div>
       {(task.date || totalSubtasks > 0) && (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
@@ -72,12 +72,12 @@ function KanbanTaskCard({ task, allTasks, onEditTask, onDragStart, onDragEnd }) 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           {hasChildTasks && (
             <div style={{ fontSize: 10, color: 'var(--color-text-secondary)' }}>
-              Esta tarea depende de: {childTasks.map((childTask) => childTask.description).join(', ')}
+              Esta tarea depende de: {childTasks.map((childTask) => childTask.name).join(', ')}
             </div>
           )}
           {hasParentTask && (
             <div style={{ fontSize: 10, color: 'var(--color-text-secondary)' }}>
-              Esta tarea es parte de: {parentTasks.map((parentTask) => parentTask.description).join(', ')}
+              Esta tarea es parte de: {parentTasks.map((parentTask) => parentTask.name).join(', ')}
             </div>
           )}
         </div>

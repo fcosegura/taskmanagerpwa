@@ -71,9 +71,11 @@ function isValidTask(task) {
     task &&
     typeof task === 'object' &&
     typeof task.id === 'string' &&
-    typeof task.description === 'string' &&
+    typeof task.name === 'string' &&
     VALID_STATUS.has(task.status) &&
     VALID_PRIORITY.has(task.priority) &&
+    (task.url === undefined || typeof task.url === 'string') &&
+    (task.notes === undefined || typeof task.notes === 'string') &&
     (task.hideInKanbanDone === undefined || typeof task.hideInKanbanDone === 'boolean') &&
     Array.isArray(task.subtasks) &&
     (task.dependencyTaskIds === undefined || (
@@ -164,19 +166,21 @@ function normalizeSyncBody(body) {
 
 function prepareTaskUpsert(env, profileId, userId, task) {
   return env.DB.prepare(
-    "INSERT INTO tasks (id, user_id, profile_id, description, status, priority, category, date, time, subtasks, dependencies, hide_in_kanban_done) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) " +
+    "INSERT INTO tasks (id, user_id, profile_id, name, url, notes, status, priority, category, date, time, subtasks, dependencies, hide_in_kanban_done) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) " +
     "ON CONFLICT(id) DO UPDATE SET " +
-    "description = excluded.description, status = excluded.status, priority = excluded.priority, category = excluded.category, " +
+    "name = excluded.name, url = excluded.url, notes = excluded.notes, status = excluded.status, priority = excluded.priority, category = excluded.category, " +
     "date = excluded.date, time = excluded.time, subtasks = excluded.subtasks, dependencies = excluded.dependencies, hide_in_kanban_done = excluded.hide_in_kanban_done, updated_at = CURRENT_TIMESTAMP " +
     "WHERE tasks.user_id = excluded.user_id AND tasks.profile_id = excluded.profile_id AND (" +
-    "tasks.description IS NOT excluded.description OR tasks.status IS NOT excluded.status OR tasks.priority IS NOT excluded.priority OR " +
+    "tasks.name IS NOT excluded.name OR tasks.url IS NOT excluded.url OR tasks.notes IS NOT excluded.notes OR tasks.status IS NOT excluded.status OR tasks.priority IS NOT excluded.priority OR " +
     "tasks.category IS NOT excluded.category OR tasks.date IS NOT excluded.date OR tasks.time IS NOT excluded.time OR " +
     "tasks.subtasks IS NOT excluded.subtasks OR tasks.dependencies IS NOT excluded.dependencies OR tasks.hide_in_kanban_done IS NOT excluded.hide_in_kanban_done)"
   ).bind(
     scopedEntityId(profileId, task.id),
     userId,
     profileId,
-    task.description,
+    task.name,
+    task.url || null,
+    task.notes || null,
     task.status,
     task.priority,
     task.category || null,
@@ -243,6 +247,10 @@ async function ensureProfilesSchema(env) {
   await safeExec("CREATE INDEX IF NOT EXISTS idx_events_user_profile ON events(user_id, profile_id)");
   await safeExec("ALTER TABLE tasks ADD COLUMN hide_in_kanban_done INTEGER DEFAULT 0");
   await safeExec("ALTER TABLE tasks ADD COLUMN dependencies TEXT DEFAULT '[]'");
+  await safeExec("ALTER TABLE tasks ADD COLUMN name TEXT");
+  await safeExec("ALTER TABLE tasks ADD COLUMN url TEXT");
+  await safeExec("ALTER TABLE tasks ADD COLUMN notes TEXT");
+  await safeExec("UPDATE tasks SET name = description WHERE name IS NULL");
 
   const hasProfileColumn = async (tableName) => {
     try {
@@ -411,7 +419,7 @@ function summarizeWorkspaceFallback(tasks, events) {
   const highPriorityPending = tasks
     .filter((task) => task.status !== 'done' && ['high', 'critical'].includes(task.priority))
     .slice(0, 5)
-    .map((task) => task.description)
+    .map((task) => task.name)
     .filter(Boolean);
   const summary = `Tienes ${tasks.length} tareas en este workspace. ${statusCounts.done || 0} completadas, ${statusCounts.blocked || 0} bloqueadas y ${overdue} vencidas.`;
   const actionPlan = [
@@ -435,7 +443,7 @@ function summarizeWorkspaceFallback(tasks, events) {
 async function generateWorkspaceSummaryWithAi(tasks, events, env) {
   if (!env?.AI?.run) return null;
   const compactTasks = tasks.slice(0, 25).map((task) => ({
-    description: task.description,
+    name: task.name,
     status: task.status,
     priority: task.priority,
     date: task.date || null,
@@ -578,7 +586,7 @@ export default {
 
         if (request.method === 'POST' && path === '/ai/workspace-summary') {
           const { results: tasks } = await env.DB.prepare(
-            "SELECT description, status, priority, category, date FROM tasks WHERE user_id = ? AND profile_id = ?"
+            "SELECT name, status, priority, category, date FROM tasks WHERE user_id = ? AND profile_id = ?"
           ).bind(userId, profileId).all();
           const { results: events } = await env.DB.prepare(
             "SELECT title, startDate, endDate FROM events WHERE user_id = ? AND profile_id = ?"

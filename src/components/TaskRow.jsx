@@ -56,8 +56,18 @@ export default function TaskRow({ task, allTasks = [], onClick, onToggleDone, on
       )}
       <div className="task-content" style={{ flex: 1, minWidth: 0 }}>
         <div className="task-title" style={{ fontSize: 14, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textDecoration: task.status === 'done' ? 'line-through' : 'none' }}>
-          {linkifyText(task.description)}
+          {linkifyText(task.name)}
         </div>
+        {task.url && (
+          <div className="task-date" style={{ fontSize: 12, color: 'var(--color-text-info)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {linkifyText(task.url)}
+          </div>
+        )}
+        {task.notes && (
+          <div className="task-date" style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {linkifyText(task.notes)}
+          </div>
+        )}
         {task.date && (
           <div className="task-date" style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 2 }}>
             {fmtDate(task.date)}{task.time ? ` · ${task.time}` : ''}
@@ -209,12 +219,12 @@ export default function TaskRow({ task, allTasks = [], onClick, onToggleDone, on
           <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 3 }}>
             {hasChildTasks && (
               <div style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>
-                Esta tarea depende de: {childTasks.map((childTask) => childTask.description).join(', ')}
+                Esta tarea depende de: {childTasks.map((childTask) => childTask.name).join(', ')}
               </div>
             )}
             {hasParentTask && (
               <div style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>
-                Esta tarea es parte de: {parentTasks.map((parentTask) => parentTask.description).join(', ')}
+                Esta tarea es parte de: {parentTasks.map((parentTask) => parentTask.name).join(', ')}
               </div>
             )}
           </div>
