@@ -164,23 +164,55 @@ function normalizeSyncBody(body) {
   return null;
 }
 
-function prepareTaskUpsert(env, profileId, userId, task) {
-  return env.DB.prepare(
-    "INSERT INTO tasks (id, user_id, profile_id, name, url, notes, status, priority, category, date, time, subtasks, dependencies, hide_in_kanban_done) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) " +
-    "ON CONFLICT(id) DO UPDATE SET " +
-    "name = excluded.name, url = excluded.url, notes = excluded.notes, status = excluded.status, priority = excluded.priority, category = excluded.category, " +
-    "date = excluded.date, time = excluded.time, subtasks = excluded.subtasks, dependencies = excluded.dependencies, hide_in_kanban_done = excluded.hide_in_kanban_done, updated_at = CURRENT_TIMESTAMP " +
-    "WHERE tasks.user_id = excluded.user_id AND tasks.profile_id = excluded.profile_id AND (" +
-    "tasks.name IS NOT excluded.name OR tasks.url IS NOT excluded.url OR tasks.notes IS NOT excluded.notes OR tasks.status IS NOT excluded.status OR tasks.priority IS NOT excluded.priority OR " +
-    "tasks.category IS NOT excluded.category OR tasks.date IS NOT excluded.date OR tasks.time IS NOT excluded.time OR " +
-    "tasks.subtasks IS NOT excluded.subtasks OR tasks.dependencies IS NOT excluded.dependencies OR tasks.hide_in_kanban_done IS NOT excluded.hide_in_kanban_done)"
-  ).bind(
+function prepareTaskUpsert(env, profileId, userId, task, taskSchema) {
+  const hasName = Boolean(taskSchema?.hasName);
+  const hasDescription = Boolean(taskSchema?.hasDescription);
+  const hasUrl = Boolean(taskSchema?.hasUrl);
+  const hasNotes = Boolean(taskSchema?.hasNotes);
+
+  const columns = ['id', 'user_id', 'profile_id'];
+  const placeholders = ['?', '?', '?'];
+  const bindings = [
     scopedEntityId(profileId, task.id),
     userId,
-    profileId,
-    task.name,
-    task.url || null,
-    task.notes || null,
+    profileId
+  ];
+  const updates = [];
+  const changeChecks = [];
+
+  if (hasName) {
+    columns.push('name');
+    placeholders.push('?');
+    bindings.push(task.name);
+    updates.push('name = excluded.name');
+    changeChecks.push('tasks.name IS NOT excluded.name');
+  }
+  if (hasDescription) {
+    // Legacy compatibility: keep description in sync when the old column still exists.
+    columns.push('description');
+    placeholders.push('?');
+    bindings.push(task.name);
+    updates.push('description = excluded.description');
+    changeChecks.push('tasks.description IS NOT excluded.description');
+  }
+  if (hasUrl) {
+    columns.push('url');
+    placeholders.push('?');
+    bindings.push(task.url || null);
+    updates.push('url = excluded.url');
+    changeChecks.push('tasks.url IS NOT excluded.url');
+  }
+  if (hasNotes) {
+    columns.push('notes');
+    placeholders.push('?');
+    bindings.push(task.notes || null);
+    updates.push('notes = excluded.notes');
+    changeChecks.push('tasks.notes IS NOT excluded.notes');
+  }
+
+  columns.push('status', 'priority', 'category', 'date', 'time', 'subtasks', 'dependencies', 'hide_in_kanban_done');
+  placeholders.push('?', '?', '?', '?', '?', '?', '?', '?');
+  bindings.push(
     task.status,
     task.priority,
     task.category || null,
@@ -190,6 +222,33 @@ function prepareTaskUpsert(env, profileId, userId, task) {
     JSON.stringify(task.dependencyTaskIds || []),
     task.hideInKanbanDone ? 1 : 0
   );
+  updates.push(
+    'status = excluded.status',
+    'priority = excluded.priority',
+    'category = excluded.category',
+    'date = excluded.date',
+    'time = excluded.time',
+    'subtasks = excluded.subtasks',
+    'dependencies = excluded.dependencies',
+    'hide_in_kanban_done = excluded.hide_in_kanban_done',
+    'updated_at = CURRENT_TIMESTAMP'
+  );
+  changeChecks.push(
+    'tasks.status IS NOT excluded.status',
+    'tasks.priority IS NOT excluded.priority',
+    'tasks.category IS NOT excluded.category',
+    'tasks.date IS NOT excluded.date',
+    'tasks.time IS NOT excluded.time',
+    'tasks.subtasks IS NOT excluded.subtasks',
+    'tasks.dependencies IS NOT excluded.dependencies',
+    'tasks.hide_in_kanban_done IS NOT excluded.hide_in_kanban_done'
+  );
+
+  const statement =
+    `INSERT INTO tasks (${columns.join(', ')}) VALUES (${placeholders.join(', ')}) ` +
+    `ON CONFLICT(id) DO UPDATE SET ${updates.join(', ')} ` +
+    `WHERE tasks.user_id = excluded.user_id AND tasks.profile_id = excluded.profile_id AND (${changeChecks.join(' OR ')})`;
+  return env.DB.prepare(statement).bind(...bindings);
 }
 
 function prepareNoteUpsert(env, profileId, userId, note) {
@@ -267,6 +326,20 @@ async function ensureProfilesSchema(env) {
   if (!tasksHasProfile || !notesHasProfile || !eventsHasProfile) {
     throw new Error('D1 schema mismatch: profile_id column missing in one or more tables.');
   }
+
+  let taskColumns = [];
+  try {
+    const { results } = await env.DB.prepare("PRAGMA table_info(tasks)").all();
+    taskColumns = Array.isArray(results) ? results.map((col) => col?.name).filter(Boolean) : [];
+  } catch {
+    taskColumns = [];
+  }
+  return {
+    hasName: taskColumns.includes('name'),
+    hasDescription: taskColumns.includes('description'),
+    hasUrl: taskColumns.includes('url'),
+    hasNotes: taskColumns.includes('notes')
+  };
 }
 
 async function ensureDefaultProfile(env, userId) {
@@ -559,7 +632,7 @@ export default {
         if (request.method === 'GET' && path === '/session') {
           return json({ authenticated: true });
         }
-        await ensureProfilesSchema(env);
+        const taskSchema = await ensureProfilesSchema(env);
         const requestedProfileId = url.searchParams.get('profileId');
         const profileId = await resolveProfileId(env, userId, requestedProfileId);
 
@@ -713,7 +786,7 @@ export default {
             );
 
             for (const t of tasks) {
-              batch.push(prepareTaskUpsert(env, syncProfileId, userId, t));
+              batch.push(prepareTaskUpsert(env, syncProfileId, userId, t, taskSchema));
             }
             for (const n of boardNotes) {
               batch.push(prepareNoteUpsert(env, syncProfileId, userId, n));
@@ -747,7 +820,7 @@ export default {
             }
 
             for (const t of tasks.upserts) {
-              batch.push(prepareTaskUpsert(env, syncProfileId, userId, t));
+              batch.push(prepareTaskUpsert(env, syncProfileId, userId, t, taskSchema));
             }
             for (const n of notes.upserts) {
               batch.push(prepareNoteUpsert(env, syncProfileId, userId, n));
