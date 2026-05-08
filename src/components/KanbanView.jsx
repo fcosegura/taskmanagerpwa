@@ -4,8 +4,6 @@ import { fmtDate } from '../utils.jsx';
 
 function KanbanTaskCard({ task, allTasks, onEditTask, onDragStart, onDragEnd }) {
   const priority = PRIORITY.find((item) => item.v === task.priority) || PRIORITY[1];
-  const doneSubtasks = (task.subtasks || []).filter((subtask) => subtask.done).length;
-  const totalSubtasks = (task.subtasks || []).length;
   const childTasks = allTasks.filter((candidate) => (task.dependencyTaskIds || []).includes(candidate.id));
   const parentTasks = allTasks.filter((candidate) => (candidate.dependencyTaskIds || []).includes(task.id));
   const hasParentTask = parentTasks.length > 0;
@@ -56,16 +54,11 @@ function KanbanTaskCard({ task, allTasks, onEditTask, onDragStart, onDragEnd }) 
       >
         {task.name}
       </div>
-      {(task.date || totalSubtasks > 0) && (
+      {task.date && (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
           <div style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>
             {task.date ? `${fmtDate(task.date)}${task.time ? ` · ${task.time}` : ''}` : 'Sin fecha'}
           </div>
-          {totalSubtasks > 0 && (
-            <div style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>
-              {doneSubtasks}/{totalSubtasks} subtareas
-            </div>
-          )}
         </div>
       )}
       {(childTasks.length > 0 || parentTasks.length > 0) && (

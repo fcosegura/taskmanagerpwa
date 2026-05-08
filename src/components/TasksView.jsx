@@ -8,7 +8,7 @@ export default function TasksView({
   tasks, total, filter, setFilter, searchQuery, setSearchQuery,
   categoryFilter, setCategoryFilter, categories,
   statusCounts, categoryCounts,
-  onEdit, onToggleDone, onToggleSubtaskDone, onReorderSubtasks, onQuickAdd, onQuickSuggest,
+  onEdit, onToggleDone, onQuickAdd, onQuickSuggest,
 }) {
   const [quickText, setQuickText] = useState('');
   const [showFilters, setShowFilters] = useState(false);
@@ -116,8 +116,6 @@ export default function TasksView({
               allTasks={allTasks}
               onClick={() => onEdit(t)}
               onToggleDone={onToggleDone}
-              onToggleSubtaskDone={onToggleSubtaskDone}
-              onReorderSubtasks={onReorderSubtasks}
             />
           ))}
         </div>

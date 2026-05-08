@@ -309,30 +309,6 @@ export default function App() {
       return STATUS.flatMap((status) => byStatus[status.v] || []);
     });
   };
-  const toggleSubtaskDone = (taskId, subtaskId) => {
-    setTasks((prev) => prev.map((task) => (
-      task.id === taskId
-        ? {
-            ...task,
-            subtasks: (task.subtasks || []).map((subtask) => (
-              subtask.id === subtaskId ? { ...subtask, done: !subtask.done } : subtask
-            ))
-          }
-        : task
-    )));
-  };
-  const reorderTaskSubtasks = (taskId, fromIndex, toIndex) => {
-    if (fromIndex === toIndex) return;
-    setTasks((prev) => prev.map((task) => {
-      if (task.id !== taskId) return task;
-      const subtasks = [...(task.subtasks || [])];
-      if (fromIndex < 0 || fromIndex >= subtasks.length || toIndex < 0 || toIndex >= subtasks.length) return task;
-      const [moved] = subtasks.splice(fromIndex, 1);
-      subtasks.splice(toIndex, 0, moved);
-      return { ...task, subtasks };
-    }));
-  };
-
   const downloadBackup = () => {
     const date = new Date().toISOString().slice(0, 10);
     const fileName = `taskmanager-backup-${date}.json`;
@@ -816,8 +792,8 @@ export default function App() {
               searchQuery={searchQuery} setSearchQuery={setSearchQuery}
               categoryFilter={categoryFilter} setCategoryFilter={setCategoryFilter}
               categories={categories} statusCounts={statusCounts} categoryCounts={categoryCounts}
-              onEdit={(t) => setModal(t)} onToggleDone={toggleDone} onToggleSubtaskDone={toggleSubtaskDone}
-              onReorderSubtasks={reorderTaskSubtasks} onQuickAdd={handleQuickAdd} onQuickSuggest={handleQuickSuggest}
+              onEdit={(t) => setModal(t)} onToggleDone={toggleDone}
+              onQuickAdd={handleQuickAdd} onQuickSuggest={handleQuickSuggest}
             />
           : view === 'kanban'
             ? <KanbanView

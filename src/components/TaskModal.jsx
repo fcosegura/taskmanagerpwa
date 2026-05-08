@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { STATUS } from '../constants.js';
-import { uid, fmtDate, parseDateTimeFromDescription, parseDescriptionDateResult, cleanDescriptionSegment } from '../utils.jsx';
+import { fmtDate, parseDateTimeFromDescription, parseDescriptionDateResult, cleanDescriptionSegment } from '../utils.jsx';
 import { parseTaskWithAI } from '../storage.js';
 
 export default function TaskModal({ task, categories, allTasks = [], onSave, onDelete, onClose }) {
@@ -23,9 +23,6 @@ export default function TaskModal({ task, categories, allTasks = [], onSave, onD
     hideInKanbanDone: Boolean(task.hideInKanbanDone)
   });
   const [showAdvanced, setShowAdvanced] = useState(Boolean(task.id));
-  const [dragSubtaskIndex, setDragSubtaskIndex] = useState(null);
-  const [hoverSubtaskIndex, setHoverSubtaskIndex] = useState(null);
-  const [subtaskText, setSubtaskText] = useState('');
   const [newCategory, setNewCategory] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
   const [aiFeedback, setAiFeedback] = useState('');
@@ -97,31 +94,6 @@ export default function TaskModal({ task, categories, allTasks = [], onSave, onD
     } finally {
       setAiLoading(false);
     }
-  };
-
-  const addSubtask = () => {
-    const text = subtaskText?.trim();
-    if (!text) return;
-    setForm((prev) => ({ ...prev, subtasks: [...(prev.subtasks || []), { id: uid(), text, done: false }] }));
-    setSubtaskText('');
-  };
-
-  const toggleSubtask = (id) => {
-    setForm((prev) => ({ ...prev, subtasks: prev.subtasks.map((st) => st.id === id ? { ...st, done: !st.done } : st) }));
-  };
-
-  const removeSubtask = (id) => {
-    setForm((prev) => ({ ...prev, subtasks: prev.subtasks.filter((st) => st.id !== id) }));
-  };
-  const reorderSubtasks = (fromIndex, toIndex) => {
-    if (fromIndex === toIndex) return;
-    setForm((prev) => {
-      const subtasks = [...(prev.subtasks || [])];
-      if (fromIndex < 0 || fromIndex >= subtasks.length || toIndex < 0 || toIndex >= subtasks.length) return prev;
-      const [moved] = subtasks.splice(fromIndex, 1);
-      subtasks.splice(toIndex, 0, moved);
-      return { ...prev, subtasks };
-    });
   };
 
   const onSubmit = (e) => {
@@ -223,80 +195,6 @@ export default function TaskModal({ task, categories, allTasks = [], onSave, onD
       <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 14 }}>
         Elige una categoría existente o escribe una nueva; la nueva categoría reemplazará la selección.
       </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, marginBottom: 14, alignItems: 'end' }}>
-        <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, color: 'var(--color-text-secondary)' }}>
-          <span style={{ fontWeight: 500 }}>Subtarea</span>
-          <input value={subtaskText} onChange={(e) => setSubtaskText(e.target.value)} placeholder="Añadir nueva subtarea" style={{ width: '100%', height: 44, boxSizing: 'border-box', borderRadius: 'var(--border-radius-md)', border: '0.5px solid var(--color-border-secondary)', padding: '10px 12px', fontSize: 13, background: 'var(--color-background-primary)' }} />
-        </label>
-        <button type="button" onClick={addSubtask} disabled={!subtaskText.trim()} style={{ height: 44, minWidth: 100, borderRadius: 'var(--border-radius-md)', border: 'none', background: subtaskText.trim() ? 'var(--color-background-info)' : 'var(--color-background-secondary)', color: subtaskText.trim() ? 'var(--color-text-info)' : 'var(--color-text-secondary)', fontWeight: 700, cursor: subtaskText.trim() ? 'pointer' : 'not-allowed' }}>Añadir</button>
-      </div>
-
-      {form.subtasks?.length > 0 && (
-        <div
-          style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 14, maxHeight: 180, overflowY: 'auto' }}
-          onDragOver={(e) => {
-            e.preventDefault();
-            if (hoverSubtaskIndex === null || hoverSubtaskIndex > form.subtasks.length) {
-              setHoverSubtaskIndex(form.subtasks.length);
-            }
-          }}
-          onDrop={(e) => {
-            e.preventDefault();
-            if (dragSubtaskIndex === null) return;
-            reorderSubtasks(dragSubtaskIndex, form.subtasks.length);
-            setDragSubtaskIndex(null);
-            setHoverSubtaskIndex(null);
-          }}
-          onDragLeave={() => setHoverSubtaskIndex(null)}
-        >
-          {form.subtasks.map((st, index) => (
-            <div key={st.id}>
-              {hoverSubtaskIndex === index && (
-                <div className="subtask-drop-indicator" style={{ marginBottom: 6 }} />
-              )}
-              <div
-                draggable
-                onDragStart={() => setDragSubtaskIndex(index)}
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  if (hoverSubtaskIndex !== index) setHoverSubtaskIndex(index);
-                }}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  if (dragSubtaskIndex === null || dragSubtaskIndex === index) return;
-                  reorderSubtasks(dragSubtaskIndex, index);
-                  setDragSubtaskIndex(null);
-                  setHoverSubtaskIndex(null);
-                }}
-                onDragEnd={() => {
-                  setDragSubtaskIndex(null);
-                  setHoverSubtaskIndex(null);
-                }}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 10,
-                  padding: '10px 12px',
-                  borderRadius: 'var(--border-radius-md)',
-                  background: dragSubtaskIndex === index ? 'rgba(23, 107, 135, 0.08)' : 'var(--color-background-secondary)',
-                  border: '0.5px solid var(--color-border-tertiary)'
-                }}
-              >
-                <span title="Arrastra para reordenar" style={{ color: 'var(--color-text-secondary)', cursor: 'grab', fontSize: 13 }}>⋮⋮</span>
-                <button type="button" onClick={() => toggleSubtask(st.id)} aria-label={st.done ? 'Marcar subtarea como pendiente' : 'Marcar subtarea como completa'} style={{ width: 26, height: 26, borderRadius: 999, border: '1px solid var(--color-border-tertiary)', background: st.done ? 'var(--color-background-success)' : 'var(--color-background-primary)', color: st.done ? 'var(--color-text-success)' : 'var(--color-text-secondary)', display: 'grid', placeItems: 'center', cursor: 'pointer' }}>
-                  {st.done ? '✓' : '○'}
-                </button>
-                <div style={{ flex: 1, fontSize: 13, color: st.done ? 'var(--color-text-secondary)' : 'var(--color-text-primary)', textDecoration: st.done ? 'line-through' : 'none' }}>{st.text}</div>
-                <button type="button" onClick={() => removeSubtask(st.id)} aria-label="Eliminar subtarea" style={{ border: 'none', background: 'transparent', color: 'var(--color-text-secondary)', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>×</button>
-              </div>
-            </div>
-          ))}
-          {hoverSubtaskIndex === form.subtasks.length && (
-            <div className="subtask-drop-indicator" />
-          )}
-        </div>
-      )}
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 10, marginBottom: 14 }}>
         <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, color: 'var(--color-text-secondary)' }}>
