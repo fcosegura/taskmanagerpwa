@@ -2,6 +2,7 @@ export const STATUS = [
   { v: 'not_done', label: 'Sin iniciar', tv: '--color-text-secondary', bv: '--color-background-secondary', bov: '--color-border-secondary' },
   { v: 'started', label: 'Iniciado', tv: '--color-text-info', bv: '--color-background-info', bov: '--color-border-info' },
   { v: 'in_progress', label: 'En progreso', tv: '--color-text-warning', bv: '--color-background-warning', bov: '--color-border-warning' },
+  { v: 'paused', label: 'En pausa', tv: '--color-text-secondary', bv: '--color-background-secondary', bov: '--color-border-secondary' },
   { v: 'blocked', label: 'Bloqueado', tv: '--color-text-danger', bv: '--color-background-danger', bov: '--color-border-danger' },
   { v: 'done', label: 'Completado', tv: '--color-text-success', bv: '--color-background-success', bov: '--color-border-success' },
 ];

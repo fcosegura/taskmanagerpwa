@@ -1,4 +1,4 @@
-const VALID_STATUS = new Set(['not_done', 'started', 'in_progress', 'blocked', 'done']);
+const VALID_STATUS = new Set(['not_done', 'started', 'in_progress', 'paused', 'blocked', 'done']);
 const VALID_PRIORITY = new Set(['low', 'medium', 'high', 'critical']);
 const SESSION_COOKIE = '__Host-taskmanager_session';
 const LOCAL_SESSION_COOKIE = 'taskmanager_session';
