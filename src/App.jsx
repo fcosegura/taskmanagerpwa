@@ -392,12 +392,30 @@ export default function App() {
     setModal(null);
   };
   const del = (id) => {
-    setTasks((previousTasks) => previousTasks
-      .filter((task) => task.id !== id)
-      .map((task) => ({
-        ...task,
-        dependencyTaskIds: (task.dependencyTaskIds || []).filter((dependencyId) => dependencyId !== id)
-      })));
+    let blockedByOpenChildren = false;
+    setTasks((previousTasks) => {
+      const targetTask = previousTasks.find((task) => task.id === id);
+      if (!targetTask) return previousTasks;
+      const openChildTasks = previousTasks.filter((task) => (
+        (targetTask.dependencyTaskIds || []).includes(task.id) &&
+        task.status !== 'done'
+      ));
+      if (openChildTasks.length > 0) {
+        blockedByOpenChildren = true;
+        return previousTasks;
+      }
+      return previousTasks
+        .filter((task) => task.id !== id)
+        .map((task) => ({
+          ...task,
+          dependencyTaskIds: (task.dependencyTaskIds || []).filter((dependencyId) => dependencyId !== id)
+        }));
+    });
+    if (blockedByOpenChildren) {
+      setBackupMessage('No se puede eliminar: la tarea padre tiene hijas abiertas.');
+      setTimeout(() => setBackupMessage(''), 4200);
+      return;
+    }
     setModal(null);
   };
   const open = (init = {}) => setModal({ name: '', url: '', notes: '', status: 'not_done', priority: 'medium', date: '', time: '', subtasks: [], dependencyTaskIds: [], category: '', hideInKanbanDone: false, ...init });
