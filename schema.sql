@@ -12,7 +12,9 @@ CREATE TABLE IF NOT EXISTS tasks (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL, -- ID del usuario autenticado
   profile_id TEXT NOT NULL,
-  description TEXT NOT NULL,
+  name TEXT NOT NULL,
+  url TEXT,
+  notes TEXT,
   status TEXT NOT NULL,
   priority TEXT NOT NULL,
   category TEXT,

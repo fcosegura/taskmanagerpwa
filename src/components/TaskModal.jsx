@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { STATUS } from '../constants.js';
-import { uid, fmtDate, parseDateTimeFromDescription, parseDescriptionDateResult, cleanDescriptionSegment } from '../utils.jsx';
+import { STATUS, PRIORITY } from '../constants.js';
+import { fmtDate, parseDateTimeFromDescription, parseDescriptionDateResult, cleanDescriptionSegment } from '../utils.jsx';
 import { parseTaskWithAI } from '../storage.js';
 
 export default function TaskModal({ task, categories, allTasks = [], onSave, onDelete, onClose }) {
@@ -13,6 +13,9 @@ export default function TaskModal({ task, categories, allTasks = [], onSave, onD
   ));
   const [form, setForm] = useState({
     ...task,
+    name: task.name || '',
+    url: task.url || '',
+    notes: task.notes || '',
     subtasks: task.subtasks || [],
     dependencyTaskIds: task.dependencyTaskIds || [],
     category: task.category || '',
@@ -20,26 +23,23 @@ export default function TaskModal({ task, categories, allTasks = [], onSave, onD
     hideInKanbanDone: Boolean(task.hideInKanbanDone)
   });
   const [showAdvanced, setShowAdvanced] = useState(Boolean(task.id));
-  const [dragSubtaskIndex, setDragSubtaskIndex] = useState(null);
-  const [hoverSubtaskIndex, setHoverSubtaskIndex] = useState(null);
-  const [subtaskText, setSubtaskText] = useState('');
   const [newCategory, setNewCategory] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
   const [aiFeedback, setAiFeedback] = useState('');
 
-  const handleDescriptionChange = (value) => {
-    setForm((prev) => ({ ...prev, description: value }));
+  const handleNameChange = (value) => {
+    setForm((prev) => ({ ...prev, name: value }));
   };
 
   const fillDateTime = () => {
-    const preview = parseDateTimeFromDescription(form.description || '');
+    const preview = parseDateTimeFromDescription(form.name || '');
     if (!preview) return;
-    const result = parseDescriptionDateResult(form.description || '');
-    let cleaned = cleanDescriptionSegment(form.description, result?.text || '');
-    if (!result?.text || cleaned === form.description.trim()) {
+    const result = parseDescriptionDateResult(form.name || '');
+    let cleaned = cleanDescriptionSegment(form.name, result?.text || '');
+    if (!result?.text || cleaned === form.name.trim()) {
       cleaned = cleaned.replace(/(?:\b(?:a|al|a la|a las|el|la|en|para)\b.*)$/i, '').replace(/\s{2,}/g, ' ').trim();
     }
-    setForm((prev) => ({ ...prev, description: cleaned || form.description.trim(), date: preview.date, time: preview.time || prev.time }));
+    setForm((prev) => ({ ...prev, name: cleaned || form.name.trim(), date: preview.date, time: preview.time || prev.time }));
   };
 
   const handleChange = (field, value) => setForm((prev) => ({ ...prev, [field]: value }));
@@ -57,7 +57,7 @@ export default function TaskModal({ task, categories, allTasks = [], onSave, onD
   };
 
   const handleAISuggest = async () => {
-    const text = (form.description || '').trim();
+    const text = (form.name || '').trim();
     if (!text || aiLoading) return;
     setAiLoading(true);
     setAiFeedback('');
@@ -73,11 +73,11 @@ export default function TaskModal({ task, categories, allTasks = [], onSave, onD
         localCleaned = localCleaned.replace(/(?:\b(?:a|al|a la|a las|el|la|en|para)\b.*)$/i, '').replace(/\s{2,}/g, ' ').trim();
       }
       const aiTitle = typeof parsed.title === 'string' && parsed.title.trim() ? parsed.title.trim() : '';
-      const finalDescription = aiTitle || localCleaned || text;
+      const finalName = aiTitle || localCleaned || text;
       const suggestedCategory = Array.isArray(parsed.tags) && parsed.tags.length > 0 ? String(parsed.tags[0]) : '';
       setForm((prev) => ({
         ...prev,
-        description: finalDescription,
+        name: finalName,
         date: hasValidDue
           ? `${due.getFullYear()}-${String(due.getMonth() + 1).padStart(2, '0')}-${String(due.getDate()).padStart(2, '0')}`
           : (localParsed?.date || prev.date),
@@ -96,41 +96,16 @@ export default function TaskModal({ task, categories, allTasks = [], onSave, onD
     }
   };
 
-  const addSubtask = () => {
-    const text = subtaskText?.trim();
-    if (!text) return;
-    setForm((prev) => ({ ...prev, subtasks: [...(prev.subtasks || []), { id: uid(), text, done: false }] }));
-    setSubtaskText('');
-  };
-
-  const toggleSubtask = (id) => {
-    setForm((prev) => ({ ...prev, subtasks: prev.subtasks.map((st) => st.id === id ? { ...st, done: !st.done } : st) }));
-  };
-
-  const removeSubtask = (id) => {
-    setForm((prev) => ({ ...prev, subtasks: prev.subtasks.filter((st) => st.id !== id) }));
-  };
-  const reorderSubtasks = (fromIndex, toIndex) => {
-    if (fromIndex === toIndex) return;
-    setForm((prev) => {
-      const subtasks = [...(prev.subtasks || [])];
-      if (fromIndex < 0 || fromIndex >= subtasks.length || toIndex < 0 || toIndex >= subtasks.length) return prev;
-      const [moved] = subtasks.splice(fromIndex, 1);
-      subtasks.splice(toIndex, 0, moved);
-      return { ...prev, subtasks };
-    });
-  };
-
   const onSubmit = (e) => {
     e.preventDefault();
-    if (!form.description || !form.description.trim()) return;
+    if (!form.name || !form.name.trim()) return;
     const category = newCategory.trim() || form.category || '';
-    const parsed = parseDateTimeFromDescription(form.description);
+    const parsed = parseDateTimeFromDescription(form.name);
     const finalForm = { ...form, category, date: form.date || parsed?.date || '', time: form.time || parsed?.time || '' };
     onSave(finalForm);
   };
 
-  const preview = parseDateTimeFromDescription(form.description || '');
+  const preview = parseDateTimeFromDescription(form.name || '');
   const previewLabel = preview ? `Se creará para: ${fmtDate(preview.date)}${preview.time ? ` · ${preview.time}` : ''}` : null;
 
   return (
@@ -146,21 +121,29 @@ export default function TaskModal({ task, categories, allTasks = [], onSave, onD
       </div>
 
       <label style={{ display: 'block', marginBottom: 14, fontSize: 13, color: 'var(--color-text-secondary)' }}>
-        Descripción
-        <textarea value={form.description} onChange={(e) => handleDescriptionChange(e.target.value)} rows={3} style={{ width: '100%', boxSizing: 'border-box', marginTop: 6, borderRadius: 'var(--border-radius-md)', border: '0.5px solid var(--color-border-secondary)', padding: 10, fontSize: 13, resize: 'vertical' }} />
+        Nombre
+        <input value={form.name} onChange={(e) => handleNameChange(e.target.value)} style={{ width: '100%', boxSizing: 'border-box', marginTop: 6, borderRadius: 'var(--border-radius-md)', border: '0.5px solid var(--color-border-secondary)', padding: 10, fontSize: 13 }} />
+      </label>
+      <label style={{ display: 'block', marginBottom: 14, fontSize: 13, color: 'var(--color-text-secondary)' }}>
+        URL
+        <input type="url" value={form.url || ''} onChange={(e) => handleChange('url', e.target.value)} placeholder="https://..." style={{ width: '100%', boxSizing: 'border-box', marginTop: 6, borderRadius: 'var(--border-radius-md)', border: '0.5px solid var(--color-border-secondary)', padding: 10, fontSize: 13 }} />
+      </label>
+      <label style={{ display: 'block', marginBottom: 14, fontSize: 13, color: 'var(--color-text-secondary)' }}>
+        Notas
+        <textarea value={form.notes || ''} onChange={(e) => handleChange('notes', e.target.value)} rows={3} style={{ width: '100%', boxSizing: 'border-box', marginTop: 6, borderRadius: 'var(--border-radius-md)', border: '0.5px solid var(--color-border-secondary)', padding: 10, fontSize: 13, resize: 'vertical' }} />
       </label>
       <div style={{ marginBottom: 14, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
         <button
           type="button"
           onClick={handleAISuggest}
-          disabled={!form.description?.trim() || aiLoading}
+          disabled={!form.name?.trim() || aiLoading}
           style={{
             border: 'none',
-            background: form.description?.trim() && !aiLoading ? 'var(--color-background-info)' : 'var(--color-background-secondary)',
-            color: form.description?.trim() && !aiLoading ? 'var(--color-text-info)' : 'var(--color-text-secondary)',
+            background: form.name?.trim() && !aiLoading ? 'var(--color-background-info)' : 'var(--color-background-secondary)',
+            color: form.name?.trim() && !aiLoading ? 'var(--color-text-info)' : 'var(--color-text-secondary)',
             borderRadius: '999px',
             padding: '7px 12px',
-            cursor: form.description?.trim() && !aiLoading ? 'pointer' : 'not-allowed',
+            cursor: form.name?.trim() && !aiLoading ? 'pointer' : 'not-allowed',
             fontSize: 12,
             fontWeight: 700
           }}
@@ -209,83 +192,15 @@ export default function TaskModal({ task, categories, allTasks = [], onSave, onD
           <input value={newCategory} onChange={(e) => setNewCategory(e.target.value)} placeholder="Nombre de categoría" style={{ width: '100%', height: 44, boxSizing: 'border-box', borderRadius: 'var(--border-radius-md)', border: '0.5px solid var(--color-border-secondary)', padding: '10px 12px', fontSize: 13, background: 'var(--color-background-primary)' }} />
         </label>
       </div>
+      <label style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 14, fontSize: 13, color: 'var(--color-text-secondary)' }}>
+        <span style={{ fontWeight: 500 }}>Prioridad</span>
+        <select value={form.priority || 'medium'} onChange={(e) => handleChange('priority', e.target.value)} style={{ width: '100%', minHeight: 44, boxSizing: 'border-box', borderRadius: 'var(--border-radius-md)', border: '0.5px solid var(--color-border-secondary)', padding: '10px 12px', fontSize: 13, background: 'var(--color-background-primary)', appearance: 'none' }}>
+          {PRIORITY.map((option) => <option key={option.v} value={option.v}>{option.label}</option>)}
+        </select>
+      </label>
       <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 14 }}>
         Elige una categoría existente o escribe una nueva; la nueva categoría reemplazará la selección.
       </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, marginBottom: 14, alignItems: 'end' }}>
-        <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, color: 'var(--color-text-secondary)' }}>
-          <span style={{ fontWeight: 500 }}>Subtarea</span>
-          <input value={subtaskText} onChange={(e) => setSubtaskText(e.target.value)} placeholder="Añadir nueva subtarea" style={{ width: '100%', height: 44, boxSizing: 'border-box', borderRadius: 'var(--border-radius-md)', border: '0.5px solid var(--color-border-secondary)', padding: '10px 12px', fontSize: 13, background: 'var(--color-background-primary)' }} />
-        </label>
-        <button type="button" onClick={addSubtask} disabled={!subtaskText.trim()} style={{ height: 44, minWidth: 100, borderRadius: 'var(--border-radius-md)', border: 'none', background: subtaskText.trim() ? 'var(--color-background-info)' : 'var(--color-background-secondary)', color: subtaskText.trim() ? 'var(--color-text-info)' : 'var(--color-text-secondary)', fontWeight: 700, cursor: subtaskText.trim() ? 'pointer' : 'not-allowed' }}>Añadir</button>
-      </div>
-
-      {form.subtasks?.length > 0 && (
-        <div
-          style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 14, maxHeight: 180, overflowY: 'auto' }}
-          onDragOver={(e) => {
-            e.preventDefault();
-            if (hoverSubtaskIndex === null || hoverSubtaskIndex > form.subtasks.length) {
-              setHoverSubtaskIndex(form.subtasks.length);
-            }
-          }}
-          onDrop={(e) => {
-            e.preventDefault();
-            if (dragSubtaskIndex === null) return;
-            reorderSubtasks(dragSubtaskIndex, form.subtasks.length);
-            setDragSubtaskIndex(null);
-            setHoverSubtaskIndex(null);
-          }}
-          onDragLeave={() => setHoverSubtaskIndex(null)}
-        >
-          {form.subtasks.map((st, index) => (
-            <div key={st.id}>
-              {hoverSubtaskIndex === index && (
-                <div className="subtask-drop-indicator" style={{ marginBottom: 6 }} />
-              )}
-              <div
-                draggable
-                onDragStart={() => setDragSubtaskIndex(index)}
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  if (hoverSubtaskIndex !== index) setHoverSubtaskIndex(index);
-                }}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  if (dragSubtaskIndex === null || dragSubtaskIndex === index) return;
-                  reorderSubtasks(dragSubtaskIndex, index);
-                  setDragSubtaskIndex(null);
-                  setHoverSubtaskIndex(null);
-                }}
-                onDragEnd={() => {
-                  setDragSubtaskIndex(null);
-                  setHoverSubtaskIndex(null);
-                }}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 10,
-                  padding: '10px 12px',
-                  borderRadius: 'var(--border-radius-md)',
-                  background: dragSubtaskIndex === index ? 'rgba(23, 107, 135, 0.08)' : 'var(--color-background-secondary)',
-                  border: '0.5px solid var(--color-border-tertiary)'
-                }}
-              >
-                <span title="Arrastra para reordenar" style={{ color: 'var(--color-text-secondary)', cursor: 'grab', fontSize: 13 }}>⋮⋮</span>
-                <button type="button" onClick={() => toggleSubtask(st.id)} aria-label={st.done ? 'Marcar subtarea como pendiente' : 'Marcar subtarea como completa'} style={{ width: 26, height: 26, borderRadius: 999, border: '1px solid var(--color-border-tertiary)', background: st.done ? 'var(--color-background-success)' : 'var(--color-background-primary)', color: st.done ? 'var(--color-text-success)' : 'var(--color-text-secondary)', display: 'grid', placeItems: 'center', cursor: 'pointer' }}>
-                  {st.done ? '✓' : '○'}
-                </button>
-                <div style={{ flex: 1, fontSize: 13, color: st.done ? 'var(--color-text-secondary)' : 'var(--color-text-primary)', textDecoration: st.done ? 'line-through' : 'none' }}>{st.text}</div>
-                <button type="button" onClick={() => removeSubtask(st.id)} aria-label="Eliminar subtarea" style={{ border: 'none', background: 'transparent', color: 'var(--color-text-secondary)', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>×</button>
-              </div>
-            </div>
-          ))}
-          {hoverSubtaskIndex === form.subtasks.length && (
-            <div className="subtask-drop-indicator" />
-          )}
-        </div>
-      )}
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 10, marginBottom: 14 }}>
         <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, color: 'var(--color-text-secondary)' }}>
@@ -325,7 +240,7 @@ export default function TaskModal({ task, categories, allTasks = [], onSave, onD
         </div>
         {isChildTask ? (
           <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>
-            Esta tarea es hija de: {parentTasks.map((parentTask) => parentTask.description).join(', ')}.
+            Esta tarea es hija de: {parentTasks.map((parentTask) => parentTask.name).join(', ')}.
             Solo la tarea padre puede elegir sus hijas.
           </div>
         ) : availableDependencyTasks.length === 0 ? (
@@ -344,7 +259,7 @@ export default function TaskModal({ task, categories, allTasks = [], onSave, onD
                     onChange={() => toggleDependency(candidate.id)}
                     style={{ width: 14, height: 14, margin: 0 }}
                   />
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{candidate.description}</span>
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{candidate.name}</span>
                 </label>
               );
             })}

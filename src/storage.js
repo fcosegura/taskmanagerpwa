@@ -98,13 +98,15 @@ function hasAnyData(payload) {
 
 export function isValidTask(task) {
   if (!task || typeof task !== 'object') return false;
-  const { id, description, status, priority, subtasks, category, date, time, dependencyTaskIds } = task;
-  if (typeof id !== 'string' || typeof description !== 'string') return false;
+  const { id, name, status, priority, subtasks, category, date, time, dependencyTaskIds, url, notes } = task;
+  if (typeof id !== 'string' || typeof name !== 'string') return false;
   if (typeof status !== 'string' || !STATUS.some((s) => s.v === status)) return false;
   if (typeof priority !== 'string' || !PRIORITY.some((p) => p.v === priority)) return false;
   if (category !== undefined && category !== null && typeof category !== 'string') return false;
   if (date !== undefined && date !== null && typeof date !== 'string') return false;
   if (time !== undefined && time !== null && typeof time !== 'string') return false;
+  if (url !== undefined && url !== null && typeof url !== 'string') return false;
+  if (notes !== undefined && notes !== null && typeof notes !== 'string') return false;
   if (!Array.isArray(subtasks)) return false;
   if (dependencyTaskIds !== undefined && !Array.isArray(dependencyTaskIds)) return false;
   if (Array.isArray(dependencyTaskIds) && !dependencyTaskIds.every((id) => typeof id === 'string')) return false;
@@ -115,13 +117,17 @@ export function isValidTask(task) {
 
 function normalizeTask(task) {
   const rawDependencies = Array.isArray(task.dependencyTaskIds) ? task.dependencyTaskIds : [];
+  const legacyName = typeof task.name === 'string' ? task.name : (typeof task.description === 'string' ? task.description : '');
   return {
     ...task,
+    name: legacyName,
     subtasks: Array.isArray(task.subtasks) ? task.subtasks : [],
     dependencyTaskIds: [...new Set(rawDependencies.filter((id) => typeof id === 'string'))],
     category: task.category || '',
     date: task.date || '',
     time: task.time || '',
+    url: task.url || '',
+    notes: task.notes || '',
     hideInKanbanDone: Boolean(task.hideInKanbanDone),
   };
 }

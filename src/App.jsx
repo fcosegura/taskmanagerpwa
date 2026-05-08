@@ -309,30 +309,6 @@ export default function App() {
       return STATUS.flatMap((status) => byStatus[status.v] || []);
     });
   };
-  const toggleSubtaskDone = (taskId, subtaskId) => {
-    setTasks((prev) => prev.map((task) => (
-      task.id === taskId
-        ? {
-            ...task,
-            subtasks: (task.subtasks || []).map((subtask) => (
-              subtask.id === subtaskId ? { ...subtask, done: !subtask.done } : subtask
-            ))
-          }
-        : task
-    )));
-  };
-  const reorderTaskSubtasks = (taskId, fromIndex, toIndex) => {
-    if (fromIndex === toIndex) return;
-    setTasks((prev) => prev.map((task) => {
-      if (task.id !== taskId) return task;
-      const subtasks = [...(task.subtasks || [])];
-      if (fromIndex < 0 || fromIndex >= subtasks.length || toIndex < 0 || toIndex >= subtasks.length) return task;
-      const [moved] = subtasks.splice(fromIndex, 1);
-      subtasks.splice(toIndex, 0, moved);
-      return { ...task, subtasks };
-    }));
-  };
-
   const downloadBackup = () => {
     const date = new Date().toISOString().slice(0, 10);
     const fileName = `taskmanager-backup-${date}.json`;
@@ -426,7 +402,7 @@ export default function App() {
       })));
     setModal(null);
   };
-  const open = (init = {}) => setModal({ description: '', status: 'not_done', priority: 'medium', date: '', time: '', subtasks: [], dependencyTaskIds: [], category: '', hideInKanbanDone: false, ...init });
+  const open = (init = {}) => setModal({ name: '', url: '', notes: '', status: 'not_done', priority: 'medium', date: '', time: '', subtasks: [], dependencyTaskIds: [], category: '', hideInKanbanDone: false, ...init });
 
   const addBoardNote = (note) => setBoardNotes((p) => [note, ...p]);
   const deleteBoardNote = (id) => setBoardNotes((p) => p.filter((note) => note.id !== id));
@@ -439,31 +415,31 @@ export default function App() {
   const deleteEvent = (id) => { setEvents((p) => p.filter((e) => e.id !== id)); setEventModal(null); };
   const openEventModal = (init = {}) => setEventModal({ title: '', startDate: '', endDate: '', color: '#2563eb', ...init });
 
-  const handleQuickAdd = (description) => {
-    if (!description.trim()) return;
-    const parsed = parseDateTimeFromDescription(description);
-    let cleaned = description;
+  const handleQuickAdd = (nameInput) => {
+    if (!nameInput.trim()) return;
+    const parsed = parseDateTimeFromDescription(nameInput);
+    let cleaned = nameInput;
     if (parsed) {
-      const result = parseDescriptionDateResult(description);
-      cleaned = cleanDescriptionSegment(description, result?.text || '');
-      if (!result?.text || cleaned === description.trim()) {
+      const result = parseDescriptionDateResult(nameInput);
+      cleaned = cleanDescriptionSegment(nameInput, result?.text || '');
+      if (!result?.text || cleaned === nameInput.trim()) {
         cleaned = cleaned.replace(/(?:\b(?:a|al|a la|a las|el|la|en|para)\b.*)$/i, '').replace(/\s{2,}/g, ' ').trim();
       }
     }
-    upsert({ description: cleaned || description.trim(), date: parsed?.date || '', time: parsed?.time || '', status: 'not_done', priority: 'medium', subtasks: [], category: '' });
+    upsert({ name: cleaned || nameInput.trim(), date: parsed?.date || '', time: parsed?.time || '', status: 'not_done', priority: 'medium', subtasks: [], category: '', url: '', notes: '' });
   };
 
-  const handleQuickSuggest = async (description) => {
-    const text = (description || '').trim();
+  const handleQuickSuggest = async (nameInput) => {
+    const text = (nameInput || '').trim();
     if (!text) return;
     const { task: parsed } = await parseTaskWithAI(text);
     const fallbackParsed = parseDateTimeFromDescription(text);
     const due = typeof parsed?.dueDate === 'string' ? new Date(parsed.dueDate) : null;
     const hasValidDue = due instanceof Date && !Number.isNaN(due.getTime());
     const category = Array.isArray(parsed?.tags) && parsed.tags.length > 0 ? String(parsed.tags[0]) : '';
-    const cleanDescription = typeof parsed?.title === 'string' && parsed.title.trim() ? parsed.title.trim() : text;
+    const cleanName = typeof parsed?.title === 'string' && parsed.title.trim() ? parsed.title.trim() : text;
     upsert({
-      description: cleanDescription,
+      name: cleanName,
       date: hasValidDue
         ? `${due.getFullYear()}-${String(due.getMonth() + 1).padStart(2, '0')}-${String(due.getDate()).padStart(2, '0')}`
         : (fallbackParsed?.date || ''),
@@ -474,7 +450,9 @@ export default function App() {
       priority: ['low', 'medium', 'high', 'critical'].includes(parsed?.priority) ? parsed.priority : 'medium',
       subtasks: [],
       dependencyTaskIds: [],
-      category
+      category,
+      url: '',
+      notes: ''
     });
   };
 
@@ -626,7 +604,7 @@ export default function App() {
     : byCategory;
   const normalizedSearch = searchQuery.trim().toLowerCase();
   const bySearch = normalizedSearch
-    ? bySummary.filter((t) => t.description.toLowerCase().includes(normalizedSearch) || (t.category || '').toLowerCase().includes(normalizedSearch))
+    ? bySummary.filter((t) => t.name.toLowerCase().includes(normalizedSearch) || (t.category || '').toLowerCase().includes(normalizedSearch))
     : bySummary;
   const sorted = [...bySearch].sort((a, b) => {
     if (a.status === 'done' && b.status !== 'done') return 1;
@@ -814,8 +792,8 @@ export default function App() {
               searchQuery={searchQuery} setSearchQuery={setSearchQuery}
               categoryFilter={categoryFilter} setCategoryFilter={setCategoryFilter}
               categories={categories} statusCounts={statusCounts} categoryCounts={categoryCounts}
-              onEdit={(t) => setModal(t)} onToggleDone={toggleDone} onToggleSubtaskDone={toggleSubtaskDone}
-              onReorderSubtasks={reorderTaskSubtasks} onQuickAdd={handleQuickAdd} onQuickSuggest={handleQuickSuggest}
+              onEdit={(t) => setModal(t)} onToggleDone={toggleDone}
+              onQuickAdd={handleQuickAdd} onQuickSuggest={handleQuickSuggest}
             />
           : view === 'kanban'
             ? <KanbanView
