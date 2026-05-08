@@ -49,6 +49,23 @@ export default function TaskRow({ task, allTasks = [], onClick, onToggleDone }) 
         />
       )}
       <div className="task-content" style={{ flex: 1, minWidth: 0 }}>
+        <div
+          title="Arrastra desde aquí para mover o crear dependencia"
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            color: 'var(--color-text-secondary)',
+            fontSize: 10,
+            fontWeight: 700,
+            letterSpacing: '0.01em',
+            userSelect: 'none',
+            marginBottom: 4
+          }}
+        >
+          <span style={{ fontSize: 12, lineHeight: 1 }}>⋮⋮</span>
+          <span>Arrastrar</span>
+        </div>
         <div className="task-title" style={{ fontSize: 14, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textDecoration: task.status === 'done' ? 'line-through' : 'none' }}>
           {linkifyText(task.name)}
         </div>
