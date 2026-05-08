@@ -111,8 +111,20 @@ export default function CalendarView({ y, mo, dIM, fD, tByDate, eByDate, todaySt
                 style={{
                   position: 'relative', minHeight: 65, padding: '8px 4px',
                   borderRadius: 12,
-                  background: isSelected ? '#eef6ff' : isToday ? '#ecfdf5' : holidayLike ? '#fff8f6' : '#ffffff',
-                  border: `1px solid ${isSelected ? '#93c5fd' : isToday ? '#4ade80' : holidayLike ? 'rgba(248,113,113,0.28)' : 'rgba(148,163,184,0.12)'}`,
+                  background: isSelected
+                    ? 'var(--calendar-selected-bg)'
+                    : isToday
+                      ? 'var(--calendar-today-bg)'
+                      : holidayLike
+                        ? 'var(--calendar-holiday-bg)'
+                        : 'var(--color-background-primary)',
+                  border: `1px solid ${isSelected
+                    ? 'var(--calendar-selected-border)'
+                    : isToday
+                      ? 'var(--calendar-today-border)'
+                      : holidayLike
+                        ? 'var(--calendar-holiday-border)'
+                        : 'var(--calendar-default-border)'}`,
                   color: day ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
                   cursor: day ? 'pointer' : 'default',
                   display: 'flex', flexDirection: 'column',
@@ -123,7 +135,7 @@ export default function CalendarView({ y, mo, dIM, fD, tByDate, eByDate, todaySt
               >
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', marginBottom: 4 }}>
-                    <span style={{ fontSize: 13, fontWeight: isToday ? 700 : 500, color: day ? (isToday ? 'var(--color-text-success)' : holidayLike ? 'var(--color-text-danger)' : 'var(--color-text-primary)') : 'var(--color-text-secondary)', width: 24, height: 24, display: 'grid', placeItems: 'center', borderRadius: 999, background: isToday ? '#d1fae5' : undefined }}>
+                    <span style={{ fontSize: 13, fontWeight: isToday ? 700 : 500, color: day ? (isToday ? 'var(--color-text-success)' : holidayLike ? 'var(--color-text-danger)' : 'var(--color-text-primary)') : 'var(--color-text-secondary)', width: 24, height: 24, display: 'grid', placeItems: 'center', borderRadius: 999, background: isToday ? 'var(--calendar-today-pill-bg)' : undefined }}>
                       {day || ''}
                     </span>
                   </div>

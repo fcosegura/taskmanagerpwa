@@ -33,8 +33,8 @@ export function NBtn({ onClick, children }) {
       onClick={onClick}
       style={{
         width: 34, height: 34, fontSize: 16, cursor: 'pointer',
-        border: '1px solid rgba(148,163,184,0.22)',
-        background: 'rgba(255,255,255,0.95)',
+        border: '1px solid var(--color-border-secondary)',
+        background: 'var(--color-background-primary)',
         borderRadius: '999px',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         color: 'var(--color-text-secondary)',
@@ -53,7 +53,7 @@ export function Chip({ label, count, active, onClick, colorVar }) {
       style={{
         padding: '8px 14px', borderRadius: 999, cursor: 'pointer',
         border: 'none',
-        background: active ? 'rgba(59,130,246,0.12)' : 'rgba(255,255,255,0.8)',
+        background: active ? 'rgba(59,130,246,0.12)' : 'var(--color-background-primary)',
         color: active && colorVar ? `var(${colorVar})` : active ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
         fontSize: 12, fontWeight: active ? 600 : 500,
         boxShadow: active ? '0 6px 18px rgba(59,130,246,0.08)' : '0 8px 18px rgba(15,23,42,0.04)',
