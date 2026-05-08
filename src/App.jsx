@@ -42,6 +42,7 @@ export default function App() {
   });
   const [aiGenerationLoading, setAiGenerationLoading] = useState(false);
   const [aiGenerationError, setAiGenerationError] = useState('');
+  const [aiPlanPreview, setAiPlanPreview] = useState(null);
   const fileInputRef = useRef(null);
   const profileMenuRef = useRef(null);
   const actionsMenuRef = useRef(null);
@@ -262,7 +263,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const onKeyDown = (e) => { if (e.key === 'Escape') { setModal(null); setEventModal(null); } };
+    const onKeyDown = (e) => { if (e.key === 'Escape') { setModal(null); setEventModal(null); setAiPlanPreview(null); } };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
@@ -593,6 +594,7 @@ export default function App() {
     setBoardNotes([]);
     setEvents([]);
     setAiGenerationError('');
+    setAiPlanPreview(null);
     setReady(false);
     setShowProfileMenu(false);
   };
@@ -610,6 +612,73 @@ export default function App() {
     }
   };
 
+  const normalizeAiTaskInput = (taskInput, fallbackName) => {
+    const name = typeof taskInput?.name === 'string' && taskInput.name.trim()
+      ? taskInput.name.trim()
+      : fallbackName;
+    return {
+      name,
+      date: typeof taskInput?.date === 'string' ? taskInput.date : '',
+      time: typeof taskInput?.time === 'string' ? taskInput.time : '',
+      status: 'not_done',
+      priority: ['low', 'medium', 'high', 'critical'].includes(taskInput?.priority) ? taskInput.priority : 'medium',
+      subtasks: [],
+      dependencyTaskIds: [],
+      category: typeof taskInput?.category === 'string' ? taskInput.category : '',
+      url: '',
+      notes: typeof taskInput?.notes === 'string' ? taskInput.notes : '',
+      hideInKanbanDone: false,
+    };
+  };
+
+  const applyAiPlanPreview = () => {
+    if (!aiPlanPreview) return;
+    setTasks((previousTasks) => {
+      const mainTaskRecords = aiPlanPreview.mainTasks
+        .map((task, index) => ({
+          ...normalizeAiTaskInput(task, `Tarea ${index + 1}`),
+          id: uid(),
+          ref: typeof task.ref === 'string' && task.ref.trim() ? task.ref.trim() : `main_${index + 1}`,
+        }))
+        .filter((task) => task.name);
+      if (mainTaskRecords.length === 0) return previousTasks;
+
+      const mainIdsByRef = new Map(mainTaskRecords.map((task) => [task.ref, task.id]));
+      const defaultParentId = mainTaskRecords[0].id;
+      const childRecords = aiPlanPreview.childTasks
+        .map((task, index) => {
+          const normalized = normalizeAiTaskInput(task, `Subtarea ${index + 1}`);
+          const parentId = mainIdsByRef.get(task.parentRef) || defaultParentId;
+          return { ...normalized, id: uid(), parentId };
+        })
+        .filter((task) => task.name);
+
+      const childIdsByParent = new Map();
+      childRecords.forEach((child) => {
+        const list = childIdsByParent.get(child.parentId) || [];
+        list.push(child.id);
+        childIdsByParent.set(child.parentId, list);
+      });
+
+      const finalMainTasks = mainTaskRecords.map((task) => {
+        const nextTask = { ...task, dependencyTaskIds: childIdsByParent.get(task.id) || [] };
+        delete nextTask.ref;
+        return nextTask;
+      });
+      const finalChildren = childRecords.map((task) => {
+        const nextTask = { ...task };
+        delete nextTask.parentId;
+        return nextTask;
+      });
+      return [...previousTasks, ...finalChildren, ...finalMainTasks];
+    });
+
+    const sourceLabel = aiPlanPreview.source === 'ai' ? 'IA' : 'fallback';
+    setBackupMessage(`Plan de tareas creado (${sourceLabel}).`);
+    setTimeout(() => setBackupMessage(''), 3500);
+    setAiPlanPreview(null);
+  };
+
   const handleGenerateTasksFromAi = async () => {
     if (aiGenerationLoading) return;
     const input = window.prompt('Describe las tareas que quieres crear con IA');
@@ -620,43 +689,29 @@ export default function App() {
     setAiGenerationError('');
     try {
       const result = await generateTasksFromText(text, activeProfileId);
-      const parentInput = result?.parentTask && typeof result.parentTask === 'object' ? result.parentTask : null;
+      const mainInputs = Array.isArray(result?.mainTasks) ? result.mainTasks : [];
       const childInputs = Array.isArray(result?.childTasks) ? result.childTasks : [];
-      if (!parentInput) throw new Error('No se pudo interpretar una tarea principal.');
-
-      const normalizeTaskInput = (taskInput, fallbackName) => {
-        const name = typeof taskInput?.name === 'string' && taskInput.name.trim()
-          ? taskInput.name.trim()
-          : fallbackName;
-        return {
-          name,
-          date: typeof taskInput?.date === 'string' ? taskInput.date : '',
-          time: typeof taskInput?.time === 'string' ? taskInput.time : '',
-          status: 'not_done',
-          priority: ['low', 'medium', 'high', 'critical'].includes(taskInput?.priority) ? taskInput.priority : 'medium',
-          subtasks: [],
-          dependencyTaskIds: [],
-          category: typeof taskInput?.category === 'string' ? taskInput.category : '',
-          url: '',
-          notes: typeof taskInput?.notes === 'string' ? taskInput.notes : '',
-          hideInKanbanDone: false,
-        };
-      };
-
-      setTasks((previousTasks) => {
-        const parentId = uid();
-        const parentTask = { ...normalizeTaskInput(parentInput, text), id: parentId };
-        const generatedChildren = childInputs
-          .map((child, index) => ({ ...normalizeTaskInput(child, `Subtarea ${index + 1}`), id: uid() }))
-          .filter((child) => child.name);
-        const childIds = generatedChildren.map((child) => child.id);
-        const parentWithChildren = { ...parentTask, dependencyTaskIds: childIds };
-        return [...previousTasks, ...generatedChildren, parentWithChildren];
+      if (mainInputs.length === 0) throw new Error('No se pudo interpretar tareas principales.');
+      const normalizedMain = mainInputs
+        .map((task, index) => ({
+          ...normalizeAiTaskInput(task, `Tarea ${index + 1}`),
+          ref: typeof task?.ref === 'string' && task.ref.trim() ? task.ref.trim() : `main_${index + 1}`,
+        }))
+        .filter((task) => task.name);
+      const validRefs = new Set(normalizedMain.map((task) => task.ref));
+      const defaultRef = normalizedMain[0]?.ref || 'main_1';
+      const normalizedChildren = childInputs
+        .map((task, index) => ({
+          ...normalizeAiTaskInput(task, `Subtarea ${index + 1}`),
+          parentRef: validRefs.has(task?.parentRef) ? task.parentRef : defaultRef,
+        }))
+        .filter((task) => task.name);
+      setAiPlanPreview({
+        source: result?.source === 'ai' ? 'ai' : 'fallback',
+        inputText: text,
+        mainTasks: normalizedMain,
+        childTasks: normalizedChildren,
       });
-
-      const sourceLabel = result?.source === 'ai' ? 'IA' : 'fallback';
-      setBackupMessage(`Tareas generadas (${sourceLabel}).`);
-      setTimeout(() => setBackupMessage(''), 3500);
     } catch (error) {
       setAiGenerationError(error.message || 'No se pudo generar tareas con IA.');
     } finally {
@@ -958,6 +1013,55 @@ export default function App() {
       {eventModal && (
         <div className="modal-backdrop" onClick={(e) => e.target === e.currentTarget && setEventModal(null)}>
           <EventModal key={eventModal.id || 'new-event'} event={eventModal} onSave={upsertEvent} onDelete={eventModal.id ? () => deleteEvent(eventModal.id) : null} onClose={() => setEventModal(null)} />
+        </div>
+      )}
+
+      {aiPlanPreview && (
+        <div className="modal-backdrop" onClick={(e) => e.target === e.currentTarget && setAiPlanPreview(null)}>
+          <div style={{ width: 'min(700px, 100%)', maxWidth: 'calc(100% - 32px)', background: 'var(--color-background-primary)', borderRadius: 'var(--border-radius-lg)', boxShadow: 'var(--shadow-card)', padding: 24, color: 'var(--color-text-primary)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+              <div>
+                <div style={{ fontSize: 18, fontWeight: 700 }}>Confirmar plan de tareas IA</div>
+                <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 4 }}>
+                  Fuente: {aiPlanPreview.source === 'ai' ? 'IA' : 'fallback'}
+                </div>
+              </div>
+              <button type="button" onClick={() => setAiPlanPreview(null)} aria-label="Cerrar preview IA" style={{ border: 'none', background: 'transparent', color: 'var(--color-text-secondary)', cursor: 'pointer', fontSize: 22, lineHeight: 1 }}>×</button>
+            </div>
+            <div style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginBottom: 12, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+              {aiPlanPreview.inputText}
+            </div>
+            <div style={{ display: 'grid', gap: 10, marginBottom: 14 }}>
+              {aiPlanPreview.mainTasks.map((task) => {
+                const children = aiPlanPreview.childTasks.filter((child) => child.parentRef === task.ref);
+                return (
+                  <div key={task.ref} style={{ border: '1px solid var(--color-border)', borderRadius: 10, padding: 10 }}>
+                    <div style={{ fontWeight: 600 }}>{task.name}</div>
+                    <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 4 }}>
+                      Prioridad: {task.priority} {task.date ? `· Fecha: ${task.date}` : ''}
+                    </div>
+                    {children.length > 0 && (
+                      <div style={{ marginTop: 8, display: 'grid', gap: 6 }}>
+                        {children.map((child, index) => (
+                          <div key={`${task.ref}-${child.name}-${index}`} style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>
+                            - {child.name} ({child.priority})
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <button type="button" className="ghost-button" onClick={() => setAiPlanPreview(null)}>
+                Cancelar
+              </button>
+              <button type="button" className="primary-button" onClick={applyAiPlanPreview}>
+                Confirmar y crear
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

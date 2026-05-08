@@ -32,8 +32,6 @@ export default function TaskRow({
       className="task-card"
       onClick={onClick}
       style={{
-        background: 'var(--color-background-primary)',
-        border: 'none',
         borderRadius: 'var(--border-radius-lg)',
         padding: '18px 18px',
         marginLeft: hasParentTask ? 18 : 0,

@@ -300,13 +300,17 @@ export async function generateTasksFromText(text, profileId = null) {
     throw new Error(message);
   }
   const data = await resp.json();
-  const parentTask = data?.parentTask && typeof data.parentTask === 'object' ? data.parentTask : null;
-  const childTasks = Array.isArray(data?.childTasks) ? data.childTasks.filter((item) => item && typeof item === 'object') : [];
-  if (!parentTask) {
-    throw new Error('Respuesta IA invalida: parentTask faltante.');
+  const mainTasks = Array.isArray(data?.mainTasks)
+    ? data.mainTasks.filter((item) => item && typeof item === 'object')
+    : [];
+  const childTasks = Array.isArray(data?.childTasks)
+    ? data.childTasks.filter((item) => item && typeof item === 'object')
+    : [];
+  if (mainTasks.length === 0) {
+    throw new Error('Respuesta IA invalida: mainTasks faltante.');
   }
   return {
-    parentTask,
+    mainTasks,
     childTasks,
     source: data?.source === 'ai' ? 'ai' : 'fallback',
   };
