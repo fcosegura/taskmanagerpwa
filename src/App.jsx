@@ -253,6 +253,11 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
 
+  const showParentBlockedMessage = (actionLabel, openChildrenCount) => {
+    setBackupMessage(`No se puede ${actionLabel}: la tarea padre tiene ${openChildrenCount} tarea(s) hija(s) abierta(s).`);
+    setTimeout(() => setBackupMessage(''), 4200);
+  };
+
   const toggleDone = (id) => {
     setTasks((previousTasks) => {
       const task = previousTasks.find((item) => item.id === id);
@@ -264,8 +269,7 @@ export default function App() {
           item.status !== 'done'
         ));
         if (openChildTasks.length > 0) {
-          setBackupMessage(`No se puede completar: tiene ${openChildTasks.length} tarea(s) hija(s) abierta(s).`);
-          setTimeout(() => setBackupMessage(''), 4200);
+          showParentBlockedMessage('completar', openChildTasks.length);
           return previousTasks;
         }
       }
@@ -283,8 +287,7 @@ export default function App() {
           task.status !== 'done'
         ));
         if (openChildTasks.length > 0) {
-          setBackupMessage(`No se puede mover a Hecha: tiene ${openChildTasks.length} tarea(s) hija(s) abierta(s).`);
-          setTimeout(() => setBackupMessage(''), 4200);
+          showParentBlockedMessage('mover a Hecha', openChildTasks.length);
           return prev;
         }
       }
@@ -393,6 +396,7 @@ export default function App() {
   };
   const del = (id) => {
     let blockedByOpenChildren = false;
+    let blockedChildrenCount = 0;
     setTasks((previousTasks) => {
       const targetTask = previousTasks.find((task) => task.id === id);
       if (!targetTask) return previousTasks;
@@ -402,6 +406,7 @@ export default function App() {
       ));
       if (openChildTasks.length > 0) {
         blockedByOpenChildren = true;
+        blockedChildrenCount = openChildTasks.length;
         return previousTasks;
       }
       return previousTasks
@@ -412,8 +417,7 @@ export default function App() {
         }));
     });
     if (blockedByOpenChildren) {
-      setBackupMessage('No se puede eliminar: la tarea padre tiene hijas abiertas.');
-      setTimeout(() => setBackupMessage(''), 4200);
+      showParentBlockedMessage('eliminar', blockedChildrenCount || 1);
       return;
     }
     setModal(null);
