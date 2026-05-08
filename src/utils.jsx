@@ -1,5 +1,11 @@
 import { MONTHS } from './constants.js';
 import * as chrono from 'chrono-node';
+import {
+  isJiraCategory,
+  normalizeTicketNumber,
+  applyTicketNumberToTaskName,
+  inheritTicketFromParentTask,
+} from './jiraTicket.js';
 
 export function uid() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2);
@@ -174,3 +180,5 @@ export function parseDateTimeFromDescription(text) {
 
   return date || time ? { date, time } : null;
 }
+
+export { isJiraCategory, normalizeTicketNumber, applyTicketNumberToTaskName, inheritTicketFromParentTask };

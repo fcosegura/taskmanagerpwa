@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   status TEXT NOT NULL,
   priority TEXT NOT NULL,
   category TEXT,
+  ticket_number TEXT,
   date TEXT,
   time TEXT,
   subtasks TEXT, -- JSON string

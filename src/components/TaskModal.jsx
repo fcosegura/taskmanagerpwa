@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { STATUS, PRIORITY } from '../constants.js';
-import { fmtDate, parseDateTimeFromDescription, parseDescriptionDateResult, cleanDescriptionSegment } from '../utils.jsx';
+import { fmtDate, parseDateTimeFromDescription, parseDescriptionDateResult, cleanDescriptionSegment, isJiraCategory, normalizeTicketNumber, applyTicketNumberToTaskName } from '../utils.jsx';
 import { parseTaskWithAI } from '../storage.js';
 
 export default function TaskModal({ task, categories, allTasks = [], onSave, onDelete, onClose }) {
@@ -19,6 +19,7 @@ export default function TaskModal({ task, categories, allTasks = [], onSave, onD
     subtasks: task.subtasks || [],
     dependencyTaskIds: task.dependencyTaskIds || [],
     category: task.category || '',
+    ticketNumber: task.ticketNumber || '',
     time: task.time || '',
     hideInKanbanDone: Boolean(task.hideInKanbanDone)
   });
@@ -101,12 +102,26 @@ export default function TaskModal({ task, categories, allTasks = [], onSave, onD
     if (!form.name || !form.name.trim()) return;
     const category = newCategory.trim() || form.category || '';
     const parsed = parseDateTimeFromDescription(form.name);
-    const finalForm = { ...form, category, date: form.date || parsed?.date || '', time: form.time || parsed?.time || '' };
+    const ticketNumber = normalizeTicketNumber(form.ticketNumber || '');
+    const baseName = typeof form.name === 'string' ? form.name.trim() : '';
+    const finalName = isJiraCategory(category) && ticketNumber
+      ? applyTicketNumberToTaskName(baseName, ticketNumber)
+      : baseName;
+    const finalForm = {
+      ...form,
+      name: finalName,
+      category,
+      ticketNumber,
+      date: form.date || parsed?.date || '',
+      time: form.time || parsed?.time || ''
+    };
     onSave(finalForm);
   };
 
   const preview = parseDateTimeFromDescription(form.name || '');
   const previewLabel = preview ? `Se creará para: ${fmtDate(preview.date)}${preview.time ? ` · ${preview.time}` : ''}` : null;
+  const effectiveCategory = (newCategory.trim() || form.category || '');
+  const showTicketNumberField = isJiraCategory(effectiveCategory);
 
   return (
     <form className="liquid-glass-modal" onSubmit={onSubmit} style={{ width: 'min(420px, 100%)', maxWidth: 'calc(100% - 32px)', borderRadius: 'var(--border-radius-lg)', padding: 24, color: 'var(--color-text-primary)' }}>
@@ -201,6 +216,17 @@ export default function TaskModal({ task, categories, allTasks = [], onSave, onD
       <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 14 }}>
         Elige una categoría existente o escribe una nueva; la nueva categoría reemplazará la selección.
       </div>
+      {showTicketNumberField && (
+        <label style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 14, fontSize: 13, color: 'var(--color-text-secondary)' }}>
+          <span style={{ fontWeight: 500 }}>Num ticket</span>
+          <input
+            value={form.ticketNumber || ''}
+            onChange={(e) => handleChange('ticketNumber', e.target.value)}
+            placeholder="ABC-123"
+            style={{ width: '100%', height: 44, boxSizing: 'border-box', borderRadius: 'var(--border-radius-md)', border: '0.5px solid var(--color-border-secondary)', padding: '10px 12px', fontSize: 13, background: 'var(--color-background-primary)' }}
+          />
+        </label>
+      )}
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 10, marginBottom: 14 }}>
         <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, color: 'var(--color-text-secondary)' }}>
