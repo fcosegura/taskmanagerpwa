@@ -310,6 +310,41 @@ export default function App() {
       return STATUS.flatMap((status) => byStatus[status.v] || []);
     });
   };
+  const linkStandaloneTaskAsChild = (sourceTaskId, targetTaskId) => {
+    if (!sourceTaskId || !targetTaskId || sourceTaskId === targetTaskId) return false;
+    let linked = false;
+    setTasks((previousTasks) => {
+      const sourceTask = previousTasks.find((task) => task.id === sourceTaskId);
+      const targetTask = previousTasks.find((task) => task.id === targetTaskId);
+      if (!sourceTask || !targetTask) return previousTasks;
+
+      const hasParent = (taskId) => previousTasks.some((task) => (
+        Array.isArray(task.dependencyTaskIds) &&
+        task.dependencyTaskIds.includes(taskId)
+      ));
+
+      const sourceHasParent = hasParent(sourceTaskId);
+      const sourceHasChildren = Array.isArray(sourceTask.dependencyTaskIds) && sourceTask.dependencyTaskIds.length > 0;
+      const targetHasParent = hasParent(targetTaskId);
+      const alreadyLinked = (targetTask.dependencyTaskIds || []).includes(sourceTaskId);
+
+      if (sourceHasParent || sourceHasChildren || targetHasParent || alreadyLinked) {
+        return previousTasks;
+      }
+
+      linked = true;
+      return previousTasks.map((task) => (
+        task.id === targetTaskId
+          ? { ...task, dependencyTaskIds: [...(task.dependencyTaskIds || []), sourceTaskId] }
+          : task
+      ));
+    });
+    if (linked) {
+      setBackupMessage('Dependencia creada: la tarea arrastrada ahora es hija de la tarea destino.');
+      setTimeout(() => setBackupMessage(''), 3000);
+    }
+    return linked;
+  };
   const downloadBackup = () => {
     const date = new Date().toISOString().slice(0, 10);
     const fileName = `taskmanager-backup-${date}.json`;
@@ -859,6 +894,7 @@ export default function App() {
                 allTasks={tasks}
                 onEditTask={(task) => setModal(task)}
                 onMoveTaskStatus={moveTaskToStatus}
+                onDropTaskOnTask={linkStandaloneTaskAsChild}
               />
           : view === 'calendar'
             ? <CalendarView

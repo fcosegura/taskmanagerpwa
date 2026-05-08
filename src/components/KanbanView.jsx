@@ -106,7 +106,7 @@ function KanbanTaskCard({ task, allTasks, onEditTask, onDragStart, onDragEnd }) 
   );
 }
 
-export default function KanbanView({ tasks, allTasks = [], onEditTask, onMoveTaskStatus }) {
+export default function KanbanView({ tasks, allTasks = [], onEditTask, onMoveTaskStatus, onDropTaskOnTask }) {
   const [draggedTaskId, setDraggedTaskId] = useState(null);
   const [hoverStatus, setHoverStatus] = useState(null);
   const [hoverIndex, setHoverIndex] = useState(null);
@@ -172,6 +172,13 @@ export default function KanbanView({ tasks, allTasks = [], onEditTask, onMoveTas
                     onDrop={(event) => {
                       event.preventDefault();
                       event.stopPropagation();
+                      const linkedAsChild = onDropTaskOnTask?.(draggedTaskId, task.id);
+                      if (linkedAsChild) {
+                        setDraggedTaskId(null);
+                        setHoverStatus(null);
+                        setHoverIndex(null);
+                        return;
+                      }
                       handleDropOnColumn(status.v, index);
                     }}
                   >
