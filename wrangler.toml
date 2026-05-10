@@ -7,6 +7,8 @@ GOOGLE_CLIENT_ID = "365692313483-g4tv5i5agl4egs67h980vn6ce977p7df.apps.googleuse
 
 [ai]
 binding = "AI"
+# Evita recargas del runtime local que reabren SQLite y disparan SQLITE_BUSY con D1.
+remote = true
 
 [assets]
 directory = "./dist"
