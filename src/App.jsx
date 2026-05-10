@@ -1090,8 +1090,10 @@ export default function App() {
             />
           : view === 'kanban'
             ? <KanbanView
+                key={activeProfileId || 'default'}
                 tasks={tasks}
                 allTasks={tasks}
+                kanbanColumnsStorageKey={`taskmanager_kanban_visible_columns_${activeProfileId || 'default'}`}
                 onEditTask={(task) => setModal(task)}
                 onMoveTaskStatus={moveTaskToStatus}
                 onDropTaskOnTask={linkStandaloneTaskAsChild}

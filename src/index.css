@@ -764,9 +764,38 @@ select:focus {
   width: 100%;
 }
 
+.kanban-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 12px;
+}
+
+.kanban-columns-menu .kanban-column-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.kanban-columns-menu .kanban-column-toggle:hover {
+  background: rgba(23, 107, 135, 0.08);
+}
+
+.kanban-columns-menu .kanban-column-toggle input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--color-accent, #2563eb);
+}
+
 .kanban-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(200px, 100%), 1fr));
   gap: 12px;
 }
 
