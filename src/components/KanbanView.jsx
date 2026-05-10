@@ -1,6 +1,29 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { STATUS, PRIORITY } from '../constants.js';
 import { fmtDate } from '../utils.jsx';
+
+const STATUS_VALUES = STATUS.map((s) => s.v);
+
+function parseStoredVisibleColumns(raw) {
+  const allowed = new Set(STATUS_VALUES);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return null;
+    const filtered = parsed.filter((v) => typeof v === 'string' && allowed.has(v));
+    if (filtered.length === 0) return null;
+    return filtered;
+  } catch {
+    return null;
+  }
+}
+
+function readVisibleFromStorage(storageKey) {
+  if (!storageKey) return [...STATUS_VALUES];
+  const parsed = parseStoredVisibleColumns(localStorage.getItem(storageKey));
+  if (!parsed) return [...STATUS_VALUES];
+  return STATUS_VALUES.filter((v) => parsed.includes(v));
+}
 
 function KanbanTaskCard({
   task,
@@ -137,12 +160,55 @@ function KanbanTaskCard({
   );
 }
 
-export default function KanbanView({ tasks, allTasks = [], onEditTask, onMoveTaskStatus, onDropTaskOnTask }) {
+export default function KanbanView({
+  tasks,
+  allTasks = [],
+  onEditTask,
+  onMoveTaskStatus,
+  onDropTaskOnTask,
+  kanbanColumnsStorageKey = 'taskmanager_kanban_visible_columns_default',
+}) {
+  const [visibleStatuses, setVisibleStatuses] = useState(() => readVisibleFromStorage(kanbanColumnsStorageKey));
+  const [showColumnsMenu, setShowColumnsMenu] = useState(false);
+  const columnsMenuRef = useRef(null);
   const [draggedTaskId, setDraggedTaskId] = useState(null);
   const [hoverStatus, setHoverStatus] = useState(null);
   const [hoverIndex, setHoverIndex] = useState(null);
   const [hoverTaskId, setHoverTaskId] = useState(null);
   const [hoverDragMode, setHoverDragMode] = useState(null);
+
+  useEffect(() => {
+    if (!showColumnsMenu) return;
+    const onPointerDown = (event) => {
+      if (!columnsMenuRef.current?.contains(event.target)) {
+        setShowColumnsMenu(false);
+      }
+    };
+    window.addEventListener('pointerdown', onPointerDown);
+    return () => window.removeEventListener('pointerdown', onPointerDown);
+  }, [showColumnsMenu]);
+
+  const toggleColumnVisibility = (statusV) => {
+    setVisibleStatuses((prev) => {
+      const has = prev.includes(statusV);
+      if (has && prev.length <= 1) return prev;
+      const nextSet = new Set(prev);
+      if (has) nextSet.delete(statusV);
+      else nextSet.add(statusV);
+      const ordered = STATUS_VALUES.filter((v) => nextSet.has(v));
+      try {
+        localStorage.setItem(kanbanColumnsStorageKey, JSON.stringify(ordered));
+      } catch {
+        // ignore quota / private mode
+      }
+      return ordered;
+    });
+  };
+
+  const visibleColumns = useMemo(
+    () => STATUS.filter((s) => visibleStatuses.includes(s.v)),
+    [visibleStatuses],
+  );
 
   const canLinkAsChild = (sourceTaskId, targetTaskId) => {
     if (!sourceTaskId || !targetTaskId || sourceTaskId === targetTaskId) return false;
@@ -181,8 +247,40 @@ export default function KanbanView({ tasks, allTasks = [], onEditTask, onMoveTas
 
   return (
     <section className="kanban-view">
+      <div className="kanban-toolbar">
+        <div className="actions-menu-wrap" ref={columnsMenuRef}>
+          <button
+            type="button"
+            className="ghost-button"
+            onClick={() => setShowColumnsMenu((open) => !open)}
+            aria-haspopup="menu"
+            aria-expanded={showColumnsMenu}
+          >
+            Columnas
+          </button>
+          {showColumnsMenu && (
+            <div className="header-actions-menu kanban-columns-menu" role="menu">
+              {STATUS.map((status) => {
+                const checked = visibleStatuses.includes(status.v);
+                const onlyOne = checked && visibleStatuses.length <= 1;
+                return (
+                  <label key={status.v} className="kanban-column-toggle">
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      disabled={onlyOne}
+                      onChange={() => toggleColumnVisibility(status.v)}
+                    />
+                    <span>{status.label}</span>
+                  </label>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
       <div className="kanban-grid">
-        {STATUS.map((status) => (
+        {visibleColumns.map((status) => (
           <div
             key={status.v}
             className={`kanban-column${hoverStatus === status.v ? ' active-drop' : ''}`}
