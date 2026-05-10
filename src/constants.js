@@ -1,14 +1,14 @@
 export const STATUS = [
-  { v: 'not_done', label: 'Sin iniciar', tv: '--color-text-secondary', bv: '--color-background-secondary', bov: '--color-border-secondary' },
+  { v: 'not_done', label: 'Sin iniciar', tv: '--color-text-primary', bv: '--color-background-secondary', bov: '--color-border-secondary' },
   { v: 'started', label: 'Iniciado', tv: '--color-text-info', bv: '--color-background-info', bov: '--color-border-info' },
   { v: 'in_progress', label: 'En progreso', tv: '--color-text-warning', bv: '--color-background-warning', bov: '--color-border-warning' },
-  { v: 'paused', label: 'En pausa', tv: '--color-text-secondary', bv: '--color-background-secondary', bov: '--color-border-secondary' },
+  { v: 'paused', label: 'En pausa', tv: '--color-text-primary', bv: '--color-background-secondary', bov: '--color-border-secondary' },
   { v: 'blocked', label: 'Bloqueado', tv: '--color-text-danger', bv: '--color-background-danger', bov: '--color-border-danger' },
   { v: 'done', label: 'Completado', tv: '--color-text-success', bv: '--color-background-success', bov: '--color-border-success' },
 ];
 
 export const PRIORITY = [
-  { v: 'low', label: 'Baja', tv: '--color-text-secondary', bv: '--color-background-secondary', bov: '--color-border-secondary' },
+  { v: 'low', label: 'Baja', tv: '--color-text-primary', bv: '--color-background-secondary', bov: '--color-border-secondary' },
   { v: 'medium', label: 'Media', tv: '--color-text-info', bv: '--color-background-info', bov: '--color-border-info' },
   { v: 'high', label: 'Alta', tv: '--color-text-warning', bv: '--color-background-warning', bov: '--color-border-warning' },
   { v: 'critical', label: 'Crítica', tv: '--color-text-danger', bv: '--color-background-danger', bov: '--color-border-danger' },

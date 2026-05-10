@@ -135,10 +135,17 @@ function normalizeTask(task) {
 }
 
 function normalizeEvent(event) {
+  let allDay = event.allDay === false || event.allDay === 0 ? false : true;
+  let startTime = typeof event.startTime === 'string' ? event.startTime : '';
+  let endTime = typeof event.endTime === 'string' ? event.endTime : '';
+  if (!allDay && !startTime && !endTime) allDay = true;
   return {
     ...event,
     endDate: event.endDate || event.startDate,
     color: event.color || '#2563eb',
+    allDay,
+    startTime: allDay ? '' : startTime,
+    endTime: allDay ? '' : endTime,
   };
 }
 
@@ -155,10 +162,13 @@ function normalizeBoardNote(note) {
 
 export function isValidEvent(event) {
   if (!event || typeof event !== 'object') return false;
-  const { id, title, startDate, endDate, color } = event;
+  const { id, title, startDate, endDate, color, allDay, startTime, endTime } = event;
   if (typeof id !== 'string' || typeof title !== 'string') return false;
   if (typeof startDate !== 'string' || (endDate && typeof endDate !== 'string')) return false;
   if (typeof color !== 'string') return false;
+  if (allDay != null && typeof allDay !== 'boolean' && typeof allDay !== 'number') return false;
+  if (startTime != null && typeof startTime !== 'string') return false;
+  if (endTime != null && typeof endTime !== 'string') return false;
   return true;
 }
 
@@ -403,6 +413,10 @@ export async function loadData(profileId = null) {
       };
     }
     if (resp.status === 401) return { ...localData, authenticated: false, profiles: [], activeProfileId: profileId };
+    // Sin backend real (p. ej. solo Vite): no fingir sesión en la nube.
+    if (resp.status === 404 || resp.status === 405) {
+      return { ...localData, authenticated: false, profiles: [], activeProfileId: profileId, cloudError: null };
+    }
     console.warn("La nube respondió con error, manteniendo la sesión local:", resp.status);
     let cloudError = `Cloud sync read failed (${resp.status})`;
     try {

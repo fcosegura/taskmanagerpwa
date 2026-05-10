@@ -8,11 +8,14 @@ export default function Login({ onLoginSuccess }) {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (window.google) {
+    let cancelled = false;
+    const mount = googleBtnRef.current;
+
+    const init = () => {
+      if (cancelled || !mount || !window.google?.accounts?.id) return;
       window.google.accounts.id.initialize({
         client_id: GOOGLE_CLIENT_ID,
         callback: async (response) => {
-          // El response.credential es el JWT (ID Token)
           try {
             setError('');
             await onLoginSuccess(response.credential);
@@ -24,14 +27,33 @@ export default function Login({ onLoginSuccess }) {
         cancel_on_tap_outside: true,
       });
 
-      window.google.accounts.id.renderButton(googleBtnRef.current, {
+      window.google.accounts.id.renderButton(mount, {
         theme: 'outline',
         size: 'large',
         width: '100%',
         text: 'signin_with',
         shape: 'pill',
       });
+    };
+
+    if (window.google?.accounts?.id) {
+      init();
+      return () => { cancelled = true; };
     }
+
+    const interval = window.setInterval(() => {
+      if (window.google?.accounts?.id) {
+        window.clearInterval(interval);
+        init();
+      }
+    }, 50);
+    const timeout = window.setTimeout(() => window.clearInterval(interval), 15_000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+      window.clearTimeout(timeout);
+    };
   }, [onLoginSuccess]);
 
   return (
