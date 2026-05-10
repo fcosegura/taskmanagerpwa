@@ -1,15 +1,47 @@
 import { useState } from 'react';
 import { EVENT_COLORS } from '../constants.js';
 
+function timeToMinutes(t) {
+  if (!t || typeof t !== 'string') return 0;
+  const [h, m] = t.split(':').map(Number);
+  return (Number.isFinite(h) ? h : 0) * 60 + (Number.isFinite(m) ? m : 0);
+}
+
 export default function EventModal({ event, onSave, onDelete, onClose }) {
   const [form, setForm] = useState(event);
 
   const handleChange = (field, value) => setForm((p) => ({ ...p, [field]: value }));
 
+  const setAllDay = (allDay) => {
+    setForm((p) => ({
+      ...p,
+      allDay,
+      endDate: allDay ? p.endDate : p.startDate,
+      ...(allDay
+        ? { startTime: '', endTime: '' }
+        : { startTime: p.startTime || '09:00', endTime: p.endTime || '10:00' }),
+    }));
+  };
+
   const onSubmit = (e) => {
     e.preventDefault();
     if (!form.title.trim() || !form.startDate) return;
-    const finalForm = { ...form, endDate: form.endDate || form.startDate };
+
+    let finalForm = { ...form, allDay: form.allDay !== false };
+
+    if (finalForm.allDay) {
+      finalForm.startTime = '';
+      finalForm.endTime = '';
+      finalForm.endDate = finalForm.endDate || finalForm.startDate;
+    } else {
+      finalForm.endDate = finalForm.startDate;
+      let st = form.startTime || '09:00';
+      let et = form.endTime || '10:00';
+      if (timeToMinutes(et) < timeToMinutes(st)) [st, et] = [et, st];
+      finalForm.startTime = st;
+      finalForm.endTime = et;
+    }
+
     if (finalForm.endDate < finalForm.startDate) finalForm.endDate = finalForm.startDate;
     onSave(finalForm);
   };
@@ -26,16 +58,45 @@ export default function EventModal({ event, onSave, onDelete, onClose }) {
         <input value={form.title} onChange={(e) => handleChange('title', e.target.value)} style={{ width: '100%', boxSizing: 'border-box', marginTop: 6, borderRadius: 'var(--border-radius-md)', border: '0.5px solid var(--color-border-secondary)', padding: 10, fontSize: 13 }} />
       </label>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
-        <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, color: 'var(--color-text-secondary)' }}>
-          <span style={{ fontWeight: 500 }}>Fecha inicio</span>
-          <input type="date" value={form.startDate} onChange={(e) => handleChange('startDate', e.target.value)} style={{ width: '100%', height: 44, boxSizing: 'border-box', borderRadius: 'var(--border-radius-md)', border: '0.5px solid var(--color-border-secondary)', padding: '10px 12px', fontSize: 13, background: 'var(--color-background-primary)', appearance: 'none' }} />
-        </label>
-        <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, color: 'var(--color-text-secondary)' }}>
-          <span style={{ fontWeight: 500 }}>Fecha fin</span>
-          <input type="date" value={form.endDate || ''} min={form.startDate} onChange={(e) => handleChange('endDate', e.target.value)} style={{ width: '100%', height: 44, boxSizing: 'border-box', borderRadius: 'var(--border-radius-md)', border: '0.5px solid var(--color-border-secondary)', padding: '10px 12px', fontSize: 13, background: 'var(--color-background-primary)', appearance: 'none' }} />
-        </label>
-      </div>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, fontSize: 13, color: 'var(--color-text-secondary)', cursor: 'pointer' }}>
+        <input
+          type="checkbox"
+          checked={form.allDay !== false}
+          onChange={(e) => setAllDay(e.target.checked)}
+          style={{ width: 18, height: 18, accentColor: 'var(--color-background-info)' }}
+        />
+        <span style={{ fontWeight: 500 }}>Todo el día</span>
+      </label>
+
+      {form.allDay !== false ? (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, color: 'var(--color-text-secondary)' }}>
+            <span style={{ fontWeight: 500 }}>Fecha inicio</span>
+            <input type="date" value={form.startDate} onChange={(e) => handleChange('startDate', e.target.value)} style={{ width: '100%', height: 44, boxSizing: 'border-box', borderRadius: 'var(--border-radius-md)', border: '0.5px solid var(--color-border-secondary)', padding: '10px 12px', fontSize: 13, background: 'var(--color-background-primary)', appearance: 'none' }} />
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, color: 'var(--color-text-secondary)' }}>
+            <span style={{ fontWeight: 500 }}>Fecha fin</span>
+            <input type="date" value={form.endDate || ''} min={form.startDate} onChange={(e) => handleChange('endDate', e.target.value)} style={{ width: '100%', height: 44, boxSizing: 'border-box', borderRadius: 'var(--border-radius-md)', border: '0.5px solid var(--color-border-secondary)', padding: '10px 12px', fontSize: 13, background: 'var(--color-background-primary)', appearance: 'none' }} />
+          </label>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 14 }}>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, color: 'var(--color-text-secondary)' }}>
+            <span style={{ fontWeight: 500 }}>Fecha</span>
+            <input type="date" value={form.startDate} onChange={(e) => handleChange('startDate', e.target.value)} style={{ width: '100%', height: 44, boxSizing: 'border-box', borderRadius: 'var(--border-radius-md)', border: '0.5px solid var(--color-border-secondary)', padding: '10px 12px', fontSize: 13, background: 'var(--color-background-primary)', appearance: 'none' }} />
+          </label>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, color: 'var(--color-text-secondary)' }}>
+              <span style={{ fontWeight: 500 }}>Hora inicio</span>
+              <input type="time" value={form.startTime || '09:00'} onChange={(e) => handleChange('startTime', e.target.value)} style={{ width: '100%', height: 44, boxSizing: 'border-box', borderRadius: 'var(--border-radius-md)', border: '0.5px solid var(--color-border-secondary)', padding: '10px 12px', fontSize: 13, background: 'var(--color-background-primary)' }} />
+            </label>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, color: 'var(--color-text-secondary)' }}>
+              <span style={{ fontWeight: 500 }}>Hora fin</span>
+              <input type="time" value={form.endTime || '10:00'} onChange={(e) => handleChange('endTime', e.target.value)} style={{ width: '100%', height: 44, boxSizing: 'border-box', borderRadius: 'var(--border-radius-md)', border: '0.5px solid var(--color-border-secondary)', padding: '10px 12px', fontSize: 13, background: 'var(--color-background-primary)' }} />
+            </label>
+          </div>
+        </div>
+      )}
 
       <div style={{ marginBottom: 18 }}>
         <div style={{ fontSize: 13, color: 'var(--color-text-secondary)', fontWeight: 500, marginBottom: 6 }}>Color</div>

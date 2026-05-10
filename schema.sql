@@ -48,6 +48,9 @@ CREATE TABLE IF NOT EXISTS events (
   startDate TEXT NOT NULL,
   endDate TEXT,
   color TEXT,
+  allDay INTEGER DEFAULT 1,
+  startTime TEXT,
+  endTime TEXT,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );

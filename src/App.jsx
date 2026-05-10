@@ -610,7 +610,16 @@ export default function App() {
     setEventModal(null);
   };
   const deleteEvent = (id) => { setEvents((p) => p.filter((e) => e.id !== id)); setEventModal(null); };
-  const openEventModal = (init = {}) => setEventModal({ title: '', startDate: '', endDate: '', color: '#2563eb', ...init });
+  const openEventModal = (init = {}) => setEventModal({
+    title: '',
+    startDate: '',
+    endDate: '',
+    color: '#2563eb',
+    allDay: true,
+    startTime: '09:00',
+    endTime: '10:00',
+    ...init,
+  });
 
   const handleQuickAdd = (nameInput) => {
     if (!nameInput.trim()) return;
@@ -872,6 +881,12 @@ export default function App() {
   const eByDate = {};
   events.forEach((e) => {
     if (!e.startDate) return;
+    const timed = e.allDay === false || e.allDay === 0;
+    if (timed) {
+      const dStr = e.startDate;
+      (eByDate[dStr] = eByDate[dStr] || []).push(e);
+      return;
+    }
     let current = new Date(e.startDate + 'T12:00:00');
     const end = new Date((e.endDate || e.startDate) + 'T12:00:00');
     while (current <= end) {

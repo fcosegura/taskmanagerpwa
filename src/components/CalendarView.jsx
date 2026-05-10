@@ -45,6 +45,26 @@ function getSpainNationalHolidaySet(year) {
   return set;
 }
 
+function formatEventSchedule(event) {
+  const timed = event.allDay === false || event.allDay === 0;
+  if (timed && event.startTime && event.endTime) {
+    return `${event.startTime} – ${event.endTime}`;
+  }
+  if (event.endDate && event.endDate !== event.startDate) {
+    return `${fmtDate(event.startDate)} – ${fmtDate(event.endDate)} · Todo el día`;
+  }
+  return 'Todo el día';
+}
+
+function compareCalendarEvents(a, b) {
+  const aTimed = (a.allDay === false || a.allDay === 0) && a.startTime;
+  const bTimed = (b.allDay === false || b.allDay === 0) && b.startTime;
+  if (aTimed && bTimed) return a.startTime.localeCompare(b.startTime);
+  if (aTimed && !bTimed) return -1;
+  if (!aTimed && bTimed) return 1;
+  return (a.title || '').localeCompare(b.title || '');
+}
+
 export default function CalendarView({ y, mo, dIM, fD, tByDate, eByDate, todayStr, prev, next, selDay, setSelDay, onAddTaskForDay, onEditTask, onAddEventForDay, onEditEvent }) {
   const cells = [...Array(fD).fill(null), ...Array.from({ length: dIM }, (_, i) => i + 1)];
   const selDs = selDay ? toDateStr(y, mo, selDay) : null;
@@ -172,11 +192,11 @@ export default function CalendarView({ y, mo, dIM, fD, tByDate, eByDate, todaySt
         {selDs ? (
           ((tByDate[selDs] || []).length + (eByDate[selDs] || []).length) > 0 ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {(eByDate[selDs] || []).map((event) => (
+              {[...(eByDate[selDs] || [])].sort(compareCalendarEvents).map((event) => (
                 <div key={event.id} onClick={() => onEditEvent(event)} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 'var(--border-radius-lg)', background: event.color, color: 'white' }}>
                   <div style={{ fontSize: 14, fontWeight: 500 }}>{event.title}</div>
-                  <div style={{ fontSize: 12, opacity: 0.8, marginLeft: 'auto' }}>
-                    {fmtDate(event.startDate)}{event.endDate && event.endDate !== event.startDate ? ` - ${fmtDate(event.endDate)}` : ''}
+                  <div style={{ fontSize: 12, opacity: 0.8, marginLeft: 'auto', textAlign: 'right' }}>
+                    {formatEventSchedule(event)}
                   </div>
                 </div>
               ))}
