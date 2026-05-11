@@ -11,6 +11,12 @@ export function uid() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2);
 }
 
+export {
+  startOfLocalIsoWeekMs,
+  isCompletedAtWithinKanbanRange,
+  mergeTaskCompletionMeta,
+} from './kanbanDoneRange.js';
+
 export function fmtDate(s) {
   if (!s) return '';
   const [y, m, d] = s.split('-');

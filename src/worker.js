@@ -81,6 +81,8 @@ function isValidTask(task) {
     (task.url === undefined || typeof task.url === 'string') &&
     (task.notes === undefined || typeof task.notes === 'string') &&
     (task.hideInKanbanDone === undefined || typeof task.hideInKanbanDone === 'boolean') &&
+    (task.completedAt === undefined || task.completedAt === null || typeof task.completedAt === 'string') &&
+    (task.completed_at === undefined || task.completed_at === null || typeof task.completed_at === 'string') &&
     Array.isArray(task.subtasks) &&
     (task.dependencyTaskIds === undefined || (
       Array.isArray(task.dependencyTaskIds) &&
@@ -184,6 +186,7 @@ function prepareTaskUpsert(env, profileId, userId, task, taskSchema) {
   const hasUrl = Boolean(taskSchema?.hasUrl);
   const hasNotes = Boolean(taskSchema?.hasNotes);
   const hasTicketNumber = Boolean(taskSchema?.hasTicketNumber);
+  const hasCompletedAt = Boolean(taskSchema?.hasCompletedAt);
 
   const columns = ['id', 'user_id', 'profile_id'];
   const placeholders = ['?', '?', '?'];
@@ -230,6 +233,16 @@ function prepareTaskUpsert(env, profileId, userId, task, taskSchema) {
     bindings.push(typeof task.ticketNumber === 'string' ? task.ticketNumber.trim() : null);
     updates.push('ticket_number = excluded.ticket_number');
     changeChecks.push('tasks.ticket_number IS NOT excluded.ticket_number');
+  }
+  if (hasCompletedAt) {
+    columns.push('completed_at');
+    placeholders.push('?');
+    const ca = typeof task.completedAt === 'string' && task.completedAt.trim()
+      ? task.completedAt.trim()
+      : (typeof task.completed_at === 'string' && task.completed_at.trim() ? task.completed_at.trim() : null);
+    bindings.push(ca || null);
+    updates.push('completed_at = excluded.completed_at');
+    changeChecks.push('tasks.completed_at IS NOT excluded.completed_at');
   }
 
   columns.push('status', 'priority', 'category', 'date', 'time', 'subtasks', 'dependencies', 'hide_in_kanban_done');
@@ -363,6 +376,7 @@ async function ensureProfilesSchema(env) {
   await safeExec("ALTER TABLE tasks ADD COLUMN url TEXT");
   await safeExec("ALTER TABLE tasks ADD COLUMN notes TEXT");
   await safeExec("ALTER TABLE tasks ADD COLUMN ticket_number TEXT");
+  await safeExec("ALTER TABLE tasks ADD COLUMN completed_at TEXT");
   await safeExec("UPDATE tasks SET name = description WHERE name IS NULL");
   await safeExec("ALTER TABLE events ADD COLUMN allDay INTEGER DEFAULT 1");
   await safeExec("ALTER TABLE events ADD COLUMN startTime TEXT");
@@ -400,7 +414,8 @@ async function ensureProfilesSchema(env) {
     hasDescription: taskColumns.includes('description'),
     hasUrl: taskColumns.includes('url'),
     hasNotes: taskColumns.includes('notes'),
-    hasTicketNumber: taskColumns.includes('ticket_number')
+    hasTicketNumber: taskColumns.includes('ticket_number'),
+    hasCompletedAt: taskColumns.includes('completed_at')
   };
 }
 
@@ -927,7 +942,8 @@ export default {
             hideInKanbanDone: Boolean(t.hide_in_kanban_done),
             subtasks: JSON.parse(t.subtasks || '[]'),
             dependencyTaskIds: JSON.parse(t.dependencies || '[]'),
-            ticketNumber: typeof t.ticket_number === 'string' ? t.ticket_number : ''
+            ticketNumber: typeof t.ticket_number === 'string' ? t.ticket_number : '',
+            completedAt: typeof t.completed_at === 'string' && t.completed_at ? t.completed_at : ''
           }));
           const parsedNotes = notes.map(({ created_at, updated_at, ...note }) => ({
             ...note,
@@ -938,6 +954,8 @@ export default {
           const parsedEvents = events.map(({ created_at, updated_at, ...event }) => ({
             ...event,
             id: unscopedEntityId(profileId, event.id),
+            createdAt: created_at,
+            updatedAt: updated_at,
             allDay: event.allDay === 0 || event.allDay === false ? false : true,
             startTime: typeof event.startTime === 'string' ? event.startTime : '',
             endTime: typeof event.endTime === 'string' ? event.endTime : '',

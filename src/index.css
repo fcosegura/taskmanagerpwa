@@ -830,8 +830,41 @@ select:focus {
 
 .kanban-toolbar {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
   margin-bottom: 12px;
+}
+
+.kanban-done-range {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-text-secondary);
+}
+
+.kanban-done-range-label {
+  white-space: nowrap;
+}
+
+.kanban-done-range-select {
+  min-width: 9.5rem;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: var(--color-background-primary);
+  color: var(--color-text-primary);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+[data-theme="dark"] .kanban-done-range-select {
+  border-color: var(--dark-separator-soft);
+  background: rgba(15, 23, 42, 0.9);
 }
 
 .kanban-columns-menu .kanban-column-toggle {
