@@ -119,7 +119,11 @@ function isValidEvent(event) {
     typeof event.color === 'string' &&
     (event.allDay === undefined || event.allDay === null || typeof event.allDay === 'boolean' || typeof event.allDay === 'number') &&
     (event.startTime === undefined || event.startTime === null || typeof event.startTime === 'string') &&
-    (event.endTime === undefined || event.endTime === null || typeof event.endTime === 'string')
+    (event.endTime === undefined || event.endTime === null || typeof event.endTime === 'string') &&
+    (event.recurrenceFrequency === undefined || event.recurrenceFrequency === null || ['none', 'daily', 'weekly', 'monthly'].includes(event.recurrenceFrequency)) &&
+    (event.recurrenceInterval === undefined || event.recurrenceInterval === null || (Number.isInteger(Number(event.recurrenceInterval)) && Number(event.recurrenceInterval) > 0)) &&
+    (event.recurrenceUntil === undefined || event.recurrenceUntil === null || typeof event.recurrenceUntil === 'string') &&
+    (event.recurrenceCount === undefined || event.recurrenceCount === null || (Number.isInteger(Number(event.recurrenceCount)) && Number(event.recurrenceCount) > 0))
   );
 }
 
@@ -291,15 +295,33 @@ function prepareEventUpsert(env, profileId, userId, event) {
   const allDay = event.allDay === false || event.allDay === 0 ? 0 : 1;
   const startTime = allDay === 0 && typeof event.startTime === 'string' && event.startTime ? event.startTime : null;
   const endTime = allDay === 0 && typeof event.endTime === 'string' && event.endTime ? event.endTime : null;
+  const recurrenceFrequency = ['none', 'daily', 'weekly', 'monthly'].includes(event.recurrenceFrequency)
+    ? event.recurrenceFrequency
+    : 'none';
+  const parsedRecurrenceInterval = Number.parseInt(String(event.recurrenceInterval ?? '1'), 10);
+  const recurrenceInterval = Number.isFinite(parsedRecurrenceInterval) && parsedRecurrenceInterval > 0
+    ? parsedRecurrenceInterval
+    : 1;
+  const recurrenceUntil = recurrenceFrequency === 'none'
+    ? null
+    : (typeof event.recurrenceUntil === 'string' && event.recurrenceUntil ? event.recurrenceUntil : null);
+  const parsedRecurrenceCount = Number.parseInt(String(event.recurrenceCount ?? ''), 10);
+  const recurrenceCount = recurrenceFrequency === 'none'
+    ? null
+    : (Number.isFinite(parsedRecurrenceCount) && parsedRecurrenceCount > 0 ? parsedRecurrenceCount : null);
   return env.DB.prepare(
-    "INSERT INTO events (id, user_id, profile_id, title, startDate, endDate, color, allDay, startTime, endTime) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) " +
+    "INSERT INTO events (id, user_id, profile_id, title, startDate, endDate, color, allDay, startTime, endTime, recurrenceFrequency, recurrenceInterval, recurrenceUntil, recurrenceCount) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) " +
     "ON CONFLICT(id) DO UPDATE SET " +
     "title = excluded.title, startDate = excluded.startDate, endDate = excluded.endDate, color = excluded.color, " +
-    "allDay = excluded.allDay, startTime = excluded.startTime, endTime = excluded.endTime, updated_at = CURRENT_TIMESTAMP " +
+    "allDay = excluded.allDay, startTime = excluded.startTime, endTime = excluded.endTime, " +
+    "recurrenceFrequency = excluded.recurrenceFrequency, recurrenceInterval = excluded.recurrenceInterval, recurrenceUntil = excluded.recurrenceUntil, recurrenceCount = excluded.recurrenceCount, " +
+    "updated_at = CURRENT_TIMESTAMP " +
     "WHERE events.user_id = excluded.user_id AND events.profile_id = excluded.profile_id AND (" +
     "events.title IS NOT excluded.title OR events.startDate IS NOT excluded.startDate OR events.endDate IS NOT excluded.endDate OR " +
     "events.color IS NOT excluded.color OR events.allDay IS NOT excluded.allDay OR " +
-    "events.startTime IS NOT excluded.startTime OR events.endTime IS NOT excluded.endTime)"
+    "events.startTime IS NOT excluded.startTime OR events.endTime IS NOT excluded.endTime OR " +
+    "events.recurrenceFrequency IS NOT excluded.recurrenceFrequency OR events.recurrenceInterval IS NOT excluded.recurrenceInterval OR " +
+    "events.recurrenceUntil IS NOT excluded.recurrenceUntil OR events.recurrenceCount IS NOT excluded.recurrenceCount)"
   ).bind(
     scopedEntityId(profileId, event.id),
     userId,
@@ -310,7 +332,11 @@ function prepareEventUpsert(env, profileId, userId, event) {
     event.color || '#3b82f6',
     allDay,
     startTime,
-    endTime
+    endTime,
+    recurrenceFrequency,
+    recurrenceFrequency === 'none' ? 1 : recurrenceInterval,
+    recurrenceUntil,
+    recurrenceCount
   );
 }
 
@@ -341,6 +367,10 @@ async function ensureProfilesSchema(env) {
   await safeExec("ALTER TABLE events ADD COLUMN allDay INTEGER DEFAULT 1");
   await safeExec("ALTER TABLE events ADD COLUMN startTime TEXT");
   await safeExec("ALTER TABLE events ADD COLUMN endTime TEXT");
+  await safeExec("ALTER TABLE events ADD COLUMN recurrenceFrequency TEXT DEFAULT 'none'");
+  await safeExec("ALTER TABLE events ADD COLUMN recurrenceInterval INTEGER DEFAULT 1");
+  await safeExec("ALTER TABLE events ADD COLUMN recurrenceUntil TEXT");
+  await safeExec("ALTER TABLE events ADD COLUMN recurrenceCount INTEGER");
 
   const hasProfileColumn = async (tableName) => {
     try {
@@ -911,6 +941,16 @@ export default {
             allDay: event.allDay === 0 || event.allDay === false ? false : true,
             startTime: typeof event.startTime === 'string' ? event.startTime : '',
             endTime: typeof event.endTime === 'string' ? event.endTime : '',
+            recurrenceFrequency: ['none', 'daily', 'weekly', 'monthly'].includes(event.recurrenceFrequency)
+              ? event.recurrenceFrequency
+              : 'none',
+            recurrenceInterval: Number.isFinite(Number(event.recurrenceInterval)) && Number(event.recurrenceInterval) > 0
+              ? Number(event.recurrenceInterval)
+              : 1,
+            recurrenceUntil: typeof event.recurrenceUntil === 'string' ? event.recurrenceUntil : '',
+            recurrenceCount: Number.isFinite(Number(event.recurrenceCount)) && Number(event.recurrenceCount) > 0
+              ? Number(event.recurrenceCount)
+              : null,
           }));
           return json({ tasks: parsedTasks, boardNotes: parsedNotes, events: parsedEvents, profiles, activeProfileId: profileId });
         }
