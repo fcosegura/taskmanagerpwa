@@ -8,7 +8,7 @@ export default function TasksView({
   tasks, total, filter, setFilter, searchQuery, setSearchQuery,
   categoryFilter, setCategoryFilter, categories,
   statusCounts, categoryCounts,
-  onEdit, onToggleDone, onQuickAdd, onQuickSuggest, onDropTaskOnTask,
+  onEdit, onToggleDone, onOpenPriorityPicker, onQuickAdd, onQuickSuggest, onDropTaskOnTask,
 }) {
   const [quickText, setQuickText] = useState('');
   const [showFilters, setShowFilters] = useState(false);
@@ -201,6 +201,7 @@ export default function TasksView({
                 allTasks={allTasks}
                 onClick={() => onEdit(t)}
                 onToggleDone={onToggleDone}
+                onOpenPriorityPicker={onOpenPriorityPicker}
                 draggable
                 onDragStart={(event) => {
                   event.dataTransfer.effectAllowed = 'move';
