@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { P_ORDER, STATUS } from './constants.js';
-import { uid, toDateStr, parseDateTimeFromDescription, parseDescriptionDateResult, cleanDescriptionSegment, isJiraCategory, normalizeTicketNumber, applyTicketNumberToTaskName, inheritTicketFromParentTask } from './utils.jsx';
+import { uid, toDateStr, parseDateTimeFromDescription, parseDescriptionDateResult, cleanDescriptionSegment, isJiraCategory, normalizeTicketNumber, applyTicketNumberToTaskName, inheritTicketFromParentTask, mergeTaskCompletionMeta } from './utils.jsx';
 import { loadData, saveData, validateBackupPayload, normalizeDataPayload, loginWithGoogleCredential, logoutSession, createProfile, deleteProfile, parseTaskWithAI, checkSession, generateTasksFromText, fetchWorkspaceData, isMultiBackupPayload, validateMultiBackupPayload, normalizeMultiBackupPayload } from './storage.js';
 import TasksView from './components/TasksView.jsx';
 import CalendarView from './components/CalendarView.jsx';
@@ -34,10 +34,6 @@ function addMonths(baseDate, months) {
   const day = Math.min(baseDate.getDate(), new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate());
   date.setDate(day);
   return date;
-}
-
-function isRecurringEvent(event) {
-  return ['daily', 'weekly', 'monthly'].includes(event?.recurrenceFrequency);
 }
 
 function buildEventOccurrences(event, windowStart, windowEnd) {
@@ -378,7 +374,9 @@ export default function App() {
           return previousTasks;
         }
       }
-      return previousTasks.map((item) => item.id === id ? { ...item, status: nextStatus } : item);
+      return previousTasks.map((item) => (
+        item.id === id ? mergeTaskCompletionMeta(item, { ...item, status: nextStatus }) : item
+      ));
     });
   };
   const moveTaskToStatus = (taskId, targetStatus, targetIndex = null) => {
@@ -396,7 +394,7 @@ export default function App() {
           return prev;
         }
       }
-      const movedTask = { ...sourceTask, status: nextStatus };
+      const movedTask = mergeTaskCompletionMeta(sourceTask, { ...sourceTask, status: nextStatus });
       const remaining = prev.filter((task) => task.id !== taskId);
       const byStatus = STATUS.reduce((acc, status) => {
         acc[status.v] = [];
@@ -640,7 +638,8 @@ export default function App() {
           return previousTasks;
         }
       }
-      const nextTask = { ...normalizedTask, id: taskId, dependencyTaskIds: finalDependencyIds };
+      const prevForMerge = normalizedTask.id ? previousTasks.find((item) => item.id === normalizedTask.id) : null;
+      const nextTask = mergeTaskCompletionMeta(prevForMerge, { ...normalizedTask, id: taskId, dependencyTaskIds: finalDependencyIds });
       return normalizedTask.id
         ? previousTasks.map((item) => item.id === normalizedTask.id ? nextTask : item)
         : [...previousTasks, nextTask];
@@ -675,14 +674,16 @@ export default function App() {
     }
     setModal(null);
   };
-  const open = (init = {}) => setModal({ name: '', url: '', notes: '', status: 'not_done', priority: 'medium', date: '', time: '', subtasks: [], dependencyTaskIds: [], category: '', ticketNumber: '', hideInKanbanDone: false, ...init });
+  const open = (init = {}) => setModal({ name: '', url: '', notes: '', status: 'not_done', priority: 'medium', date: '', time: '', subtasks: [], dependencyTaskIds: [], category: '', ticketNumber: '', completedAt: '', hideInKanbanDone: false, ...init });
 
   const addBoardNote = (note) => setBoardNotes((p) => [note, ...p]);
   const deleteBoardNote = (id) => setBoardNotes((p) => p.filter((note) => note.id !== id));
   const updateBoardNote = (id, changes) => setBoardNotes((p) => p.map((note) => note.id === id ? { ...note, ...changes } : note));
 
   const upsertEvent = (event) => {
-    const { occurrenceDate, occurrenceIndex, ...cleanEvent } = event;
+    const cleanEvent = { ...event };
+    delete cleanEvent.occurrenceDate;
+    delete cleanEvent.occurrenceIndex;
     setEvents((p) => cleanEvent.id ? p.map((e) => e.id === cleanEvent.id ? cleanEvent : e) : [...p, { ...cleanEvent, id: uid() }]);
     setEventModal(null);
   };
@@ -1234,6 +1235,7 @@ export default function App() {
                 tasks={focusTasks}
                 allTasks={focusTasks}
                 kanbanColumnsStorageKey={`taskmanager_kanban_visible_columns_${activeProfileId || 'default'}`}
+                kanbanDoneRangeStorageKey={`taskmanager_kanban_done_range_${activeProfileId || 'default'}`}
                 onEditTask={(task) => setModal(task)}
                 onMoveTaskStatus={moveTaskToStatus}
                 onDropTaskOnTask={linkStandaloneTaskAsChild}

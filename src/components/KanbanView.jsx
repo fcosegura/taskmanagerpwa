@@ -1,8 +1,28 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { STATUS, PRIORITY } from '../constants.js';
-import { fmtDate } from '../utils.jsx';
+import { fmtDate, isCompletedAtWithinKanbanRange } from '../utils.jsx';
 
 const STATUS_VALUES = STATUS.map((s) => s.v);
+
+const KANBAN_DONE_RANGE_OPTIONS = [
+  { key: 'week', label: 'Semana actual' },
+  { key: 'two_weeks', label: '2 semanas' },
+  { key: 'month', label: '1 mes' },
+  { key: 'all', label: 'Todas' },
+];
+
+const DONE_RANGE_ALLOWED = new Set(KANBAN_DONE_RANGE_OPTIONS.map((o) => o.key));
+
+function readDoneRangeFromStorage(storageKey) {
+  if (!storageKey) return 'week';
+  try {
+    const raw = localStorage.getItem(storageKey);
+    if (raw && DONE_RANGE_ALLOWED.has(raw)) return raw;
+  } catch {
+    // ignore
+  }
+  return 'week';
+}
 
 function parseStoredVisibleColumns(raw) {
   const allowed = new Set(STATUS_VALUES);
@@ -167,8 +187,10 @@ export default function KanbanView({
   onMoveTaskStatus,
   onDropTaskOnTask,
   kanbanColumnsStorageKey = 'taskmanager_kanban_visible_columns_default',
+  kanbanDoneRangeStorageKey = 'taskmanager_kanban_done_range_default',
 }) {
   const [visibleStatuses, setVisibleStatuses] = useState(() => readVisibleFromStorage(kanbanColumnsStorageKey));
+  const [doneRange, setDoneRange] = useState(() => readDoneRangeFromStorage(kanbanDoneRangeStorageKey));
   const [showColumnsMenu, setShowColumnsMenu] = useState(false);
   const columnsMenuRef = useRef(null);
   const [draggedTaskId, setDraggedTaskId] = useState(null);
@@ -228,12 +250,18 @@ export default function KanbanView({
 
   const groupedTasks = useMemo(() => (
     STATUS.reduce((accumulator, status) => {
-      accumulator[status.v] = tasks.filter((task) => (
-        task.status === status.v && !(status.v === 'done' && task.hideInKanbanDone)
-      ));
+      accumulator[status.v] = tasks.filter((task) => {
+        if (task.status !== status.v) return false;
+        if (status.v === 'done' && task.hideInKanbanDone) return false;
+        if (status.v === 'done') {
+          const completedAt = typeof task.completedAt === 'string' ? task.completedAt : task.completed_at;
+          if (!isCompletedAtWithinKanbanRange(completedAt, doneRange)) return false;
+        }
+        return true;
+      });
       return accumulator;
     }, {})
-  ), [tasks]);
+  ), [tasks, doneRange]);
 
   const handleDropOnColumn = (status, targetIndex = null) => {
     if (!draggedTaskId) return;
@@ -248,6 +276,28 @@ export default function KanbanView({
   return (
     <section className="kanban-view">
       <div className="kanban-toolbar">
+        <label className="kanban-done-range">
+          <span className="kanban-done-range-label">Completadas</span>
+          <select
+            className="kanban-done-range-select"
+            value={doneRange}
+            aria-label="Rango de tiempo para tareas completadas en el Kanban"
+            onChange={(event) => {
+              const next = event.target.value;
+              if (!DONE_RANGE_ALLOWED.has(next)) return;
+              setDoneRange(next);
+              try {
+                localStorage.setItem(kanbanDoneRangeStorageKey, next);
+              } catch {
+                // ignore
+              }
+            }}
+          >
+            {KANBAN_DONE_RANGE_OPTIONS.map((option) => (
+              <option key={option.key} value={option.key}>{option.label}</option>
+            ))}
+          </select>
+        </label>
         <div className="actions-menu-wrap" ref={columnsMenuRef}>
           <button
             type="button"
