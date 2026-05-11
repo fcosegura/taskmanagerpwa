@@ -8,6 +8,7 @@ import BoardView from './components/BoardView.jsx';
 import KanbanView from './components/KanbanView.jsx';
 import TaskModal from './components/TaskModal.jsx';
 import EventModal from './components/EventModal.jsx';
+import PriorityPickerModal from './components/PriorityPickerModal.jsx';
 import BottomNav from './components/BottomNav.jsx';
 import Login from './components/Login.jsx';
 
@@ -94,6 +95,7 @@ export default function App() {
   const [hydratedSession, setHydratedSession] = useState(null);
   const [view, setView] = useState('tasks');
   const [modal, setModal] = useState(null);
+  const [priorityPickerTask, setPriorityPickerTask] = useState(null);
   const [eventModal, setEventModal] = useState(null);
   const [calDate, setCalDate] = useState(new Date());
   const [selDay, setSelDay] = useState(null);
@@ -335,7 +337,14 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const onKeyDown = (e) => { if (e.key === 'Escape') { setModal(null); setEventModal(null); setAiPlanPreview(null); } };
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setModal(null);
+        setPriorityPickerTask(null);
+        setEventModal(null);
+        setAiPlanPreview(null);
+      }
+    };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
@@ -646,6 +655,15 @@ export default function App() {
     });
     setModal(null);
   };
+
+  const applyPriorityPick = (priorityValue) => {
+    const pick = priorityPickerTask;
+    if (!pick) return;
+    const latest = tasks.find((t) => t.id === pick.id) || pick;
+    setPriorityPickerTask(null);
+    if (latest.priority !== priorityValue) upsert({ ...latest, priority: priorityValue });
+  };
+
   const del = (id) => {
     let blockedByOpenChildren = false;
     let blockedChildrenCount = 0;
@@ -1226,6 +1244,7 @@ export default function App() {
               categoryFilter={categoryFilter} setCategoryFilter={setCategoryFilter}
               categories={categories} statusCounts={statusCounts} categoryCounts={categoryCounts}
               onEdit={(t) => setModal(t)} onToggleDone={toggleDone}
+              onOpenPriorityPicker={(t) => setPriorityPickerTask(t)}
               onQuickAdd={handleQuickAdd} onQuickSuggest={handleQuickSuggest}
               onDropTaskOnTask={linkStandaloneTaskAsChild}
             />
@@ -1237,6 +1256,7 @@ export default function App() {
                 kanbanColumnsStorageKey={`taskmanager_kanban_visible_columns_${activeProfileId || 'default'}`}
                 kanbanDoneRangeStorageKey={`taskmanager_kanban_done_range_${activeProfileId || 'default'}`}
                 onEditTask={(task) => setModal(task)}
+                onOpenPriorityPicker={(t) => setPriorityPickerTask(t)}
                 onMoveTaskStatus={moveTaskToStatus}
                 onDropTaskOnTask={linkStandaloneTaskAsChild}
               />
@@ -1246,6 +1266,7 @@ export default function App() {
                 prev={() => setCalDate(new Date(y, mo - 1, 1))} next={() => setCalDate(new Date(y, mo + 1, 1))}
                 selDay={selDay} setSelDay={setSelDay}
                 onAddTaskForDay={(date) => open({ date })} onEditTask={(t) => setModal(t)}
+                onOpenPriorityPicker={(t) => setPriorityPickerTask(t)}
                 onAddEventForDay={(date) => openEventModal({ startDate: date, endDate: date })} onEditEvent={(e) => openEventModal(e)}
               />
             : <BoardView notes={boardNotes} onAddNote={addBoardNote} onUpdateNote={updateBoardNote} onDeleteNote={deleteBoardNote} />
@@ -1262,6 +1283,14 @@ export default function App() {
         <div className="modal-backdrop" onClick={(e) => e.target === e.currentTarget && setEventModal(null)}>
           <EventModal key={eventModal.id || 'new-event'} event={eventModal} onSave={upsertEvent} onDelete={eventModal.id ? () => deleteEvent(eventModal.id) : null} onClose={() => setEventModal(null)} />
         </div>
+      )}
+
+      {priorityPickerTask && (
+        <PriorityPickerModal
+          task={priorityPickerTask}
+          onClose={() => setPriorityPickerTask(null)}
+          onSelect={applyPriorityPick}
+        />
       )}
 
       {aiPlanPreview && (

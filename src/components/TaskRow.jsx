@@ -7,6 +7,7 @@ export default function TaskRow({
   allTasks = [],
   onClick,
   onToggleDone,
+  onOpenPriorityPicker,
   draggable = false,
   onDragStart,
   onDragEnd,
@@ -15,6 +16,10 @@ export default function TaskRow({
 }) {
   const s = STATUS.find((x) => x.v === task.status) || STATUS[0];
   const p = PRIORITY.find((x) => x.v === task.priority) || PRIORITY[1];
+  const openPriority = (e) => {
+    e.stopPropagation();
+    onOpenPriorityPicker?.(task);
+  };
   const childTasks = allTasks.filter((candidate) => (task.dependencyTaskIds || []).includes(candidate.id));
   const parentTasks = allTasks.filter((candidate) => (candidate.dependencyTaskIds || []).includes(task.id));
   const hasParentTask = parentTasks.length > 0;
@@ -49,7 +54,20 @@ export default function TaskRow({
       onMouseEnter={(e) => (e.currentTarget.style.transform = 'translateY(-1px)')}
       onMouseLeave={(e) => (e.currentTarget.style.transform = 'translateY(0)')}
     >
-      <div className="priority-rail" style={{ width: 4, minHeight: 34, borderRadius: 4, background: `var(${p.tv})`, flexShrink: 0 }} />
+      {onOpenPriorityPicker ? (
+        <button
+          type="button"
+          className="priority-rail"
+          aria-label={`Cambiar prioridad, actualmente ${p.label}`}
+          onClick={openPriority}
+          style={{
+            width: 4, minHeight: 34, borderRadius: 4, background: `var(${p.tv})`, flexShrink: 0,
+            border: 'none', padding: 0, cursor: 'pointer',
+          }}
+        />
+      ) : (
+        <div className="priority-rail" style={{ width: 4, minHeight: 34, borderRadius: 4, background: `var(${p.tv})`, flexShrink: 0 }} />
+      )}
       {(hasParentTask || hasChildTasks) && (
         <div
           className="dependency-rail"
@@ -132,7 +150,21 @@ export default function TaskRow({
         >
           {task.status === 'done' ? '✓' : '○'}
         </button>
-        <Pill s={p} />
+        {onOpenPriorityPicker ? (
+          <button
+            type="button"
+            onClick={openPriority}
+            aria-label={`Cambiar prioridad, actualmente ${p.label}`}
+            style={{
+              border: 'none', background: 'transparent', padding: 0, margin: 0, cursor: 'pointer',
+              display: 'inline-flex', alignItems: 'center',
+            }}
+          >
+            <Pill s={p} />
+          </button>
+        ) : (
+          <Pill s={p} />
+        )}
         {task.category && <CategoryPill name={task.category} />}
         <Pill s={s} fixedWidth={82} />
       </div>

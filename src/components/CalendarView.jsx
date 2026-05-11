@@ -69,7 +69,10 @@ function compareCalendarEvents(a, b) {
   return (a.title || '').localeCompare(b.title || '');
 }
 
-export default function CalendarView({ y, mo, dIM, fD, tByDate, eByDate, todayStr, prev, next, selDay, setSelDay, onAddTaskForDay, onEditTask, onAddEventForDay, onEditEvent }) {
+export default function CalendarView({
+  y, mo, dIM, fD, tByDate, eByDate, todayStr, prev, next, selDay, setSelDay,
+  onAddTaskForDay, onEditTask, onOpenPriorityPicker, onAddEventForDay, onEditEvent,
+}) {
   const cells = [...Array(fD).fill(null), ...Array.from({ length: dIM }, (_, i) => i + 1)];
   const selDs = selDay ? toDateStr(y, mo, selDay) : null;
   const today = new Date();
@@ -204,7 +207,14 @@ export default function CalendarView({ y, mo, dIM, fD, tByDate, eByDate, todaySt
                   </div>
                 </div>
               ))}
-              {(tByDate[selDs] || []).map((task) => <TaskRow key={task.id} task={task} onClick={() => onEditTask(task)} />)}
+              {(tByDate[selDs] || []).map((task) => (
+                <TaskRow
+                  key={task.id}
+                  task={task}
+                  onClick={() => onEditTask(task)}
+                  onOpenPriorityPicker={onOpenPriorityPicker}
+                />
+              ))}
             </div>
           ) : (
             <div style={{ color: 'var(--color-text-secondary)', fontSize: 14 }}>No hay tareas ni eventos para este día.</div>

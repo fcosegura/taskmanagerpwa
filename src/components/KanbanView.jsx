@@ -49,6 +49,7 @@ function KanbanTaskCard({
   task,
   allTasks,
   onEditTask,
+  onOpenPriorityPicker,
   onDragStart,
   onDragEnd,
   isDragOver = false,
@@ -163,19 +164,43 @@ function KanbanTaskCard({
           )}
         </div>
       )}
-      <div
-        style={{
-          alignSelf: 'flex-start',
-          borderRadius: 999,
-          padding: '4px 8px',
-          fontSize: 11,
-          fontWeight: 700,
-          color: `var(${priority.tv})`,
-          background: `var(${priority.bv})`
-        }}
-      >
-        {priority.label}
-      </div>
+      {onOpenPriorityPicker ? (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpenPriorityPicker(task);
+          }}
+          aria-label={`Cambiar prioridad, actualmente ${priority.label}`}
+          style={{
+            alignSelf: 'flex-start',
+            borderRadius: 999,
+            padding: '4px 8px',
+            fontSize: 11,
+            fontWeight: 700,
+            color: `var(${priority.tv})`,
+            background: `var(${priority.bv})`,
+            border: 'none',
+            cursor: 'pointer',
+          }}
+        >
+          {priority.label}
+        </button>
+      ) : (
+        <div
+          style={{
+            alignSelf: 'flex-start',
+            borderRadius: 999,
+            padding: '4px 8px',
+            fontSize: 11,
+            fontWeight: 700,
+            color: `var(${priority.tv})`,
+            background: `var(${priority.bv})`,
+          }}
+        >
+          {priority.label}
+        </div>
+      )}
     </div>
   );
 }
@@ -184,6 +209,7 @@ export default function KanbanView({
   tasks,
   allTasks = [],
   onEditTask,
+  onOpenPriorityPicker,
   onMoveTaskStatus,
   onDropTaskOnTask,
   kanbanColumnsStorageKey = 'taskmanager_kanban_visible_columns_default',
@@ -391,6 +417,7 @@ export default function KanbanView({
                       task={task}
                       allTasks={allTasks}
                       onEditTask={onEditTask}
+                      onOpenPriorityPicker={onOpenPriorityPicker}
                       onDragStart={(event, taskId) => {
                         event.dataTransfer.effectAllowed = 'move';
                         setDraggedTaskId(taskId);
