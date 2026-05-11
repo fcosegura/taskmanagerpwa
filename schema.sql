@@ -51,6 +51,10 @@ CREATE TABLE IF NOT EXISTS events (
   allDay INTEGER DEFAULT 1,
   startTime TEXT,
   endTime TEXT,
+  recurrenceFrequency TEXT DEFAULT 'none',
+  recurrenceInterval INTEGER DEFAULT 1,
+  recurrenceUntil TEXT,
+  recurrenceCount INTEGER,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );

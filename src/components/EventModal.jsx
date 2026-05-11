@@ -9,6 +9,11 @@ function timeToMinutes(t) {
 
 export default function EventModal({ event, onSave, onDelete, onClose }) {
   const [form, setForm] = useState(event);
+  const [recurrenceEndType, setRecurrenceEndType] = useState(() => {
+    if (event?.recurrenceCount) return 'count';
+    if (event?.recurrenceUntil) return 'until';
+    return 'never';
+  });
 
   const handleChange = (field, value) => setForm((p) => ({ ...p, [field]: value }));
 
@@ -43,6 +48,24 @@ export default function EventModal({ event, onSave, onDelete, onClose }) {
     }
 
     if (finalForm.endDate < finalForm.startDate) finalForm.endDate = finalForm.startDate;
+    const recurrenceFrequency = ['none', 'daily', 'weekly', 'monthly'].includes(finalForm.recurrenceFrequency)
+      ? finalForm.recurrenceFrequency
+      : 'none';
+    const parsedInterval = Number.parseInt(String(finalForm.recurrenceInterval ?? '1'), 10);
+    const recurrenceInterval = Number.isFinite(parsedInterval) && parsedInterval > 0 ? parsedInterval : 1;
+    finalForm.recurrenceFrequency = recurrenceFrequency;
+    finalForm.recurrenceInterval = recurrenceFrequency === 'none' ? 1 : recurrenceInterval;
+    if (recurrenceFrequency === 'none' || recurrenceEndType === 'never') {
+      finalForm.recurrenceUntil = '';
+      finalForm.recurrenceCount = null;
+    } else if (recurrenceEndType === 'until') {
+      finalForm.recurrenceUntil = finalForm.recurrenceUntil || '';
+      finalForm.recurrenceCount = null;
+    } else {
+      finalForm.recurrenceUntil = '';
+      const parsedCount = Number.parseInt(String(finalForm.recurrenceCount ?? ''), 10);
+      finalForm.recurrenceCount = Number.isFinite(parsedCount) && parsedCount > 0 ? parsedCount : 1;
+    }
     onSave(finalForm);
   };
 
@@ -105,6 +128,85 @@ export default function EventModal({ event, onSave, onDelete, onClose }) {
             <button key={c} type="button" onClick={() => handleChange('color', c)} style={{ width: 36, height: 36, borderRadius: 999, background: c, border: form.color === c ? '3px solid var(--color-background-primary)' : '3px solid transparent', boxShadow: `0 0 0 1px ${form.color === c ? c : 'var(--color-border-tertiary)'}`, cursor: 'pointer' }} />
           ))}
         </div>
+      </div>
+
+      <div style={{ display: 'grid', gap: 10, marginBottom: 18 }}>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, color: 'var(--color-text-primary)' }}>
+          <span style={{ fontWeight: 600 }}>Repetir</span>
+          <select
+            value={form.recurrenceFrequency || 'none'}
+            onChange={(e) => {
+              const frequency = e.target.value;
+              handleChange('recurrenceFrequency', frequency);
+              if (frequency === 'none') {
+                setRecurrenceEndType('never');
+                handleChange('recurrenceUntil', '');
+                handleChange('recurrenceCount', null);
+                handleChange('recurrenceInterval', 1);
+              }
+            }}
+            style={{ width: '100%', height: 44, boxSizing: 'border-box', borderRadius: 'var(--border-radius-md)', border: '0.5px solid var(--color-border-secondary)', padding: '10px 12px', fontSize: 13, background: 'var(--color-background-primary)' }}
+          >
+            <option value="none">No repetir</option>
+            <option value="daily">Todos los días</option>
+            <option value="weekly">Todas las semanas</option>
+            <option value="monthly">Todos los meses</option>
+          </select>
+        </label>
+
+        {(form.recurrenceFrequency || 'none') !== 'none' && (
+          <>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, color: 'var(--color-text-primary)' }}>
+              <span style={{ fontWeight: 600 }}>Cada cuánto</span>
+              <input
+                type="number"
+                min="1"
+                value={form.recurrenceInterval || 1}
+                onChange={(e) => handleChange('recurrenceInterval', e.target.value)}
+                style={{ width: '100%', height: 44, boxSizing: 'border-box', borderRadius: 'var(--border-radius-md)', border: '0.5px solid var(--color-border-secondary)', padding: '10px 12px', fontSize: 13, background: 'var(--color-background-primary)' }}
+              />
+            </label>
+
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, color: 'var(--color-text-primary)' }}>
+              <span style={{ fontWeight: 600 }}>Finaliza</span>
+              <select
+                value={recurrenceEndType}
+                onChange={(e) => setRecurrenceEndType(e.target.value)}
+                style={{ width: '100%', height: 44, boxSizing: 'border-box', borderRadius: 'var(--border-radius-md)', border: '0.5px solid var(--color-border-secondary)', padding: '10px 12px', fontSize: 13, background: 'var(--color-background-primary)' }}
+              >
+                <option value="never">Nunca</option>
+                <option value="until">En fecha</option>
+                <option value="count">Tras repeticiones</option>
+              </select>
+            </label>
+
+            {recurrenceEndType === 'until' && (
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, color: 'var(--color-text-primary)' }}>
+                <span style={{ fontWeight: 600 }}>Repetir hasta</span>
+                <input
+                  type="date"
+                  value={form.recurrenceUntil || ''}
+                  min={form.startDate}
+                  onChange={(e) => handleChange('recurrenceUntil', e.target.value)}
+                  style={{ width: '100%', height: 44, boxSizing: 'border-box', borderRadius: 'var(--border-radius-md)', border: '0.5px solid var(--color-border-secondary)', padding: '10px 12px', fontSize: 13, background: 'var(--color-background-primary)' }}
+                />
+              </label>
+            )}
+
+            {recurrenceEndType === 'count' && (
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, color: 'var(--color-text-primary)' }}>
+                <span style={{ fontWeight: 600 }}>Número de repeticiones</span>
+                <input
+                  type="number"
+                  min="1"
+                  value={form.recurrenceCount || 1}
+                  onChange={(e) => handleChange('recurrenceCount', e.target.value)}
+                  style={{ width: '100%', height: 44, boxSizing: 'border-box', borderRadius: 'var(--border-radius-md)', border: '0.5px solid var(--color-border-secondary)', padding: '10px 12px', fontSize: 13, background: 'var(--color-background-primary)' }}
+                />
+              </label>
+            )}
+          </>
+        )}
       </div>
 
       <div style={{ display: 'flex', gap: 10, marginTop: 24 }}>

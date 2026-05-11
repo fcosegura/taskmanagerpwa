@@ -139,6 +139,14 @@ function normalizeEvent(event) {
   let startTime = typeof event.startTime === 'string' ? event.startTime : '';
   let endTime = typeof event.endTime === 'string' ? event.endTime : '';
   if (!allDay && !startTime && !endTime) allDay = true;
+  const recurrenceFrequency = ['none', 'daily', 'weekly', 'monthly'].includes(event.recurrenceFrequency)
+    ? event.recurrenceFrequency
+    : 'none';
+  const parsedInterval = Number.parseInt(String(event.recurrenceInterval ?? '1'), 10);
+  const recurrenceInterval = Number.isFinite(parsedInterval) && parsedInterval > 0 ? parsedInterval : 1;
+  const recurrenceUntil = typeof event.recurrenceUntil === 'string' ? event.recurrenceUntil : '';
+  const parsedCount = Number.parseInt(String(event.recurrenceCount ?? ''), 10);
+  const recurrenceCount = Number.isFinite(parsedCount) && parsedCount > 0 ? parsedCount : null;
   return {
     ...event,
     endDate: event.endDate || event.startDate,
@@ -146,6 +154,10 @@ function normalizeEvent(event) {
     allDay,
     startTime: allDay ? '' : startTime,
     endTime: allDay ? '' : endTime,
+    recurrenceFrequency,
+    recurrenceInterval: recurrenceFrequency === 'none' ? 1 : recurrenceInterval,
+    recurrenceUntil: recurrenceFrequency === 'none' ? '' : recurrenceUntil,
+    recurrenceCount: recurrenceFrequency === 'none' ? null : recurrenceCount,
   };
 }
 
@@ -162,13 +174,17 @@ function normalizeBoardNote(note) {
 
 export function isValidEvent(event) {
   if (!event || typeof event !== 'object') return false;
-  const { id, title, startDate, endDate, color, allDay, startTime, endTime } = event;
+  const { id, title, startDate, endDate, color, allDay, startTime, endTime, recurrenceFrequency, recurrenceInterval, recurrenceUntil, recurrenceCount } = event;
   if (typeof id !== 'string' || typeof title !== 'string') return false;
   if (typeof startDate !== 'string' || (endDate && typeof endDate !== 'string')) return false;
   if (typeof color !== 'string') return false;
   if (allDay != null && typeof allDay !== 'boolean' && typeof allDay !== 'number') return false;
   if (startTime != null && typeof startTime !== 'string') return false;
   if (endTime != null && typeof endTime !== 'string') return false;
+  if (recurrenceFrequency != null && !['none', 'daily', 'weekly', 'monthly'].includes(recurrenceFrequency)) return false;
+  if (recurrenceInterval != null && (!Number.isInteger(Number(recurrenceInterval)) || Number(recurrenceInterval) < 1)) return false;
+  if (recurrenceUntil != null && typeof recurrenceUntil !== 'string') return false;
+  if (recurrenceCount != null && (!Number.isInteger(Number(recurrenceCount)) || Number(recurrenceCount) < 1)) return false;
   return true;
 }
 

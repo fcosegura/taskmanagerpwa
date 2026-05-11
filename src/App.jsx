@@ -11,6 +11,81 @@ import EventModal from './components/EventModal.jsx';
 import BottomNav from './components/BottomNav.jsx';
 import Login from './components/Login.jsx';
 
+function parseDateAtNoon(dateStr) {
+  if (typeof dateStr !== 'string' || !dateStr) return null;
+  const date = new Date(`${dateStr}T12:00:00`);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function toDateOnlyStr(date) {
+  return toDateStr(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function addDays(baseDate, days) {
+  const date = new Date(baseDate);
+  date.setDate(date.getDate() + days);
+  return date;
+}
+
+function addMonths(baseDate, months) {
+  const date = new Date(baseDate);
+  date.setDate(1);
+  date.setMonth(date.getMonth() + months);
+  const day = Math.min(baseDate.getDate(), new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate());
+  date.setDate(day);
+  return date;
+}
+
+function isRecurringEvent(event) {
+  return ['daily', 'weekly', 'monthly'].includes(event?.recurrenceFrequency);
+}
+
+function buildEventOccurrences(event, windowStart, windowEnd) {
+  const startBase = parseDateAtNoon(event.startDate);
+  if (!startBase) return [];
+  const baseEndDate = parseDateAtNoon(event.endDate || event.startDate) || startBase;
+  const durationDays = Math.max(0, Math.floor((baseEndDate.getTime() - startBase.getTime()) / (24 * 60 * 60 * 1000)));
+  const recurrenceFrequency = ['daily', 'weekly', 'monthly'].includes(event.recurrenceFrequency)
+    ? event.recurrenceFrequency
+    : 'none';
+  const recurrenceInterval = Math.max(1, Number.parseInt(String(event.recurrenceInterval ?? '1'), 10) || 1);
+  const recurrenceUntil = parseDateAtNoon(event.recurrenceUntil || '');
+  const recurrenceCount = Math.max(0, Number.parseInt(String(event.recurrenceCount ?? ''), 10) || 0);
+  const maxOccurrences = recurrenceCount > 0 ? recurrenceCount : 250;
+  const occurrences = [];
+
+  if (recurrenceFrequency === 'none') {
+    const occurrenceEnd = addDays(startBase, durationDays);
+    if (occurrenceEnd >= windowStart && startBase <= windowEnd) {
+      occurrences.push({ start: startBase, end: occurrenceEnd, occurrenceIndex: 0 });
+    }
+    return occurrences;
+  }
+
+  let index = 0;
+  let produced = 0;
+  while (produced < maxOccurrences && index < 500) {
+    let occurrenceStart;
+    if (recurrenceFrequency === 'daily') {
+      occurrenceStart = addDays(startBase, index * recurrenceInterval);
+    } else if (recurrenceFrequency === 'weekly') {
+      occurrenceStart = addDays(startBase, index * recurrenceInterval * 7);
+    } else {
+      occurrenceStart = addMonths(startBase, index * recurrenceInterval);
+    }
+    if (!occurrenceStart || Number.isNaN(occurrenceStart.getTime())) break;
+    if (recurrenceUntil && occurrenceStart > recurrenceUntil) break;
+    if (occurrenceStart > windowEnd && !recurrenceCount) break;
+    const occurrenceEnd = addDays(occurrenceStart, durationDays);
+    if (occurrenceEnd >= windowStart && occurrenceStart <= windowEnd) {
+      occurrences.push({ start: occurrenceStart, end: occurrenceEnd, occurrenceIndex: index });
+    }
+    produced += 1;
+    index += 1;
+  }
+  return occurrences;
+}
+
 export default function App() {
   const ACTIVE_PROFILE_STORAGE_KEY = 'taskmanager_active_profile';
   const THEME_STORAGE_KEY = 'taskmanager_theme';
@@ -606,7 +681,8 @@ export default function App() {
   const updateBoardNote = (id, changes) => setBoardNotes((p) => p.map((note) => note.id === id ? { ...note, ...changes } : note));
 
   const upsertEvent = (event) => {
-    setEvents((p) => event.id ? p.map((e) => e.id === event.id ? event : e) : [...p, { ...event, id: uid() }]);
+    const { occurrenceDate, occurrenceIndex, ...cleanEvent } = event;
+    setEvents((p) => cleanEvent.id ? p.map((e) => e.id === cleanEvent.id ? cleanEvent : e) : [...p, { ...cleanEvent, id: uid() }]);
     setEventModal(null);
   };
   const deleteEvent = (id) => { setEvents((p) => p.filter((e) => e.id !== id)); setEventModal(null); };
@@ -618,6 +694,10 @@ export default function App() {
     allDay: true,
     startTime: '09:00',
     endTime: '10:00',
+    recurrenceFrequency: 'none',
+    recurrenceInterval: 1,
+    recurrenceUntil: '',
+    recurrenceCount: null,
     ...init,
   });
 
@@ -879,21 +959,33 @@ export default function App() {
   tasks.forEach((t) => { if (t.date) { (tByDate[t.date] = tByDate[t.date] || []).push(t); } });
 
   const eByDate = {};
+  const windowStart = new Date(y, mo - 1, 1, 12, 0, 0, 0);
+  const windowEnd = new Date(y, mo + 2, 0, 12, 0, 0, 0);
   events.forEach((e) => {
     if (!e.startDate) return;
     const timed = e.allDay === false || e.allDay === 0;
-    if (timed) {
-      const dStr = e.startDate;
-      (eByDate[dStr] = eByDate[dStr] || []).push(e);
-      return;
-    }
-    let current = new Date(e.startDate + 'T12:00:00');
-    const end = new Date((e.endDate || e.startDate) + 'T12:00:00');
-    while (current <= end) {
-      const dStr = toDateStr(current.getFullYear(), current.getMonth(), current.getDate());
-      (eByDate[dStr] = eByDate[dStr] || []).push(e);
-      current.setDate(current.getDate() + 1);
-    }
+    const occurrences = buildEventOccurrences(e, windowStart, windowEnd);
+    occurrences.forEach((occurrence) => {
+      if (timed) {
+        const dStr = toDateOnlyStr(occurrence.start);
+        (eByDate[dStr] = eByDate[dStr] || []).push({
+          ...e,
+          occurrenceDate: dStr,
+          occurrenceIndex: occurrence.occurrenceIndex,
+        });
+        return;
+      }
+      let current = new Date(occurrence.start);
+      while (current <= occurrence.end) {
+        const dStr = toDateOnlyStr(current);
+        (eByDate[dStr] = eByDate[dStr] || []).push({
+          ...e,
+          occurrenceDate: toDateOnlyStr(occurrence.start),
+          occurrenceIndex: occurrence.occurrenceIndex,
+        });
+        current = addDays(current, 1);
+      }
+    });
   });
 
   const categories = Array.from(new Set(tasks.map((t) => t.category).filter(Boolean))).sort();

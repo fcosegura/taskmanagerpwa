@@ -56,6 +56,10 @@ function formatEventSchedule(event) {
   return 'Todo el día';
 }
 
+function isRecurringEvent(event) {
+  return ['daily', 'weekly', 'monthly'].includes(event?.recurrenceFrequency);
+}
+
 function compareCalendarEvents(a, b) {
   const aTimed = (a.allDay === false || a.allDay === 0) && a.startTime;
   const bTimed = (b.allDay === false || b.allDay === 0) && b.startTime;
@@ -161,7 +165,7 @@ export default function CalendarView({ y, mo, dIM, fD, tByDate, eByDate, todaySt
                   </div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 2, justifyContent: 'center' }}>
                     {eventsForDay.slice(0, 3).map((event) => (
-                      <div key={event.id} style={{ width: 6, height: 6, borderRadius: '50%', background: event.color }} />
+                      <div key={`${event.id}-${event.occurrenceDate || dateStr || 'event'}`} style={{ width: 6, height: 6, borderRadius: '50%', background: event.color }} />
                     ))}
                     {tasksForDay.slice(0, 3 - eventsForDay.length).map((task) => (
                       <div key={task.id} style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--color-accent)', opacity: task.status === 'done' ? 0.4 : 1 }} />
@@ -193,8 +197,8 @@ export default function CalendarView({ y, mo, dIM, fD, tByDate, eByDate, todaySt
           ((tByDate[selDs] || []).length + (eByDate[selDs] || []).length) > 0 ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {[...(eByDate[selDs] || [])].sort(compareCalendarEvents).map((event) => (
-                <div key={event.id} onClick={() => onEditEvent(event)} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 'var(--border-radius-lg)', background: event.color, color: 'white' }}>
-                  <div style={{ fontSize: 14, fontWeight: 500 }}>{event.title}</div>
+                <div key={`${event.id}-${event.occurrenceDate || selDs}`} onClick={() => onEditEvent(event)} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 'var(--border-radius-lg)', background: event.color, color: 'white' }}>
+                  <div style={{ fontSize: 14, fontWeight: 500 }}>{event.title}{isRecurringEvent(event) ? ' ↻' : ''}</div>
                   <div style={{ fontSize: 12, opacity: 0.8, marginLeft: 'auto', textAlign: 'right' }}>
                     {formatEventSchedule(event)}
                   </div>
