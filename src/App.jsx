@@ -957,7 +957,26 @@ export default function App() {
   const fD = new Date(y, mo, 1).getDay();
 
   const focusTasks = focusMode
-    ? tasks.filter((task) => task.priority === 'high' || task.priority === 'critical')
+    ? (() => {
+      const focusIds = new Set(
+        tasks
+          .filter((task) => task.priority === 'high' || task.priority === 'critical')
+          .map((task) => task.id)
+      );
+      const stack = [...focusIds];
+      while (stack.length > 0) {
+        const taskId = stack.pop();
+        const task = tasks.find((candidate) => candidate.id === taskId);
+        if (!task || !Array.isArray(task.dependencyTaskIds)) continue;
+        task.dependencyTaskIds.forEach((childId) => {
+          if (!focusIds.has(childId)) {
+            focusIds.add(childId);
+            stack.push(childId);
+          }
+        });
+      }
+      return tasks.filter((task) => focusIds.has(task.id));
+    })()
     : tasks;
 
   const tByDate = {};
