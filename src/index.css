@@ -462,6 +462,12 @@ select:focus {
   font-weight: 800;
 }
 
+.focus-toggle.active {
+  background: var(--color-background-info);
+  color: var(--color-text-info);
+  border-color: rgba(56, 189, 248, 0.35);
+}
+
 [data-theme="dark"] .ghost-button {
   background: rgba(15, 23, 42, 0.82);
 }

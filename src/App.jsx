@@ -105,6 +105,7 @@ export default function App() {
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [summaryFilter, setSummaryFilter] = useState('none');
+  const [focusMode, setFocusMode] = useState(false);
   const [backupMessage, setBackupMessage] = useState('');
   const [syncState, setSyncState] = useState('idle');
   const [profiles, setProfiles] = useState([]);
@@ -955,8 +956,31 @@ export default function App() {
   const dIM = new Date(y, mo + 1, 0).getDate();
   const fD = new Date(y, mo, 1).getDay();
 
+  const focusTasks = focusMode
+    ? (() => {
+      const focusIds = new Set(
+        tasks
+          .filter((task) => task.priority === 'high' || task.priority === 'critical')
+          .map((task) => task.id)
+      );
+      const stack = [...focusIds];
+      while (stack.length > 0) {
+        const taskId = stack.pop();
+        const task = tasks.find((candidate) => candidate.id === taskId);
+        if (!task || !Array.isArray(task.dependencyTaskIds)) continue;
+        task.dependencyTaskIds.forEach((childId) => {
+          if (!focusIds.has(childId)) {
+            focusIds.add(childId);
+            stack.push(childId);
+          }
+        });
+      }
+      return tasks.filter((task) => focusIds.has(task.id));
+    })()
+    : tasks;
+
   const tByDate = {};
-  tasks.forEach((t) => { if (t.date) { (tByDate[t.date] = tByDate[t.date] || []).push(t); } });
+  focusTasks.forEach((t) => { if (t.date) { (tByDate[t.date] = tByDate[t.date] || []).push(t); } });
 
   const eByDate = {};
   const windowStart = new Date(y, mo - 1, 1, 12, 0, 0, 0);
@@ -988,12 +1012,12 @@ export default function App() {
     });
   });
 
-  const categories = Array.from(new Set(tasks.map((t) => t.category).filter(Boolean))).sort();
+  const categories = Array.from(new Set(focusTasks.map((t) => t.category).filter(Boolean))).sort();
   const now = new Date();
   const todayStr = toDateStr(now.getFullYear(), now.getMonth(), now.getDate());
 
-  const activeTasks = tasks.filter((t) => t.status !== 'done');
-  const baseByStatus = filter === 'all' ? activeTasks : tasks.filter((t) => t.status === filter);
+  const activeTasks = focusTasks.filter((t) => t.status !== 'done');
+  const baseByStatus = filter === 'all' ? activeTasks : focusTasks.filter((t) => t.status === filter);
   const byCategory = categoryFilter === 'all' ? baseByStatus : baseByStatus.filter((t) => t.category === categoryFilter);
   const bySummary = summaryFilter === 'today'
     ? byCategory.filter((t) => t.date === todayStr && t.status !== 'done')
@@ -1010,13 +1034,13 @@ export default function App() {
     return (P_ORDER[a.priority] ?? 3) - (P_ORDER[b.priority] ?? 3);
   });
 
-  const statusBase = categoryFilter === 'all' ? tasks : tasks.filter((t) => t.category === categoryFilter);
+  const statusBase = categoryFilter === 'all' ? focusTasks : focusTasks.filter((t) => t.category === categoryFilter);
   const statusCounts = statusBase.reduce((acc, t) => { const key = t.status || 'not_done'; acc[key] = (acc[key] || 0) + 1; return acc; }, {});
-  const categoryBase = filter === 'all' ? activeTasks : tasks.filter((t) => t.status === filter);
+  const categoryBase = filter === 'all' ? activeTasks : focusTasks.filter((t) => t.status === filter);
   const categoryCounts = categoryBase.reduce((acc, t) => { if (!t.category) return acc; acc[t.category] = (acc[t.category] || 0) + 1; return acc; }, {});
   const totalVisible = bySummary.length;
-  const completedCount = tasks.filter((t) => t.status === 'done').length;
-  const blockedCount = tasks.filter((t) => t.status === 'blocked').length;
+  const completedCount = focusTasks.filter((t) => t.status === 'done').length;
+  const blockedCount = focusTasks.filter((t) => t.status === 'blocked').length;
   const todayCount = (tByDate[todayStr] || []).filter((t) => t.status !== 'done').length;
   const activeMetric = summaryFilter === 'today'
     ? 'today'
@@ -1123,6 +1147,15 @@ export default function App() {
               </div>
             )}
           </div>
+          <button
+            type="button"
+            className={`ghost-button hide-mobile focus-toggle${focusMode ? ' active' : ''}`}
+            onClick={() => setFocusMode((current) => !current)}
+            aria-pressed={focusMode}
+            aria-label="Alternar modo focus (prioridad alta y crítica)"
+          >
+            Focus
+          </button>
           <button type="button"
             onClick={() => view === 'board'
               ? addBoardNote({ id: uid(), title: '', text: '', createdAt: new Date().toISOString(), x: 20 + Math.random() * 40, y: 20 + Math.random() * 40 })
@@ -1186,7 +1219,7 @@ export default function App() {
 
         {view === 'tasks'
           ? <TasksView
-              allTasks={tasks}
+              allTasks={focusTasks}
               tasks={sorted} total={totalVisible} filter={filter} setFilter={setFilter}
               searchQuery={searchQuery} setSearchQuery={setSearchQuery}
               categoryFilter={categoryFilter} setCategoryFilter={setCategoryFilter}
@@ -1198,8 +1231,8 @@ export default function App() {
           : view === 'kanban'
             ? <KanbanView
                 key={activeProfileId || 'default'}
-                tasks={tasks}
-                allTasks={tasks}
+                tasks={focusTasks}
+                allTasks={focusTasks}
                 kanbanColumnsStorageKey={`taskmanager_kanban_visible_columns_${activeProfileId || 'default'}`}
                 onEditTask={(task) => setModal(task)}
                 onMoveTaskStatus={moveTaskToStatus}

@@ -119,9 +119,11 @@ export function isValidTask(task) {
 function normalizeTask(task) {
   const rawDependencies = Array.isArray(task.dependencyTaskIds) ? task.dependencyTaskIds : [];
   const legacyName = typeof task.name === 'string' ? task.name : (typeof task.description === 'string' ? task.description : '');
+  const normalizedStatus = task.status === 'started' ? 'in_progress' : task.status;
   return {
     ...task,
     name: legacyName,
+    status: normalizedStatus,
     subtasks: Array.isArray(task.subtasks) ? task.subtasks : [],
     dependencyTaskIds: [...new Set(rawDependencies.filter((id) => typeof id === 'string'))],
     category: task.category || '',
