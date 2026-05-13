@@ -68,3 +68,18 @@ CREATE INDEX IF NOT EXISTS idx_profiles_user ON profiles(user_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_user_profile ON tasks(user_id, profile_id);
 CREATE INDEX IF NOT EXISTS idx_notes_user_profile ON notes(user_id, profile_id);
 CREATE INDEX IF NOT EXISTS idx_events_user_profile ON events(user_id, profile_id);
+
+-- Server-side sessions (opaque token in HttpOnly cookie) and soft AI rate limits
+CREATE TABLE IF NOT EXISTS sessions (
+  token TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  expires_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at);
+
+CREATE TABLE IF NOT EXISTS ai_rate_limits (
+  user_id TEXT PRIMARY KEY,
+  window_start INTEGER NOT NULL,
+  request_count INTEGER NOT NULL DEFAULT 0
+);

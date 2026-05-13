@@ -1,13 +1,18 @@
 import { useEffect, useRef, useState } from 'react';
 
-// ID de cliente de Google (Público)
-const GOOGLE_CLIENT_ID = "365692313483-g4tv5i5agl4egs67h980vn6ce977p7df.apps.googleusercontent.com";
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
 export default function Login({ onLoginSuccess }) {
   const googleBtnRef = useRef(null);
-  const [error, setError] = useState('');
+  const [error, setError] = useState(() =>
+    (GOOGLE_CLIENT_ID ? '' : 'Falta VITE_GOOGLE_CLIENT_ID en la configuración de build.')
+  );
 
   useEffect(() => {
+    if (!GOOGLE_CLIENT_ID) {
+      return undefined;
+    }
+
     let cancelled = false;
     const mount = googleBtnRef.current;
 

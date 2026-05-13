@@ -125,6 +125,7 @@ export default function App() {
   const [aiGenerationLoading, setAiGenerationLoading] = useState(false);
   const [aiGenerationError, setAiGenerationError] = useState('');
   const [aiPlanPreview, setAiPlanPreview] = useState(null);
+  const [swUpdateAvailable, setSwUpdateAvailable] = useState(false);
   const fileInputRef = useRef(null);
   const profileMenuRef = useRef(null);
   const actionsMenuRef = useRef(null);
@@ -178,6 +179,12 @@ export default function App() {
       }
     };
   }, [ready, authenticated, hydratedSession, activeProfileId, clearSyncDebounce]);
+
+  useEffect(() => {
+    const onSwUpdate = () => setSwUpdateAvailable(true);
+    window.addEventListener('taskmanager-sw-update', onSwUpdate);
+    return () => window.removeEventListener('taskmanager-sw-update', onSwUpdate);
+  }, []);
 
   useEffect(() => {
     localStorage.removeItem('userToken');
@@ -1082,6 +1089,14 @@ export default function App() {
 
   return (
     <div className="app-shell">
+      {swUpdateAvailable && (
+        <div className="sw-update-banner" role="status">
+          <span>Hay una nueva versión de la aplicación.</span>
+          <button type="button" className="ghost-button" onClick={() => window.location.reload()}>
+            Recargar
+          </button>
+        </div>
+      )}
       <h2 className="sr-only">Gestor de tareas con calendario</h2>
 
       <header className="app-header">
@@ -1124,7 +1139,7 @@ export default function App() {
                   </div>
                 ))}
                 <button type="button" className="workspace-create" onClick={handleCreateProfile}>+ Nuevo workspace</button>
-                <button type="button" className="workspace-logout" onClick={handleLogout}>Log out</button>
+                <button type="button" className="workspace-logout" onClick={handleLogout}>Cerrar sesión</button>
               </div>
             )}
           </div>
@@ -1138,7 +1153,15 @@ export default function App() {
 
         <div className="desktop-tabs hide-mobile">
           {[['tasks', 'Tareas'], ['kanban', 'Kanban'], ['calendar', 'Calendario'], ['board', 'Tablero']].map(([v, l]) => (
-            <button key={v} className={view === v ? 'active' : ''} onClick={() => setView(v)}>{l}</button>
+            <button
+              key={v}
+              type="button"
+              aria-current={view === v ? 'page' : undefined}
+              className={view === v ? 'active' : ''}
+              onClick={() => setView(v)}
+            >
+              {l}
+            </button>
           ))}
         </div>
 
@@ -1149,6 +1172,15 @@ export default function App() {
           >
             {syncState === 'saving' ? 'Guardando...' : syncState === 'saved' ? 'Guardado' : syncState === 'error' ? 'Error al guardar' : ''}
           </div>
+          {syncState === 'error' && (
+            <button
+              type="button"
+              className="ghost-button sync-retry-button"
+              onClick={() => void syncNowRef.current({ immediate: true })}
+            >
+              Reintentar
+            </button>
+          )}
           <div className="actions-menu-wrap hide-mobile" ref={actionsMenuRef}>
             <button
               className="ghost-button"

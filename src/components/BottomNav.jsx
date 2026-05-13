@@ -7,7 +7,7 @@ export default function BottomNav({ currentView, setView }) {
   ];
 
   const iconFor = (id) => {
-    const common = { width: 20, height: 20, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.9, strokeLinecap: 'round', strokeLinejoin: 'round' };
+    const common = { width: 20, height: 20, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.9, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true };
     if (id === 'tasks') {
       return (
         <svg {...common}>
@@ -42,12 +42,12 @@ export default function BottomNav({ currentView, setView }) {
   };
 
   return (
-    <nav 
-      className="show-mobile"
-    >
+    <nav className="show-mobile" aria-label="Vistas principales">
       {tabs.map((tab) => (
         <button
           key={tab.id}
+          type="button"
+          aria-current={currentView === tab.id ? 'page' : undefined}
           onClick={() => setView(tab.id)}
           className={currentView === tab.id ? 'active' : ''}
           style={{
@@ -64,7 +64,7 @@ export default function BottomNav({ currentView, setView }) {
             transition: 'color 0.2s'
           }}
         >
-          <span className="mobile-tab-icon">{iconFor(tab.id)}</span>
+          <span className="mobile-tab-icon" aria-hidden="true">{iconFor(tab.id)}</span>
           <span className="mobile-tab-label" style={{ fontWeight: currentView === tab.id ? 700 : 500 }}>
             {tab.label}
           </span>

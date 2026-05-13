@@ -2,6 +2,12 @@ const VALID_STATUS = new Set(['not_done', 'started', 'in_progress', 'paused', 'b
 const VALID_PRIORITY = new Set(['low', 'medium', 'high', 'critical']);
 const SESSION_COOKIE = '__Host-taskmanager_session';
 const LOCAL_SESSION_COOKIE = 'taskmanager_session';
+const SESSION_MAX_AGE_SEC = 3600;
+const MAX_SYNC_TASKS = 8000;
+const MAX_SYNC_NOTES = 2000;
+const MAX_SYNC_EVENTS = 4000;
+const AI_RATE_WINDOW_SEC = 60;
+const AI_RATE_MAX_PER_WINDOW = 48;
 const SECURITY_HEADERS = {
   'Content-Security-Policy': [
     "default-src 'self'",
@@ -55,15 +61,127 @@ function isLocalRequest(request) {
 
 function sessionCookie(value, request) {
   if (isLocalRequest(request)) {
-    return `${LOCAL_SESSION_COOKIE}=${value}; Path=/; Max-Age=3600; HttpOnly; SameSite=Lax`;
+    return `${LOCAL_SESSION_COOKIE}=${value}; Path=/; Max-Age=${SESSION_MAX_AGE_SEC}; HttpOnly; SameSite=Lax`;
   }
-  return `${SESSION_COOKIE}=${value}; Path=/; Max-Age=3600; HttpOnly; Secure; SameSite=Strict`;
+  return `${SESSION_COOKIE}=${value}; Path=/; Max-Age=${SESSION_MAX_AGE_SEC}; HttpOnly; Secure; SameSite=Strict`;
 }
 
 function clearSessionCookie(request) {
   const localCookie = `${LOCAL_SESSION_COOKIE}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax`;
   const secureCookie = `${SESSION_COOKIE}=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Strict`;
   return isLocalRequest(request) ? localCookie : secureCookie;
+}
+
+async function ensureSecuritySchema(env) {
+  const safeExec = async (statement) => {
+    try {
+      await env.DB.prepare(statement).run();
+    } catch {
+      // ignore duplicate schema
+    }
+  };
+  await safeExec(
+    'CREATE TABLE IF NOT EXISTS sessions (token TEXT PRIMARY KEY, user_id TEXT NOT NULL, expires_at INTEGER NOT NULL)'
+  );
+  await safeExec('CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id)');
+  await safeExec('CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at)');
+  await safeExec(
+    'CREATE TABLE IF NOT EXISTS ai_rate_limits (user_id TEXT PRIMARY KEY, window_start INTEGER NOT NULL, request_count INTEGER NOT NULL DEFAULT 0)'
+  );
+}
+
+function countSyncEntities(normalizedBody) {
+  if (normalizedBody.mode === 'payload') {
+    const p = normalizedBody.payload;
+    return {
+      tasks: p.tasks.length,
+      notes: p.boardNotes.length,
+      events: p.events.length
+    };
+  }
+  const { tasks, notes, events } = normalizedBody.ops;
+  return {
+    tasks: tasks.upserts.length + tasks.deletes.length,
+    notes: notes.upserts.length + notes.deletes.length,
+    events: events.upserts.length + events.deletes.length
+  };
+}
+
+function checkSyncLimits(normalizedBody) {
+  const c = countSyncEntities(normalizedBody);
+  if (c.tasks > MAX_SYNC_TASKS || c.notes > MAX_SYNC_NOTES || c.events > MAX_SYNC_EVENTS) {
+    return {
+      ok: false,
+      error: `Límite de sincronización excedido (máx. ${MAX_SYNC_TASKS} tareas, ${MAX_SYNC_NOTES} notas, ${MAX_SYNC_EVENTS} eventos por solicitud).`
+    };
+  }
+  return { ok: true };
+}
+
+async function consumeAiRateLimit(env, userId) {
+  const now = Math.floor(Date.now() / 1000);
+  const windowStart = Math.floor(now / AI_RATE_WINDOW_SEC) * AI_RATE_WINDOW_SEC;
+  const row = await env.DB.prepare(
+    'SELECT window_start, request_count FROM ai_rate_limits WHERE user_id = ?'
+  ).bind(userId).first();
+
+  if (!row || row.window_start < windowStart) {
+    await env.DB.prepare(
+      'INSERT INTO ai_rate_limits (user_id, window_start, request_count) VALUES (?, ?, 1) ' +
+        'ON CONFLICT(user_id) DO UPDATE SET window_start = excluded.window_start, request_count = 1'
+    ).bind(userId, windowStart).run();
+    return null;
+  }
+
+  if (row.request_count >= AI_RATE_MAX_PER_WINDOW) {
+    return json(
+      { error: 'Demasiadas solicitudes de IA. Prueba de nuevo en un minuto.' },
+      { status: 429 }
+    );
+  }
+
+  await env.DB.prepare(
+    'UPDATE ai_rate_limits SET request_count = request_count + 1 WHERE user_id = ?'
+  ).bind(userId).run();
+  return null;
+}
+
+async function shortHashForLog(value) {
+  try {
+    const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(value)));
+    const bytes = new Uint8Array(digest);
+    return [...bytes.slice(0, 6)].map((b) => b.toString(16).padStart(2, '0')).join('');
+  } catch {
+    return 'unknown';
+  }
+}
+
+async function createOpaqueSession(env, userId) {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  const token = [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('');
+  const expiresAt = Math.floor(Date.now() / 1000) + SESSION_MAX_AGE_SEC;
+  await env.DB.prepare(
+    'INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)'
+  ).bind(token, userId, expiresAt).run();
+  return token;
+}
+
+async function pruneExpiredSessions(env) {
+  const now = Math.floor(Date.now() / 1000);
+  try {
+    await env.DB.prepare('DELETE FROM sessions WHERE expires_at < ?').bind(now).run();
+  } catch {
+    // ignore
+  }
+}
+
+function getSessionTokenFromRequest(request) {
+  return getCookie(request, SESSION_COOKIE) || getCookie(request, LOCAL_SESSION_COOKIE);
+}
+
+function isValidSessionTokenFormat(token) {
+  return typeof token === 'string' && /^[0-9a-f]{64}$/i.test(token);
 }
 
 function isValidTask(task) {
@@ -767,12 +885,20 @@ async function verifyGoogleToken(token, env) {
 }
 
 async function authenticate(request, env) {
-  const token = getCookie(request, SESSION_COOKIE) || getCookie(request, LOCAL_SESSION_COOKIE);
+  const token = getSessionTokenFromRequest(request);
+  if (!token) return null;
+  if (isValidSessionTokenFormat(token)) {
+    const now = Math.floor(Date.now() / 1000);
+    const row = await env.DB.prepare(
+      'SELECT user_id FROM sessions WHERE token = ? AND expires_at > ?'
+    ).bind(token, now).first();
+    return row?.user_id || null;
+  }
   return verifyGoogleToken(token, env);
 }
 
 export default {
-  // Worker Version: 2026.05.05.1
+  // Worker Version: 2026.05.13.1
   async fetch(request, env) {
     const url = new URL(request.url);
 
@@ -781,14 +907,18 @@ export default {
         return json({ error: 'D1 binding missing: DB is not configured in this environment.' }, { status: 500 });
       }
 
+      await ensureSecuritySchema(env);
+
       if (request.method === 'POST' && url.pathname === '/api/login') {
         try {
           const { credential } = await request.json();
           const userId = await verifyGoogleToken(credential, env);
           if (!userId) return json({ error: 'Token inválido' }, { status: 401 });
+          await pruneExpiredSessions(env);
+          const sessionToken = await createOpaqueSession(env, userId);
           return json(
             { success: true },
-            { headers: { 'Set-Cookie': sessionCookie(credential, request) } }
+            { headers: { 'Set-Cookie': sessionCookie(sessionToken, request) } }
           );
         } catch {
           return json({ error: 'Login inválido' }, { status: 400 });
@@ -796,6 +926,14 @@ export default {
       }
 
       if (request.method === 'POST' && url.pathname === '/api/logout') {
+        const token = getSessionTokenFromRequest(request);
+        if (token && isValidSessionTokenFormat(token)) {
+          try {
+            await env.DB.prepare('DELETE FROM sessions WHERE token = ?').bind(token).run();
+          } catch {
+            // ignore
+          }
+        }
         return json(
           { success: true },
           { headers: { 'Set-Cookie': clearSessionCookie(request) } }
@@ -826,6 +964,9 @@ export default {
           if (!text) return json({ error: 'text es requerido' }, { status: 400 });
           if (text.length > 500) return json({ error: 'text demasiado largo (max 500)' }, { status: 400 });
 
+          const rateLimited = await consumeAiRateLimit(env, userId);
+          if (rateLimited) return rateLimited;
+
           const fallback = parseTaskFallback(text);
           try {
             const aiParsed = await parseTaskWithAi(text, env);
@@ -846,6 +987,10 @@ export default {
           const text = typeof body?.text === 'string' ? body.text.trim() : '';
           if (!text) return json({ error: 'text es requerido' }, { status: 400 });
           if (text.length > 700) return json({ error: 'text demasiado largo (max 700)' }, { status: 400 });
+
+          const rateLimited = await consumeAiRateLimit(env, userId);
+          if (rateLimited) return rateLimited;
+
           const fallbackPlan = normalizeGeneratedTaskPlan(null, text);
 
           try {
@@ -980,6 +1125,10 @@ export default {
           if (!normalizedBody) {
             return json({ error: 'Payload inválido' }, { status: 400 });
           }
+          const limitCheck = checkSyncLimits(normalizedBody);
+          if (!limitCheck.ok) {
+            return json({ error: limitCheck.error }, { status: 413 });
+          }
           const syncProfileId = await resolveProfileId(env, userId, normalizedBody.profileId);
           const batch = [];
           let taskCount = 0;
@@ -1044,8 +1193,9 @@ export default {
           }
 
           if (batch.length > 0) await env.DB.batch(batch);
+          const userIdHash = await shortHashForLog(userId);
           console.log('[sync] write batch completed', {
-            userId,
+            userIdHash,
             profileId: syncProfileId,
             mode: normalizedBody.mode,
             taskCount,
@@ -1058,7 +1208,7 @@ export default {
         }
       } catch (err) {
         console.error('API error', path, err);
-        return json({ error: err.message }, { status: 500 });
+        return json({ error: 'internal_error' }, { status: 500 });
       }
     }
 

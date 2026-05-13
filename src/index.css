@@ -605,6 +605,30 @@ select:focus {
   background: rgba(12, 74, 110, 0.55);
 }
 
+.sw-update-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--color-border-info);
+  background: var(--color-background-info);
+  color: var(--color-text-info);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+[data-theme="dark"] .sw-update-banner {
+  border-bottom-color: var(--color-border-info);
+}
+
+.sync-retry-button {
+  font-size: 12px;
+  padding: 7px 12px;
+  pointer-events: auto;
+}
+
 .toolbar-panel {
   margin-bottom: 18px !important;
   padding: 14px !important;
