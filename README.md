@@ -19,3 +19,4 @@ If you are developing a production application, we recommend using TypeScript wi
 - Multi-user support with Google OAuth
 - Cloudflare D1 persistence
 - Preview branch validation enabled
+- Playwright E2E: `npm run test:e2e` (GitHub Actions en push a `main` y en PRs)
