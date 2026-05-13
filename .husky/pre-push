@@ -1,0 +1,11 @@
+#!/usr/bin/env sh
+set -e
+
+# Desactivar: SKIP_HOOKS=1 git push   (o HUSKY=0, estándar de Husky)
+if [ "${SKIP_HOOKS:-0}" = "1" ]; then
+  echo "pre-push: omitido (SKIP_HOOKS=1)"
+  exit 0
+fi
+
+echo "pre-push: npm run test:verify (unit + lint + e2e)"
+npm run test:verify

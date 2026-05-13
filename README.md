@@ -19,4 +19,5 @@ If you are developing a production application, we recommend using TypeScript wi
 - Multi-user support with Google OAuth
 - Cloudflare D1 persistence
 - Preview branch validation enabled
-- Playwright E2E: `npm run test:e2e` (GitHub Actions en push a `main` y en PRs)
+- Verificación local y CI: `npm run test:verify` (unit + lint + Playwright E2E). Tras `npm install`, Husky ejecuta `test:verify` en **pre-push**; si falla, Git cancela el push. Emergencia: `SKIP_HOOKS=1 git push`.
+- GitHub Actions (workflow E2E) en push a `main` y en PRs. Para **bloquear el merge** si el job falla: *Settings → Branches → Branch protection rule* en `main` → *Require status checks* → marcar **Playwright E2E** (nombre del job en el workflow).
