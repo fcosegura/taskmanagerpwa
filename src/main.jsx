@@ -19,6 +19,7 @@ if ('serviceWorker' in navigator) {
           newWorker?.addEventListener('statechange', () => {
             if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
               console.log('[PWA] Nueva versión disponible. Recarga para actualizar.');
+              window.dispatchEvent(new CustomEvent('taskmanager-sw-update'));
             }
           });
         });

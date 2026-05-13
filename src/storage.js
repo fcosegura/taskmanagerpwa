@@ -349,6 +349,8 @@ export async function parseTaskWithAI(text) {
     } catch {
       // Keep generic message when body is not JSON.
     }
+    if (resp.status === 429) message = message.includes('IA') ? message : 'Demasiadas solicitudes. Espera un momento.';
+    if (resp.status === 413) message = message.includes('Límite') ? message : 'Los datos son demasiado grandes para sincronizar.';
     throw new Error(message);
   }
   const data = await resp.json();
@@ -374,6 +376,7 @@ export async function generateTasksFromText(text, profileId = null) {
     } catch {
       // Keep default error message.
     }
+    if (resp.status === 429) message = message.includes('IA') ? message : 'Demasiadas solicitudes. Espera un momento.';
     throw new Error(message);
   }
   const data = await resp.json();
@@ -486,7 +489,20 @@ export async function saveData(payload, authenticated = false, profileId = null)
       });
       if (!resp.ok) {
         const text = await resp.text().catch(() => '');
-        throw new Error(text || `Sync HTTP ${resp.status}`);
+        let message = text || `Sync HTTP ${resp.status}`;
+        try {
+          const data = JSON.parse(text);
+          if (typeof data?.error === 'string') message = data.error;
+        } catch {
+          // keep text body
+        }
+        if (resp.status === 413) {
+          message = message.includes('Límite') ? message : 'Los datos superan el límite permitido por el servidor.';
+        }
+        if (resp.status === 500 && (message === 'internal_error' || message.includes('internal_error'))) {
+          message = 'Error del servidor al guardar. Inténtalo de nuevo más tarde.';
+        }
+        throw new Error(message || `Sync HTTP ${resp.status}`);
       }
       lastCloudSnapshotByProfile.set(profileId, clonePayload(payload));
     } catch (e) {
