@@ -13,6 +13,10 @@ export default function TaskRow({
   onDragEnd,
   isDragOver = false,
   dragMode = null,
+  collapsible = false,
+  collapsed = false,
+  onToggleCollapse,
+  childTaskCount = 0,
 }) {
   const s = STATUS.find((x) => x.v === task.status) || STATUS[0];
   const p = PRIORITY.find((x) => x.v === task.priority) || PRIORITY[1];
@@ -24,6 +28,7 @@ export default function TaskRow({
   const parentTasks = allTasks.filter((candidate) => (candidate.dependencyTaskIds || []).includes(task.id));
   const hasParentTask = parentTasks.length > 0;
   const hasChildTasks = childTasks.length > 0;
+  const showCollapseControl = collapsible && childTaskCount > 0;
   const dependencyRailColor = hasChildTasks && hasParentTask
     ? 'linear-gradient(180deg, #f59e0b 0%, #f59e0b 50%, #9333ea 50%, #9333ea 100%)'
     : hasChildTasks
@@ -94,6 +99,53 @@ export default function TaskRow({
             marginBottom: 4
           }}
         >
+          {showCollapseControl && (
+            <button
+              type="button"
+              draggable={false}
+              onDragStart={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleCollapse?.();
+              }}
+              aria-expanded={!collapsed}
+              aria-label={collapsed ? 'Mostrar tareas hijas' : 'Ocultar tareas hijas'}
+              title={collapsed ? 'Mostrar tareas hijas' : 'Ocultar tareas hijas'}
+              style={{
+                flexShrink: 0,
+                width: 28,
+                height: 28,
+                padding: 0,
+                margin: 0,
+                marginRight: 2,
+                border: '1px solid var(--color-border-tertiary)',
+                borderRadius: 8,
+                background: 'var(--color-background-primary)',
+                color: 'var(--color-text-secondary)',
+                cursor: 'pointer',
+                display: 'grid',
+                placeItems: 'center',
+                lineHeight: 1,
+              }}
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                style={{
+                  transform: collapsed ? 'rotate(-90deg)' : 'rotate(0deg)',
+                  transition: 'transform 0.15s ease',
+                }}
+              >
+                <path d="M6 9l6 6 6-6" />
+              </svg>
+            </button>
+          )}
           <span style={{ fontSize: 12, lineHeight: 1 }}>⋮⋮</span>
           <span>Arrastrar</span>
         </div>
