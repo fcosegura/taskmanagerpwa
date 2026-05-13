@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 import { STATUS } from '../constants.js';
 import { Chip } from './shared/index.jsx';
 import TaskRow from './TaskRow.jsx';
@@ -17,6 +17,7 @@ export default function TasksView({
   const [draggedTaskId, setDraggedTaskId] = useState(null);
   const [hoverTaskId, setHoverTaskId] = useState(null);
   const [hoverDragMode, setHoverDragMode] = useState(null);
+  const [collapsedParentIds, setCollapsedParentIds] = useState(() => new Set());
 
   const handleQuickSubmit = (e) => {
     e.preventDefault();
@@ -61,24 +62,24 @@ export default function TasksView({
     return !sourceHasParent && !sourceHasChildren && !targetHasParent && !alreadyLinked;
   };
 
-  const orderedTasks = (() => {
-    const visibleIds = new Set(tasks.map((task) => task.id));
+  const { orderedTasks, parentByChild, visibleIds } = useMemo(() => {
+    const vIds = new Set(tasks.map((task) => task.id));
     const indexById = new Map(tasks.map((task, index) => [task.id, index]));
-    const parentByChild = new Map();
-    const childrenByParent = new Map();
+    const pbc = new Map();
+    const cbp = new Map();
 
     for (const parent of tasks) {
       for (const childId of (parent.dependencyTaskIds || [])) {
-        if (!visibleIds.has(childId)) continue;
-        if (!parentByChild.has(childId)) parentByChild.set(childId, parent.id);
-        if (!childrenByParent.has(parent.id)) childrenByParent.set(parent.id, []);
-        childrenByParent.get(parent.id).push(childId);
+        if (!vIds.has(childId)) continue;
+        if (!pbc.has(childId)) pbc.set(childId, parent.id);
+        if (!cbp.has(parent.id)) cbp.set(parent.id, []);
+        cbp.get(parent.id).push(childId);
       }
     }
 
-    for (const [parentId, childIds] of childrenByParent.entries()) {
+    for (const [parentId, childIds] of cbp.entries()) {
       childIds.sort((left, right) => (indexById.get(left) ?? 0) - (indexById.get(right) ?? 0));
-      childrenByParent.set(parentId, [...new Set(childIds)]);
+      cbp.set(parentId, [...new Set(childIds)]);
     }
 
     const ordered = [];
@@ -90,13 +91,13 @@ export default function TasksView({
       if (!task) return;
       visited.add(taskId);
       ordered.push(task);
-      for (const childId of (childrenByParent.get(taskId) || [])) {
+      for (const childId of (cbp.get(taskId) || [])) {
         pushWithChildren(childId);
       }
     };
 
     for (const task of tasks) {
-      if (!parentByChild.has(task.id)) {
+      if (!pbc.has(task.id)) {
         pushWithChildren(task.id);
       }
     }
@@ -104,8 +105,30 @@ export default function TasksView({
       if (!visited.has(task.id)) pushWithChildren(task.id);
     }
 
-    return ordered;
-  })();
+    return { orderedTasks: ordered, parentByChild: pbc, visibleIds: vIds };
+  }, [tasks]);
+
+  const toggleParentCollapse = useCallback((parentId) => {
+    setCollapsedParentIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(parentId)) next.delete(parentId);
+      else next.add(parentId);
+      return next;
+    });
+  }, []);
+
+  const displayedOrderedTasks = useMemo(() => {
+    const isHiddenByCollapse = (taskId) => {
+      let cur = taskId;
+      while (parentByChild.has(cur)) {
+        const parentId = parentByChild.get(cur);
+        if (collapsedParentIds.has(parentId)) return true;
+        cur = parentId;
+      }
+      return false;
+    };
+    return orderedTasks.filter((task) => !isHiddenByCollapse(task.id));
+  }, [orderedTasks, parentByChild, collapsedParentIds]);
 
   return (
     <div className="tasks-view">
@@ -174,7 +197,7 @@ export default function TasksView({
         </div>
       ) : (
         <div className="task-list" style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-          {orderedTasks.map((t) => (
+          {displayedOrderedTasks.map((t) => (
             <div
               key={t.id}
               onDragOver={(event) => {
@@ -202,6 +225,10 @@ export default function TasksView({
                 onClick={() => onEdit(t)}
                 onToggleDone={onToggleDone}
                 onOpenPriorityPicker={onOpenPriorityPicker}
+                collapsible
+                collapsed={collapsedParentIds.has(t.id)}
+                onToggleCollapse={() => toggleParentCollapse(t.id)}
+                childTaskCount={(t.dependencyTaskIds || []).filter((id) => visibleIds.has(id)).length}
                 draggable
                 onDragStart={(event) => {
                   event.dataTransfer.effectAllowed = 'move';
