@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { P_ORDER, STATUS } from './constants.js';
 import { uid, toDateStr, parseDateTimeFromDescription, parseDescriptionDateResult, cleanDescriptionSegment, isJiraCategory, normalizeTicketNumber, applyTicketNumberToTaskName, inheritTicketFromParentTask, mergeTaskCompletionMeta } from './utils.jsx';
 import { loadData, saveData, validateBackupPayload, normalizeDataPayload, loginWithGoogleCredential, logoutSession, createProfile, deleteProfile, parseTaskWithAI, checkSession, generateTasksFromText, fetchWorkspaceData, isMultiBackupPayload, validateMultiBackupPayload, normalizeMultiBackupPayload } from './storage.js';
@@ -83,6 +83,14 @@ function buildEventOccurrences(event, windowStart, windowEnd) {
   return occurrences;
 }
 
+function serializePayload(payload) {
+  try {
+    return JSON.stringify(payload);
+  } catch {
+    return '';
+  }
+}
+
 export default function App() {
   const ACTIVE_PROFILE_STORAGE_KEY = 'taskmanager_active_profile';
   const THEME_STORAGE_KEY = 'taskmanager_theme';
@@ -126,55 +134,50 @@ export default function App() {
   const latestPayloadRef = useRef({ tasks: [], boardNotes: [], events: [] });
   const syncInFlightRef = useRef(false);
   const pendingSyncRef = useRef(false);
+  const syncNowRef = useRef(async () => false);
 
-  const serializePayload = (payload) => {
-    try {
-      return JSON.stringify(payload);
-    } catch {
-      return '';
-    }
-  };
-
-  const clearSyncDebounce = () => {
+  const clearSyncDebounce = useCallback(() => {
     if (syncDebounceTimerRef.current) {
       window.clearTimeout(syncDebounceTimerRef.current);
       syncDebounceTimerRef.current = null;
     }
-  };
+  }, []);
 
-  const syncNow = async ({ immediate = false } = {}) => {
-    if (!ready || !authenticated || hydratedSession !== authenticated || !activeProfileId) return false;
-    const payload = latestPayloadRef.current;
-    const serialized = serializePayload(payload);
-    if (!serialized || serialized === lastSyncedPayloadRef.current) return false;
+  useLayoutEffect(() => {
+    syncNowRef.current = async ({ immediate = false } = {}) => {
+      if (!ready || !authenticated || hydratedSession !== authenticated || !activeProfileId) return false;
+      const payload = latestPayloadRef.current;
+      const serialized = serializePayload(payload);
+      if (!serialized || serialized === lastSyncedPayloadRef.current) return false;
 
-    if (syncInFlightRef.current) {
-      pendingSyncRef.current = true;
-      return false;
-    }
-
-    if (immediate) clearSyncDebounce();
-
-    syncInFlightRef.current = true;
-    setSyncState('saving');
-    try {
-      await saveData(payload, authenticated, activeProfileId);
-      lastSyncedPayloadRef.current = serialized;
-      setSyncState('saved');
-      if (syncFeedbackTimerRef.current) window.clearTimeout(syncFeedbackTimerRef.current);
-      syncFeedbackTimerRef.current = window.setTimeout(() => setSyncState('idle'), 1600);
-      return true;
-    } catch {
-      setSyncState('error');
-      return false;
-    } finally {
-      syncInFlightRef.current = false;
-      if (pendingSyncRef.current) {
-        pendingSyncRef.current = false;
-        void syncNow({ immediate: true });
+      if (syncInFlightRef.current) {
+        pendingSyncRef.current = true;
+        return false;
       }
-    }
-  };
+
+      if (immediate) clearSyncDebounce();
+
+      syncInFlightRef.current = true;
+      setSyncState('saving');
+      try {
+        await saveData(payload, authenticated, activeProfileId);
+        lastSyncedPayloadRef.current = serialized;
+        setSyncState('saved');
+        if (syncFeedbackTimerRef.current) window.clearTimeout(syncFeedbackTimerRef.current);
+        syncFeedbackTimerRef.current = window.setTimeout(() => setSyncState('idle'), 1600);
+        return true;
+      } catch {
+        setSyncState('error');
+        return false;
+      } finally {
+        syncInFlightRef.current = false;
+        if (pendingSyncRef.current) {
+          pendingSyncRef.current = false;
+          void syncNowRef.current({ immediate: true });
+        }
+      }
+    };
+  }, [ready, authenticated, hydratedSession, activeProfileId, clearSyncDebounce]);
 
   useEffect(() => {
     localStorage.removeItem('userToken');
@@ -243,7 +246,7 @@ export default function App() {
 
   const handleLogout = async () => {
     try {
-      await syncNow({ immediate: true });
+      await syncNowRef.current({ immediate: true });
     } catch {
       // Best-effort flush before ending session.
     }
@@ -306,21 +309,21 @@ export default function App() {
     if (!ready || !authenticated || hydratedSession !== authenticated || !activeProfileId) return undefined;
     clearSyncDebounce();
     syncDebounceTimerRef.current = window.setTimeout(() => {
-      void syncNow();
+      void syncNowRef.current();
     }, 2000);
     return () => clearSyncDebounce();
-  }, [tasks, boardNotes, events, ready, authenticated, hydratedSession, activeProfileId]);
+  }, [tasks, boardNotes, events, ready, authenticated, hydratedSession, activeProfileId, clearSyncDebounce]);
 
   useEffect(() => {
     if (!authenticated) return undefined;
 
     const onVisibilityChange = () => {
       if (document.visibilityState === 'hidden') {
-        void syncNow({ immediate: true });
+        void syncNowRef.current({ immediate: true });
       }
     };
     const onBeforeUnload = () => {
-      void syncNow({ immediate: true });
+      void syncNowRef.current({ immediate: true });
     };
 
     document.addEventListener('visibilitychange', onVisibilityChange);
@@ -334,7 +337,7 @@ export default function App() {
   useEffect(() => () => {
     if (syncFeedbackTimerRef.current) window.clearTimeout(syncFeedbackTimerRef.current);
     clearSyncDebounce();
-  }, []);
+  }, [clearSyncDebounce]);
 
   useEffect(() => {
     const onKeyDown = (e) => {
