@@ -18,3 +18,6 @@ binding = "ASSETS"
 binding = "DB"
 database_name = "task-manager-db"
 database_id = "ab97960a-23e8-4ee6-b2f2-9821d33450d6"
+
+# Secreto requerido en producción: clave AES-256 (32 bytes) en hex de 64 caracteres o Base64 estándar.
+# wrangler secret put DATA_ENCRYPTION_KEY

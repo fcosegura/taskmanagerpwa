@@ -1,3 +1,14 @@
+import {
+  importDataEncryptionKey,
+  encryptField,
+  decryptField,
+  stableStringify,
+  sha256HexOfUtf8,
+  buildTaskPlainSnapshot,
+  buildNotePlainSnapshot,
+  buildEventPlainSnapshot
+} from './d1-field-crypto.js';
+
 const VALID_STATUS = new Set(['not_done', 'started', 'in_progress', 'paused', 'blocked', 'done']);
 const VALID_PRIORITY = new Set(['low', 'medium', 'high', 'critical']);
 const SESSION_COOKIE = '__Host-taskmanager_session';
@@ -295,7 +306,7 @@ function normalizeSyncBody(body) {
   return null;
 }
 
-function prepareTaskUpsert(env, profileId, userId, task, taskSchema) {
+async function prepareTaskUpsert(env, dataKey, profileId, userId, task, taskSchema) {
   const taskName = typeof task?.name === 'string'
     ? task.name
     : (typeof task?.description === 'string' ? task.description : '');
@@ -306,6 +317,13 @@ function prepareTaskUpsert(env, profileId, userId, task, taskSchema) {
   const hasTicketNumber = Boolean(taskSchema?.hasTicketNumber);
   const hasCompletedAt = Boolean(taskSchema?.hasCompletedAt);
 
+  const subtasksJson = JSON.stringify(task.subtasks || []);
+  const dependenciesJson = JSON.stringify(
+    [...(task.dependencyTaskIds || [])].filter((x) => typeof x === 'string').sort()
+  );
+  const snapshot = buildTaskPlainSnapshot(task, taskSchema, taskName, subtasksJson, dependenciesJson);
+  const contentHash = await sha256HexOfUtf8(stableStringify(snapshot));
+
   const columns = ['id', 'user_id', 'profile_id'];
   const placeholders = ['?', '?', '?'];
   const bindings = [
@@ -314,43 +332,37 @@ function prepareTaskUpsert(env, profileId, userId, task, taskSchema) {
     profileId
   ];
   const updates = [];
-  const changeChecks = [];
 
   if (hasName) {
     columns.push('name');
     placeholders.push('?');
-    bindings.push(taskName);
+    bindings.push(await encryptField(dataKey, taskName));
     updates.push('name = excluded.name');
-    changeChecks.push('tasks.name IS NOT excluded.name');
   }
   if (hasDescription) {
-    // Legacy compatibility: keep description in sync when the old column still exists.
     columns.push('description');
     placeholders.push('?');
-    bindings.push(taskName);
+    bindings.push(await encryptField(dataKey, taskName));
     updates.push('description = excluded.description');
-    changeChecks.push('tasks.description IS NOT excluded.description');
   }
   if (hasUrl) {
     columns.push('url');
     placeholders.push('?');
-    bindings.push(task.url || null);
+    bindings.push(await encryptField(dataKey, task.url || null));
     updates.push('url = excluded.url');
-    changeChecks.push('tasks.url IS NOT excluded.url');
   }
   if (hasNotes) {
     columns.push('notes');
     placeholders.push('?');
-    bindings.push(task.notes || null);
+    bindings.push(await encryptField(dataKey, task.notes || null));
     updates.push('notes = excluded.notes');
-    changeChecks.push('tasks.notes IS NOT excluded.notes');
   }
   if (hasTicketNumber) {
     columns.push('ticket_number');
     placeholders.push('?');
-    bindings.push(typeof task.ticketNumber === 'string' ? task.ticketNumber.trim() : null);
+    const rawTk = typeof task.ticketNumber === 'string' ? task.ticketNumber.trim() : null;
+    bindings.push(await encryptField(dataKey, rawTk));
     updates.push('ticket_number = excluded.ticket_number');
-    changeChecks.push('tasks.ticket_number IS NOT excluded.ticket_number');
   }
   if (hasCompletedAt) {
     columns.push('completed_at');
@@ -358,21 +370,26 @@ function prepareTaskUpsert(env, profileId, userId, task, taskSchema) {
     const ca = typeof task.completedAt === 'string' && task.completedAt.trim()
       ? task.completedAt.trim()
       : (typeof task.completed_at === 'string' && task.completed_at.trim() ? task.completed_at.trim() : null);
-    bindings.push(ca || null);
+    bindings.push(await encryptField(dataKey, ca || null));
     updates.push('completed_at = excluded.completed_at');
-    changeChecks.push('tasks.completed_at IS NOT excluded.completed_at');
   }
+
+  const encCategory = await encryptField(dataKey, task.category || null);
+  const encDate = await encryptField(dataKey, task.date || null);
+  const encTime = await encryptField(dataKey, task.time || null);
+  const encSubtasks = await encryptField(dataKey, subtasksJson);
+  const encDeps = await encryptField(dataKey, dependenciesJson);
 
   columns.push('status', 'priority', 'category', 'date', 'time', 'subtasks', 'dependencies', 'hide_in_kanban_done');
   placeholders.push('?', '?', '?', '?', '?', '?', '?', '?');
   bindings.push(
     task.status,
     task.priority,
-    task.category || null,
-    task.date || null,
-    task.time || null,
-    JSON.stringify(task.subtasks || []),
-    JSON.stringify(task.dependencyTaskIds || []),
+    encCategory,
+    encDate,
+    encTime,
+    encSubtasks,
+    encDeps,
     task.hideInKanbanDone ? 1 : 0
   );
   updates.push(
@@ -386,43 +403,49 @@ function prepareTaskUpsert(env, profileId, userId, task, taskSchema) {
     'hide_in_kanban_done = excluded.hide_in_kanban_done',
     'updated_at = CURRENT_TIMESTAMP'
   );
-  changeChecks.push(
-    'tasks.status IS NOT excluded.status',
-    'tasks.priority IS NOT excluded.priority',
-    'tasks.category IS NOT excluded.category',
-    'tasks.date IS NOT excluded.date',
-    'tasks.time IS NOT excluded.time',
-    'tasks.subtasks IS NOT excluded.subtasks',
-    'tasks.dependencies IS NOT excluded.dependencies',
-    'tasks.hide_in_kanban_done IS NOT excluded.hide_in_kanban_done'
-  );
+
+  columns.push('content_hash');
+  placeholders.push('?');
+  bindings.push(contentHash);
+  updates.push('content_hash = excluded.content_hash');
 
   const statement =
     `INSERT INTO tasks (${columns.join(', ')}) VALUES (${placeholders.join(', ')}) ` +
     `ON CONFLICT(id) DO UPDATE SET ${updates.join(', ')} ` +
-    `WHERE tasks.user_id = excluded.user_id AND tasks.profile_id = excluded.profile_id AND (${changeChecks.join(' OR ')})`;
+    'WHERE tasks.user_id = excluded.user_id AND tasks.profile_id = excluded.profile_id AND ' +
+    '(tasks.content_hash IS NOT excluded.content_hash OR tasks.content_hash IS NULL)';
   return env.DB.prepare(statement).bind(...bindings);
 }
 
-function prepareNoteUpsert(env, profileId, userId, note) {
+async function prepareNoteUpsert(env, dataKey, profileId, userId, note) {
+  const title = typeof note.title === 'string' ? note.title : '';
+  const text = typeof note.text === 'string' ? note.text : '';
+  const x = note.x || 0;
+  const y = note.y || 0;
+  const snap = buildNotePlainSnapshot({ title, text, x, y });
+  const contentHash = await sha256HexOfUtf8(stableStringify(snap));
+  const encTitle = await encryptField(dataKey, title);
+  const encText = await encryptField(dataKey, text);
   return env.DB.prepare(
-    "INSERT INTO notes (id, user_id, profile_id, title, text, x, y) VALUES (?, ?, ?, ?, ?, ?, ?) " +
+    "INSERT INTO notes (id, user_id, profile_id, title, text, x, y, content_hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?) " +
     "ON CONFLICT(id) DO UPDATE SET " +
-    "title = excluded.title, text = excluded.text, x = excluded.x, y = excluded.y, updated_at = CURRENT_TIMESTAMP " +
+    "title = excluded.title, text = excluded.text, x = excluded.x, y = excluded.y, " +
+    "content_hash = excluded.content_hash, updated_at = CURRENT_TIMESTAMP " +
     "WHERE notes.user_id = excluded.user_id AND notes.profile_id = excluded.profile_id AND (" +
-    "notes.title IS NOT excluded.title OR notes.text IS NOT excluded.text OR notes.x IS NOT excluded.x OR notes.y IS NOT excluded.y)"
+    "notes.content_hash IS NOT excluded.content_hash OR notes.content_hash IS NULL)"
   ).bind(
     scopedEntityId(profileId, note.id),
     userId,
     profileId,
-    note.title || '',
-    note.text || '',
-    note.x || 0,
-    note.y || 0
+    encTitle,
+    encText,
+    x,
+    y,
+    contentHash
   );
 }
 
-function prepareEventUpsert(env, profileId, userId, event) {
+async function prepareEventUpsert(env, dataKey, profileId, userId, event) {
   const allDay = event.allDay === false || event.allDay === 0 ? 0 : 1;
   const startTime = allDay === 0 && typeof event.startTime === 'string' && event.startTime ? event.startTime : null;
   const endTime = allDay === 0 && typeof event.endTime === 'string' && event.endTime ? event.endTime : null;
@@ -440,34 +463,55 @@ function prepareEventUpsert(env, profileId, userId, event) {
   const recurrenceCount = recurrenceFrequency === 'none'
     ? null
     : (Number.isFinite(parsedRecurrenceCount) && parsedRecurrenceCount > 0 ? parsedRecurrenceCount : null);
+  const endDate = event.endDate || null;
+  const color = event.color || '#3b82f6';
+  const norm = {
+    allDay,
+    color,
+    endDate,
+    endTime,
+    recurrenceCount,
+    recurrenceFrequency,
+    recurrenceInterval,
+    recurrenceUntil,
+    startTime
+  };
+  const snap = buildEventPlainSnapshot(event, norm);
+  const contentHash = await sha256HexOfUtf8(stableStringify(snap));
+  const encTitle = await encryptField(dataKey, event.title);
+  const encStartDate = await encryptField(dataKey, event.startDate);
+  const encEndDate = await encryptField(dataKey, endDate);
+  const encColor = await encryptField(dataKey, color);
+  const encStartTime = await encryptField(dataKey, startTime);
+  const encEndTime = await encryptField(dataKey, endTime);
+  const encFreq = await encryptField(dataKey, recurrenceFrequency);
+  const encUntil = await encryptField(dataKey, recurrenceUntil);
+  const storedInterval = recurrenceFrequency === 'none' ? 1 : recurrenceInterval;
   return env.DB.prepare(
-    "INSERT INTO events (id, user_id, profile_id, title, startDate, endDate, color, allDay, startTime, endTime, recurrenceFrequency, recurrenceInterval, recurrenceUntil, recurrenceCount) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) " +
+    "INSERT INTO events (id, user_id, profile_id, title, startDate, endDate, color, allDay, startTime, endTime, recurrenceFrequency, recurrenceInterval, recurrenceUntil, recurrenceCount, content_hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) " +
     "ON CONFLICT(id) DO UPDATE SET " +
     "title = excluded.title, startDate = excluded.startDate, endDate = excluded.endDate, color = excluded.color, " +
     "allDay = excluded.allDay, startTime = excluded.startTime, endTime = excluded.endTime, " +
     "recurrenceFrequency = excluded.recurrenceFrequency, recurrenceInterval = excluded.recurrenceInterval, recurrenceUntil = excluded.recurrenceUntil, recurrenceCount = excluded.recurrenceCount, " +
-    "updated_at = CURRENT_TIMESTAMP " +
+    "content_hash = excluded.content_hash, updated_at = CURRENT_TIMESTAMP " +
     "WHERE events.user_id = excluded.user_id AND events.profile_id = excluded.profile_id AND (" +
-    "events.title IS NOT excluded.title OR events.startDate IS NOT excluded.startDate OR events.endDate IS NOT excluded.endDate OR " +
-    "events.color IS NOT excluded.color OR events.allDay IS NOT excluded.allDay OR " +
-    "events.startTime IS NOT excluded.startTime OR events.endTime IS NOT excluded.endTime OR " +
-    "events.recurrenceFrequency IS NOT excluded.recurrenceFrequency OR events.recurrenceInterval IS NOT excluded.recurrenceInterval OR " +
-    "events.recurrenceUntil IS NOT excluded.recurrenceUntil OR events.recurrenceCount IS NOT excluded.recurrenceCount)"
+    "events.content_hash IS NOT excluded.content_hash OR events.content_hash IS NULL)"
   ).bind(
     scopedEntityId(profileId, event.id),
     userId,
     profileId,
-    event.title,
-    event.startDate,
-    event.endDate || null,
-    event.color || '#3b82f6',
+    encTitle,
+    encStartDate,
+    encEndDate,
+    encColor,
     allDay,
-    startTime,
-    endTime,
-    recurrenceFrequency,
-    recurrenceFrequency === 'none' ? 1 : recurrenceInterval,
-    recurrenceUntil,
-    recurrenceCount
+    encStartTime,
+    encEndTime,
+    encFreq,
+    storedInterval,
+    encUntil,
+    recurrenceCount,
+    contentHash
   );
 }
 
@@ -503,6 +547,9 @@ async function ensureProfilesSchema(env) {
   await safeExec("ALTER TABLE events ADD COLUMN recurrenceInterval INTEGER DEFAULT 1");
   await safeExec("ALTER TABLE events ADD COLUMN recurrenceUntil TEXT");
   await safeExec("ALTER TABLE events ADD COLUMN recurrenceCount INTEGER");
+  await safeExec("ALTER TABLE tasks ADD COLUMN content_hash TEXT");
+  await safeExec("ALTER TABLE notes ADD COLUMN content_hash TEXT");
+  await safeExec("ALTER TABLE events ADD COLUMN content_hash TEXT");
 
   const hasProfileColumn = async (tableName) => {
     try {
@@ -537,11 +584,12 @@ async function ensureProfilesSchema(env) {
   };
 }
 
-async function ensureDefaultProfile(env, userId) {
+async function ensureDefaultProfile(env, userId, dataKey) {
   const defaultProfileId = `${userId}:work`;
+  const defaultNameEnc = await encryptField(dataKey, 'Trabajo');
   await env.DB.prepare(
     "INSERT OR IGNORE INTO profiles (id, user_id, name) VALUES (?, ?, ?)"
-  ).bind(defaultProfileId, userId, 'Trabajo').run();
+  ).bind(defaultProfileId, userId, defaultNameEnc).run();
 
   // Migrate legacy rows with NULL profile_id into default profile.
   await env.DB.batch([
@@ -553,13 +601,25 @@ async function ensureDefaultProfile(env, userId) {
   return defaultProfileId;
 }
 
-async function resolveProfileId(env, userId, requestedProfileId) {
-  const defaultProfileId = await ensureDefaultProfile(env, userId);
+async function resolveProfileId(env, userId, requestedProfileId, dataKey) {
+  const defaultProfileId = await ensureDefaultProfile(env, userId, dataKey);
   if (!requestedProfileId) return defaultProfileId;
   const row = await env.DB.prepare(
     "SELECT id FROM profiles WHERE id = ? AND user_id = ?"
   ).bind(requestedProfileId, userId).first();
   return row?.id || defaultProfileId;
+}
+
+async function decryptProfileRows(dataKey, rows) {
+  if (!Array.isArray(rows)) return [];
+  const out = [];
+  for (const p of rows) {
+    out.push({
+      ...p,
+      name: await decryptField(dataKey, p.name)
+    });
+  }
+  return out;
 }
 
 function sanitizeProfileName(name) {
@@ -898,7 +958,7 @@ async function authenticate(request, env) {
 }
 
 export default {
-  // Worker Version: 2026.05.13.1
+  // Worker Version: 2026.05.13.2
   async fetch(request, env) {
     const url = new URL(request.url);
 
@@ -950,8 +1010,12 @@ export default {
           return json({ authenticated: true });
         }
         const taskSchema = await ensureProfilesSchema(env);
+        const dataKey = await importDataEncryptionKey(env.DATA_ENCRYPTION_KEY);
+        if (!dataKey) {
+          return json({ error: 'data_encryption_misconfigured' }, { status: 500 });
+        }
         const requestedProfileId = url.searchParams.get('profileId');
-        const profileId = await resolveProfileId(env, userId, requestedProfileId);
+        const profileId = await resolveProfileId(env, userId, requestedProfileId, dataKey);
 
         if (request.method === 'POST' && path === '/ai/parse-task') {
           let body = null;
@@ -1022,9 +1086,10 @@ export default {
           const name = sanitizeProfileName(body?.name);
           if (!name) return json({ error: 'Nombre de perfil inválido' }, { status: 400 });
           const newProfile = { id: buildProfileId(userId, name), name };
+          const nameEnc = await encryptField(dataKey, newProfile.name);
           await env.DB.prepare(
             "INSERT INTO profiles (id, user_id, name) VALUES (?, ?, ?)"
-          ).bind(newProfile.id, userId, newProfile.name).run();
+          ).bind(newProfile.id, userId, nameEnc).run();
           return json({ profile: newProfile });
         }
 
@@ -1043,7 +1108,8 @@ export default {
               "SELECT id, name, created_at, updated_at FROM profiles WHERE user_id = ? ORDER BY created_at ASC"
             ).bind(userId).all();
             const fallbackProfileId = currentProfiles[0]?.id || null;
-            return json({ error: 'El workspace no existe.', profiles: currentProfiles, activeProfileId: fallbackProfileId }, { status: 404 });
+            const profilesOut = await decryptProfileRows(dataKey, currentProfiles);
+            return json({ error: 'El workspace no existe.', profiles: profilesOut, activeProfileId: fallbackProfileId }, { status: 404 });
           }
           if (userProfiles.length <= 1) {
             return json({ error: 'No puedes borrar el único workspace.' }, { status: 400 });
@@ -1061,7 +1127,8 @@ export default {
           ).bind(userId).all();
 
           const fallbackProfileId = remainingProfiles[0]?.id || null;
-          return json({ success: true, profiles: remainingProfiles, activeProfileId: fallbackProfileId });
+          const remainingOut = await decryptProfileRows(dataKey, remainingProfiles);
+          return json({ success: true, profiles: remainingOut, activeProfileId: fallbackProfileId });
         }
 
         if (request.method === 'GET' && path === '/data') {
@@ -1077,45 +1144,119 @@ export default {
           const { results: events } = await env.DB.prepare(
             "SELECT * FROM events WHERE user_id = ? AND profile_id = ?"
           ).bind(userId, profileId).all();
-          
-          const parsedTasks = tasks.map((t) => ({
-            ...t,
-            name: typeof t.name === 'string' ? t.name : (typeof t.description === 'string' ? t.description : ''),
-            url: typeof t.url === 'string' ? t.url : '',
-            notes: typeof t.notes === 'string' ? t.notes : '',
-            id: unscopedEntityId(profileId, t.id),
-            hideInKanbanDone: Boolean(t.hide_in_kanban_done),
-            subtasks: JSON.parse(t.subtasks || '[]'),
-            dependencyTaskIds: JSON.parse(t.dependencies || '[]'),
-            ticketNumber: typeof t.ticket_number === 'string' ? t.ticket_number : '',
-            completedAt: typeof t.completed_at === 'string' && t.completed_at ? t.completed_at : ''
-          }));
-          const parsedNotes = notes.map(({ created_at, updated_at, ...note }) => ({
-            ...note,
-            id: unscopedEntityId(profileId, note.id),
-            createdAt: created_at,
-            updatedAt: updated_at
-          }));
-          const parsedEvents = events.map(({ created_at, updated_at, ...event }) => ({
-            ...event,
-            id: unscopedEntityId(profileId, event.id),
-            createdAt: created_at,
-            updatedAt: updated_at,
-            allDay: event.allDay === 0 || event.allDay === false ? false : true,
-            startTime: typeof event.startTime === 'string' ? event.startTime : '',
-            endTime: typeof event.endTime === 'string' ? event.endTime : '',
-            recurrenceFrequency: ['none', 'daily', 'weekly', 'monthly'].includes(event.recurrenceFrequency)
-              ? event.recurrenceFrequency
-              : 'none',
-            recurrenceInterval: Number.isFinite(Number(event.recurrenceInterval)) && Number(event.recurrenceInterval) > 0
-              ? Number(event.recurrenceInterval)
-              : 1,
-            recurrenceUntil: typeof event.recurrenceUntil === 'string' ? event.recurrenceUntil : '',
-            recurrenceCount: Number.isFinite(Number(event.recurrenceCount)) && Number(event.recurrenceCount) > 0
-              ? Number(event.recurrenceCount)
-              : null,
-          }));
-          return json({ tasks: parsedTasks, boardNotes: parsedNotes, events: parsedEvents, profiles, activeProfileId: profileId });
+
+          const profilesOut = await decryptProfileRows(dataKey, profiles);
+
+          const parsedTasks = [];
+          for (const t of tasks || []) {
+            const tr = { ...t };
+            delete tr.content_hash;
+            const nameDec = await decryptField(dataKey, tr.name);
+            const descDec = tr.description != null ? await decryptField(dataKey, tr.description) : '';
+            const nameOut = typeof nameDec === 'string' && nameDec !== ''
+              ? nameDec
+              : (typeof descDec === 'string' ? descDec : '');
+            const urlOut = (await decryptField(dataKey, tr.url)) || '';
+            const notesOut = (await decryptField(dataKey, tr.notes)) || '';
+            const ticketOut = (await decryptField(dataKey, tr.ticket_number)) || '';
+            const categoryOut = (await decryptField(dataKey, tr.category)) || null;
+            const dateOut = (await decryptField(dataKey, tr.date)) || null;
+            const timeOut = (await decryptField(dataKey, tr.time)) || null;
+            const completedOut = (await decryptField(dataKey, tr.completed_at)) || '';
+            const subRaw = await decryptField(dataKey, tr.subtasks || '[]');
+            const depRaw = await decryptField(dataKey, tr.dependencies || '[]');
+            let subtasks = [];
+            let dependencyTaskIds = [];
+            try {
+              subtasks = JSON.parse(subRaw || '[]');
+            } catch {
+              subtasks = [];
+            }
+            try {
+              dependencyTaskIds = JSON.parse(depRaw || '[]');
+            } catch {
+              dependencyTaskIds = [];
+            }
+            parsedTasks.push({
+              ...tr,
+              name: nameOut,
+              url: typeof urlOut === 'string' ? urlOut : '',
+              notes: typeof notesOut === 'string' ? notesOut : '',
+              id: unscopedEntityId(profileId, tr.id),
+              hideInKanbanDone: Boolean(tr.hide_in_kanban_done),
+              subtasks,
+              dependencyTaskIds,
+              ticketNumber: typeof ticketOut === 'string' ? ticketOut : '',
+              completedAt: typeof completedOut === 'string' && completedOut ? completedOut : '',
+              category: categoryOut,
+              date: dateOut,
+              time: timeOut
+            });
+          }
+
+          const parsedNotes = [];
+          for (const note of notes || []) {
+            const { created_at, updated_at, ...restIn } = note;
+            const rest = { ...restIn };
+            delete rest.content_hash;
+            const titleDec = await decryptField(dataKey, rest.title);
+            const textDec = await decryptField(dataKey, rest.text);
+            parsedNotes.push({
+              ...rest,
+              title: typeof titleDec === 'string' ? titleDec : '',
+              text: typeof textDec === 'string' ? textDec : '',
+              id: unscopedEntityId(profileId, rest.id),
+              createdAt: created_at,
+              updatedAt: updated_at
+            });
+          }
+
+          const parsedEvents = [];
+          for (const event of events || []) {
+            const { created_at, updated_at, ...evIn } = event;
+            const ev = { ...evIn };
+            delete ev.content_hash;
+            const titleDec = await decryptField(dataKey, ev.title);
+            const startDateDec = await decryptField(dataKey, ev.startDate);
+            const endDateDec = await decryptField(dataKey, ev.endDate);
+            const colorDec = await decryptField(dataKey, ev.color);
+            const startTimeDec = await decryptField(dataKey, ev.startTime);
+            const endTimeDec = await decryptField(dataKey, ev.endTime);
+            const freqDec = await decryptField(dataKey, ev.recurrenceFrequency);
+            const untilDec = await decryptField(dataKey, ev.recurrenceUntil);
+            const freqStr = freqDec == null ? '' : String(freqDec);
+            parsedEvents.push({
+              ...ev,
+              title: typeof titleDec === 'string' ? titleDec : '',
+              startDate: typeof startDateDec === 'string' ? startDateDec : '',
+              endDate: typeof endDateDec === 'string' ? endDateDec : '',
+              color: typeof colorDec === 'string' ? colorDec : '#3b82f6',
+              startTime: typeof startTimeDec === 'string' ? startTimeDec : '',
+              endTime: typeof endTimeDec === 'string' ? endTimeDec : '',
+              recurrenceFrequency: ['none', 'daily', 'weekly', 'monthly'].includes(freqStr)
+                ? freqStr
+                : 'none',
+              recurrenceUntil: typeof untilDec === 'string' ? untilDec : '',
+              id: unscopedEntityId(profileId, ev.id),
+              createdAt: created_at,
+              updatedAt: updated_at,
+              allDay: ev.allDay === 0 || ev.allDay === false ? false : true,
+              recurrenceInterval: Number.isFinite(Number(ev.recurrenceInterval)) && Number(ev.recurrenceInterval) > 0
+                ? Number(ev.recurrenceInterval)
+                : 1,
+              recurrenceCount: Number.isFinite(Number(ev.recurrenceCount)) && Number(ev.recurrenceCount) > 0
+                ? Number(ev.recurrenceCount)
+                : null
+            });
+          }
+
+          return json({
+            tasks: parsedTasks,
+            boardNotes: parsedNotes,
+            events: parsedEvents,
+            profiles: profilesOut,
+            activeProfileId: profileId
+          });
         }
 
         if (request.method === 'POST' && path === '/sync') {
@@ -1129,7 +1270,7 @@ export default {
           if (!limitCheck.ok) {
             return json({ error: limitCheck.error }, { status: 413 });
           }
-          const syncProfileId = await resolveProfileId(env, userId, normalizedBody.profileId);
+          const syncProfileId = await resolveProfileId(env, userId, normalizedBody.profileId, dataKey);
           const batch = [];
           let taskCount = 0;
           let noteCount = 0;
@@ -1148,13 +1289,13 @@ export default {
             );
 
             for (const t of tasks) {
-              batch.push(prepareTaskUpsert(env, syncProfileId, userId, t, taskSchema));
+              batch.push(await prepareTaskUpsert(env, dataKey, syncProfileId, userId, t, taskSchema));
             }
             for (const n of boardNotes) {
-              batch.push(prepareNoteUpsert(env, syncProfileId, userId, n));
+              batch.push(await prepareNoteUpsert(env, dataKey, syncProfileId, userId, n));
             }
             for (const e of events) {
-              batch.push(prepareEventUpsert(env, syncProfileId, userId, e));
+              batch.push(await prepareEventUpsert(env, dataKey, syncProfileId, userId, e));
             }
           } else {
             const { tasks, notes, events } = normalizedBody.ops;
@@ -1182,13 +1323,13 @@ export default {
             }
 
             for (const t of tasks.upserts) {
-              batch.push(prepareTaskUpsert(env, syncProfileId, userId, t, taskSchema));
+              batch.push(await prepareTaskUpsert(env, dataKey, syncProfileId, userId, t, taskSchema));
             }
             for (const n of notes.upserts) {
-              batch.push(prepareNoteUpsert(env, syncProfileId, userId, n));
+              batch.push(await prepareNoteUpsert(env, dataKey, syncProfileId, userId, n));
             }
             for (const e of events.upserts) {
-              batch.push(prepareEventUpsert(env, syncProfileId, userId, e));
+              batch.push(await prepareEventUpsert(env, dataKey, syncProfileId, userId, e));
             }
           }
 
