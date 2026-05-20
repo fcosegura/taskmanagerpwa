@@ -14,6 +14,13 @@ const inputStyle = {
   background: 'var(--color-background-primary)',
 };
 
+function hmToMinutes(t) {
+  if (typeof t !== 'string' || !t.includes(':')) return NaN;
+  const [h, m] = t.split(':').map((x) => Number.parseInt(x, 10));
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return NaN;
+  return h * 60 + m;
+}
+
 function slotToForm(slot) {
   return {
     date: slot?.date || '',
@@ -36,6 +43,7 @@ export default function AgendaPlanModal({
     ...slotToForm(editingSlot),
     date: editingSlot?.date || initialDateStr || '',
   }));
+  const [timeRangeError, setTimeRangeError] = useState('');
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -52,6 +60,15 @@ export default function AgendaPlanModal({
     e.preventDefault();
     const tid = isEdit ? editingTask.id : taskId;
     if (!tid || !form.date) return;
+
+    const startMin = hmToMinutes(form.startTime);
+    const endMin = hmToMinutes(form.endTime);
+    if (!Number.isFinite(startMin) || !Number.isFinite(endMin) || endMin <= startMin) {
+      setTimeRangeError('La hora de fin debe ser posterior a la de inicio.');
+      return;
+    }
+    setTimeRangeError('');
+
     const nextSlot = {
       id: isEdit ? editingSlot.id : uid(),
       date: form.date,
@@ -167,14 +184,17 @@ export default function AgendaPlanModal({
           />
         </label>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 18 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: timeRangeError ? 8 : 18 }}>
           <label style={fieldLabelStyle}>
             <span style={{ fontWeight: 600 }}>Inicio</span>
             <input
               type="time"
               step={1800}
               value={form.startTime}
-              onChange={(ev) => setForm((f) => ({ ...f, startTime: ev.target.value }))}
+              onChange={(ev) => {
+                setTimeRangeError('');
+                setForm((f) => ({ ...f, startTime: ev.target.value }));
+              }}
               required
               style={inputStyle}
             />
@@ -185,12 +205,23 @@ export default function AgendaPlanModal({
               type="time"
               step={1800}
               value={form.endTime}
-              onChange={(ev) => setForm((f) => ({ ...f, endTime: ev.target.value }))}
+              onChange={(ev) => {
+                setTimeRangeError('');
+                setForm((f) => ({ ...f, endTime: ev.target.value }));
+              }}
               required
               style={inputStyle}
+              aria-invalid={timeRangeError ? true : undefined}
+              aria-describedby={timeRangeError ? 'agenda-time-error' : undefined}
             />
           </label>
         </div>
+
+        {timeRangeError ? (
+          <div id="agenda-time-error" role="alert" style={{ fontSize: 12, color: 'var(--color-text-danger)', marginBottom: 14 }}>
+            {timeRangeError}
+          </div>
+        ) : null}
 
         {isEdit && (
           <button
