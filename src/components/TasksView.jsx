@@ -1,5 +1,6 @@
 import { useMemo, useState, useCallback } from 'react';
 import { STATUS } from '../constants.js';
+import { compareTasksForTaskList } from '../utils.jsx';
 import { Chip } from './shared/index.jsx';
 import TaskRow from './TaskRow.jsx';
 
@@ -64,7 +65,7 @@ export default function TasksView({
 
   const { orderedTasks, parentByChild, visibleIds } = useMemo(() => {
     const vIds = new Set(tasks.map((task) => task.id));
-    const indexById = new Map(tasks.map((task, index) => [task.id, index]));
+    const taskById = new Map(tasks.map((task) => [task.id, task]));
     const pbc = new Map();
     const cbp = new Map();
 
@@ -78,7 +79,19 @@ export default function TasksView({
     }
 
     for (const [parentId, childIds] of cbp.entries()) {
-      childIds.sort((left, right) => (indexById.get(left) ?? 0) - (indexById.get(right) ?? 0));
+      const parent = taskById.get(parentId);
+      const depOrder = new Map(
+        (parent?.dependencyTaskIds || []).map((id, index) => [id, index]),
+      );
+      childIds.sort((left, right) => {
+        const ta = taskById.get(left);
+        const tb = taskById.get(right);
+        if (ta && tb) {
+          const cmp = compareTasksForTaskList(ta, tb);
+          if (cmp !== 0) return cmp;
+        }
+        return (depOrder.get(left) ?? 0) - (depOrder.get(right) ?? 0);
+      });
       cbp.set(parentId, [...new Set(childIds)]);
     }
 

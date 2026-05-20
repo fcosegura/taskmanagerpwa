@@ -1,6 +1,6 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
-import { P_ORDER, STATUS } from './constants.js';
-import { uid, toDateStr, parseDateTimeFromDescription, parseDescriptionDateResult, cleanDescriptionSegment, isJiraCategory, normalizeTicketNumber, applyTicketNumberToTaskName, inheritTicketFromParentTask, mergeTaskCompletionMeta } from './utils.jsx';
+import { STATUS } from './constants.js';
+import { uid, toDateStr, compareTasksForTaskList, parseDateTimeFromDescription, parseDescriptionDateResult, cleanDescriptionSegment, isJiraCategory, normalizeTicketNumber, applyTicketNumberToTaskName, inheritTicketFromParentTask, mergeTaskCompletionMeta } from './utils.jsx';
 import { loadData, saveData, validateBackupPayload, normalizeDataPayload, loginWithGoogleCredential, logoutSession, createProfile, deleteProfile, parseTaskWithAI, checkSession, generateTasksFromText, fetchWorkspaceData, isMultiBackupPayload, validateMultiBackupPayload, normalizeMultiBackupPayload } from './storage.js';
 import TasksView from './components/TasksView.jsx';
 import CalendarView from './components/CalendarView.jsx';
@@ -969,13 +969,7 @@ export default function App() {
   const bySearch = normalizedSearch
     ? bySummary.filter((t) => t.name.toLowerCase().includes(normalizedSearch) || (t.category || '').toLowerCase().includes(normalizedSearch))
     : bySummary;
-  const sorted = [...bySearch].sort((a, b) => {
-    if (a.status === 'done' && b.status !== 'done') return 1;
-    if (b.status === 'done' && a.status !== 'done') return -1;
-    if (a.status === 'blocked' && b.status !== 'blocked') return -1;
-    if (b.status === 'blocked' && a.status !== 'blocked') return 1;
-    return (P_ORDER[a.priority] ?? 3) - (P_ORDER[b.priority] ?? 3);
-  });
+  const sorted = [...bySearch].sort(compareTasksForTaskList);
 
   const statusBase = categoryFilter === 'all' ? focusTasks : focusTasks.filter((t) => t.category === categoryFilter);
   const statusCounts = statusBase.reduce((acc, t) => { const key = t.status || 'not_done'; acc[key] = (acc[key] || 0) + 1; return acc; }, {});
