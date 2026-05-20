@@ -4,26 +4,29 @@ import { fmtDate, parseDateTimeFromDescription, parseDescriptionDateResult, clea
 import { parseTaskWithAI } from '../storage.js';
 
 export default function TaskModal({ task, categories, allTasks = [], onSave, onDelete, onClose }) {
-  const parentTasks = allTasks.filter((candidate) => (candidate.dependencyTaskIds || []).includes(task.id));
+  const { _taskModalInitialAdvanced, ...taskRest } = task;
+  const parentTasks = allTasks.filter((candidate) => (candidate.dependencyTaskIds || []).includes(taskRest.id));
   const isChildTask = parentTasks.length > 0;
   const availableDependencyTasks = allTasks.filter((candidate) => (
-    candidate.id !== task.id &&
+    candidate.id !== taskRest.id &&
     candidate.status !== 'done' &&
     !parentTasks.some((parentTask) => parentTask.id === candidate.id)
   ));
   const [form, setForm] = useState({
-    ...task,
-    name: task.name || '',
-    url: task.url || '',
-    notes: task.notes || '',
-    subtasks: task.subtasks || [],
-    dependencyTaskIds: task.dependencyTaskIds || [],
-    category: task.category || '',
-    ticketNumber: task.ticketNumber || '',
-    time: task.time || '',
-    hideInKanbanDone: Boolean(task.hideInKanbanDone)
+    ...taskRest,
+    name: taskRest.name || '',
+    url: taskRest.url || '',
+    notes: taskRest.notes || '',
+    subtasks: taskRest.subtasks || [],
+    dependencyTaskIds: taskRest.dependencyTaskIds || [],
+    category: taskRest.category || '',
+    ticketNumber: taskRest.ticketNumber || '',
+    time: taskRest.time || '',
+    hideInKanbanDone: Boolean(taskRest.hideInKanbanDone)
   });
-  const [showAdvanced, setShowAdvanced] = useState(Boolean(task.id));
+  const [showAdvanced, setShowAdvanced] = useState(
+    _taskModalInitialAdvanced !== undefined ? Boolean(_taskModalInitialAdvanced) : Boolean(taskRest.id)
+  );
   const [newCategory, setNewCategory] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
   const [aiFeedback, setAiFeedback] = useState('');
@@ -127,9 +130,9 @@ export default function TaskModal({ task, categories, allTasks = [], onSave, onD
     <form className="liquid-glass-modal" onSubmit={onSubmit} style={{ width: 'min(420px, 100%)', maxWidth: 'calc(100% - 32px)', borderRadius: 'var(--border-radius-lg)', padding: 24, color: 'var(--color-text-primary)' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, gap: 12, flexWrap: 'wrap' }}>
         <div>
-          <div style={{ fontSize: 18, fontWeight: 700 }}>{task.id ? 'Editar tarea' : 'Nueva tarea'}</div>
+          <div style={{ fontSize: 18, fontWeight: 700 }}>{taskRest.id ? 'Editar tarea' : 'Nueva tarea'}</div>
           <div style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginTop: 4 }}>
-            {task.id ? 'Actualiza los detalles de la tarea.' : 'Crea una tarea nueva rápidamente.'}
+            {taskRest.id ? 'Actualiza los detalles de la tarea.' : 'Crea una tarea nueva rápidamente.'}
           </div>
         </div>
         <button type="button" onClick={onClose} aria-label="Cerrar modal" style={{ border: 'none', background: 'transparent', color: 'var(--color-text-secondary)', cursor: 'pointer', fontSize: 22, lineHeight: 1 }}>×</button>

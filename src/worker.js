@@ -8,6 +8,7 @@ import {
   buildNotePlainSnapshot,
   buildEventPlainSnapshot
 } from './d1-field-crypto.js';
+import { isPlannedSlotsArrayShape, normalizePlannedSlots } from './plannedSlots.js';
 
 const VALID_STATUS = new Set(['not_done', 'started', 'in_progress', 'paused', 'blocked', 'done']);
 const VALID_PRIORITY = new Set(['low', 'medium', 'high', 'critical']);
@@ -223,7 +224,8 @@ function isValidTask(task) {
       typeof st.id === 'string' &&
       typeof st.text === 'string' &&
       typeof st.done === 'boolean'
-    ))
+    )) &&
+    isPlannedSlotsArrayShape(task.plannedSlots)
   );
 }
 
@@ -379,9 +381,11 @@ async function prepareTaskUpsert(env, dataKey, profileId, userId, task, taskSche
   const encTime = await encryptField(dataKey, task.time || null);
   const encSubtasks = await encryptField(dataKey, subtasksJson);
   const encDeps = await encryptField(dataKey, dependenciesJson);
+  const plannedSlotsJson = JSON.stringify(normalizePlannedSlots(task.plannedSlots));
+  const encPlannedSlots = await encryptField(dataKey, plannedSlotsJson);
 
-  columns.push('status', 'priority', 'category', 'date', 'time', 'subtasks', 'dependencies', 'hide_in_kanban_done');
-  placeholders.push('?', '?', '?', '?', '?', '?', '?', '?');
+  columns.push('status', 'priority', 'category', 'date', 'time', 'subtasks', 'dependencies', 'hide_in_kanban_done', 'planned_slots');
+  placeholders.push('?', '?', '?', '?', '?', '?', '?', '?', '?');
   bindings.push(
     task.status,
     task.priority,
@@ -390,7 +394,8 @@ async function prepareTaskUpsert(env, dataKey, profileId, userId, task, taskSche
     encTime,
     encSubtasks,
     encDeps,
-    task.hideInKanbanDone ? 1 : 0
+    task.hideInKanbanDone ? 1 : 0,
+    encPlannedSlots
   );
   updates.push(
     'status = excluded.status',
@@ -401,6 +406,7 @@ async function prepareTaskUpsert(env, dataKey, profileId, userId, task, taskSche
     'subtasks = excluded.subtasks',
     'dependencies = excluded.dependencies',
     'hide_in_kanban_done = excluded.hide_in_kanban_done',
+    'planned_slots = excluded.planned_slots',
     'updated_at = CURRENT_TIMESTAMP'
   );
 
@@ -550,6 +556,7 @@ async function ensureProfilesSchema(env) {
   await safeExec("ALTER TABLE tasks ADD COLUMN content_hash TEXT");
   await safeExec("ALTER TABLE notes ADD COLUMN content_hash TEXT");
   await safeExec("ALTER TABLE events ADD COLUMN content_hash TEXT");
+  await safeExec("ALTER TABLE tasks ADD COLUMN planned_slots TEXT");
 
   const hasProfileColumn = async (tableName) => {
     try {
@@ -1165,8 +1172,10 @@ export default {
             const completedOut = (await decryptField(dataKey, tr.completed_at)) || '';
             const subRaw = await decryptField(dataKey, tr.subtasks || '[]');
             const depRaw = await decryptField(dataKey, tr.dependencies || '[]');
+            const plannedRaw = await decryptField(dataKey, tr.planned_slots || '[]');
             let subtasks = [];
             let dependencyTaskIds = [];
+            let plannedSlots = [];
             try {
               subtasks = JSON.parse(subRaw || '[]');
             } catch {
@@ -1177,6 +1186,12 @@ export default {
             } catch {
               dependencyTaskIds = [];
             }
+            try {
+              plannedSlots = JSON.parse(plannedRaw || '[]');
+            } catch {
+              plannedSlots = [];
+            }
+            delete tr.planned_slots;
             parsedTasks.push({
               ...tr,
               name: nameOut,
@@ -1186,6 +1201,7 @@ export default {
               hideInKanbanDone: Boolean(tr.hide_in_kanban_done),
               subtasks,
               dependencyTaskIds,
+              plannedSlots: normalizePlannedSlots(plannedSlots),
               ticketNumber: typeof ticketOut === 'string' ? ticketOut : '',
               completedAt: typeof completedOut === 'string' && completedOut ? completedOut : '',
               category: categoryOut,

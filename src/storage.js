@@ -1,4 +1,5 @@
 import { STORAGE_KEY, STATUS, PRIORITY } from './constants.js';
+import { isPlannedSlotsArrayShape, normalizePlannedSlots } from './plannedSlots.js';
 
 const lastCloudSnapshotByProfile = new Map();
 
@@ -98,7 +99,7 @@ function hasAnyData(payload) {
 
 export function isValidTask(task) {
   if (!task || typeof task !== 'object') return false;
-  const { id, name, status, priority, subtasks, category, date, time, dependencyTaskIds, url, notes, ticketNumber, completedAt } = task;
+  const { id, name, status, priority, subtasks, category, date, time, dependencyTaskIds, url, notes, ticketNumber, completedAt, plannedSlots } = task;
   if (typeof id !== 'string' || typeof name !== 'string') return false;
   if (typeof status !== 'string' || !STATUS.some((s) => s.v === status)) return false;
   if (typeof priority !== 'string' || !PRIORITY.some((p) => p.v === priority)) return false;
@@ -112,6 +113,7 @@ export function isValidTask(task) {
   if (!Array.isArray(subtasks)) return false;
   if (dependencyTaskIds !== undefined && !Array.isArray(dependencyTaskIds)) return false;
   if (Array.isArray(dependencyTaskIds) && !dependencyTaskIds.every((id) => typeof id === 'string')) return false;
+  if (!isPlannedSlotsArrayShape(plannedSlots)) return false;
   return subtasks.every(
     (st) => st && typeof st === 'object' && typeof st.id === 'string' && typeof st.text === 'string' && typeof st.done === 'boolean'
   );
@@ -135,6 +137,7 @@ function normalizeTask(task) {
     ticketNumber: task.ticketNumber || '',
     completedAt: typeof task.completedAt === 'string' ? task.completedAt : (typeof task.completed_at === 'string' ? task.completed_at : ''),
     hideInKanbanDone: Boolean(task.hideInKanbanDone),
+    plannedSlots: normalizePlannedSlots(task.plannedSlots),
   };
 }
 

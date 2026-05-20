@@ -3,6 +3,7 @@ export default function BottomNav({ currentView, setView }) {
     { id: 'tasks', label: 'Tareas' },
     { id: 'kanban', label: 'Kanban' },
     { id: 'calendar', label: 'Calendario' },
+    { id: 'agenda', label: 'Agenda' },
     { id: 'board', label: 'Tablero' },
   ];
 
@@ -22,6 +23,16 @@ export default function BottomNav({ currentView, setView }) {
           <rect x="3" y="5" width="6" height="14" rx="1.5" />
           <rect x="10.5" y="5" width="10.5" height="8" rx="1.5" />
           <rect x="10.5" y="14.5" width="10.5" height="4.5" rx="1.5" />
+        </svg>
+      );
+    }
+    if (id === 'agenda') {
+      return (
+        <svg {...common}>
+          <rect x="4" y="5" width="16" height="15" rx="2" />
+          <path d="M8 3v4M16 3v4M4 11h16" />
+          <circle cx="12" cy="15" r="5" fill="currentColor" stroke="none" opacity="0.2" />
+          <path d="M12 13v3l2 1" stroke="currentColor" fill="none" />
         </svg>
       );
     }
