@@ -46,6 +46,10 @@ test.describe('navegación', () => {
     await page.getByRole('button', { name: 'Calendario' }).click();
     await expect(page.locator('.brand-title').filter({ hasText: 'Calendario' })).toBeVisible();
 
+    await page.getByRole('button', { name: 'Agenda diaria' }).click();
+    await expect(page.locator('.brand-title').filter({ hasText: 'Agenda diaria' })).toBeVisible();
+    await expect(page.locator('.daily-agenda-view')).toBeVisible();
+
     await page.getByRole('button', { name: 'Tareas' }).click();
     await expect(page.locator('.brand-title').filter({ hasText: 'Tareas' })).toBeVisible();
   });

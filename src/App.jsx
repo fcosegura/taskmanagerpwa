@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
 import { P_ORDER, STATUS } from './constants.js';
 import { uid, toDateStr, parseDateTimeFromDescription, parseDescriptionDateResult, cleanDescriptionSegment, isJiraCategory, normalizeTicketNumber, applyTicketNumberToTaskName, inheritTicketFromParentTask, mergeTaskCompletionMeta } from './utils.jsx';
 import { loadData, saveData, validateBackupPayload, normalizeDataPayload, loginWithGoogleCredential, logoutSession, createProfile, deleteProfile, parseTaskWithAI, checkSession, generateTasksFromText, fetchWorkspaceData, isMultiBackupPayload, validateMultiBackupPayload, normalizeMultiBackupPayload } from './storage.js';
@@ -11,77 +11,9 @@ import EventModal from './components/EventModal.jsx';
 import PriorityPickerModal from './components/PriorityPickerModal.jsx';
 import BottomNav from './components/BottomNav.jsx';
 import Login from './components/Login.jsx';
-
-function parseDateAtNoon(dateStr) {
-  if (typeof dateStr !== 'string' || !dateStr) return null;
-  const date = new Date(`${dateStr}T12:00:00`);
-  return Number.isNaN(date.getTime()) ? null : date;
-}
-
-function toDateOnlyStr(date) {
-  return toDateStr(date.getFullYear(), date.getMonth(), date.getDate());
-}
-
-function addDays(baseDate, days) {
-  const date = new Date(baseDate);
-  date.setDate(date.getDate() + days);
-  return date;
-}
-
-function addMonths(baseDate, months) {
-  const date = new Date(baseDate);
-  date.setDate(1);
-  date.setMonth(date.getMonth() + months);
-  const day = Math.min(baseDate.getDate(), new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate());
-  date.setDate(day);
-  return date;
-}
-
-function buildEventOccurrences(event, windowStart, windowEnd) {
-  const startBase = parseDateAtNoon(event.startDate);
-  if (!startBase) return [];
-  const baseEndDate = parseDateAtNoon(event.endDate || event.startDate) || startBase;
-  const durationDays = Math.max(0, Math.floor((baseEndDate.getTime() - startBase.getTime()) / (24 * 60 * 60 * 1000)));
-  const recurrenceFrequency = ['daily', 'weekly', 'monthly'].includes(event.recurrenceFrequency)
-    ? event.recurrenceFrequency
-    : 'none';
-  const recurrenceInterval = Math.max(1, Number.parseInt(String(event.recurrenceInterval ?? '1'), 10) || 1);
-  const recurrenceUntil = parseDateAtNoon(event.recurrenceUntil || '');
-  const recurrenceCount = Math.max(0, Number.parseInt(String(event.recurrenceCount ?? ''), 10) || 0);
-  const maxOccurrences = recurrenceCount > 0 ? recurrenceCount : 250;
-  const occurrences = [];
-
-  if (recurrenceFrequency === 'none') {
-    const occurrenceEnd = addDays(startBase, durationDays);
-    if (occurrenceEnd >= windowStart && startBase <= windowEnd) {
-      occurrences.push({ start: startBase, end: occurrenceEnd, occurrenceIndex: 0 });
-    }
-    return occurrences;
-  }
-
-  let index = 0;
-  let produced = 0;
-  while (produced < maxOccurrences && index < 500) {
-    let occurrenceStart;
-    if (recurrenceFrequency === 'daily') {
-      occurrenceStart = addDays(startBase, index * recurrenceInterval);
-    } else if (recurrenceFrequency === 'weekly') {
-      occurrenceStart = addDays(startBase, index * recurrenceInterval * 7);
-    } else {
-      occurrenceStart = addMonths(startBase, index * recurrenceInterval);
-    }
-    if (!occurrenceStart || Number.isNaN(occurrenceStart.getTime())) break;
-    if (recurrenceUntil && occurrenceStart > recurrenceUntil) break;
-    if (occurrenceStart > windowEnd && !recurrenceCount) break;
-    const occurrenceEnd = addDays(occurrenceStart, durationDays);
-    if (occurrenceEnd >= windowStart && occurrenceStart <= windowEnd) {
-      occurrences.push({ start: occurrenceStart, end: occurrenceEnd, occurrenceIndex: index });
-    }
-    produced += 1;
-    index += 1;
-  }
-  return occurrences;
-}
+import DailyAgendaView from './components/DailyAgendaView.jsx';
+import { indexEventsByDate } from './calendarEvents.js';
+import { normalizePlannedSlots } from './plannedSlots.js';
 
 function serializePayload(payload) {
   try {
@@ -666,6 +598,12 @@ export default function App() {
     setModal(null);
   };
 
+  const saveTaskPlannedSlots = (taskId, plannedSlots) => {
+    setTasks((prev) => prev.map((t) => (
+      t.id === taskId ? { ...t, plannedSlots: normalizePlannedSlots(plannedSlots) } : t
+    )));
+  };
+
   const applyPriorityPick = (priorityValue) => {
     const pick = priorityPickerTask;
     if (!pick) return;
@@ -1011,35 +949,11 @@ export default function App() {
   const tByDate = {};
   focusTasks.forEach((t) => { if (t.date) { (tByDate[t.date] = tByDate[t.date] || []).push(t); } });
 
-  const eByDate = {};
-  const windowStart = new Date(y, mo - 1, 1, 12, 0, 0, 0);
-  const windowEnd = new Date(y, mo + 2, 0, 12, 0, 0, 0);
-  events.forEach((e) => {
-    if (!e.startDate) return;
-    const timed = e.allDay === false || e.allDay === 0;
-    const occurrences = buildEventOccurrences(e, windowStart, windowEnd);
-    occurrences.forEach((occurrence) => {
-      if (timed) {
-        const dStr = toDateOnlyStr(occurrence.start);
-        (eByDate[dStr] = eByDate[dStr] || []).push({
-          ...e,
-          occurrenceDate: dStr,
-          occurrenceIndex: occurrence.occurrenceIndex,
-        });
-        return;
-      }
-      let current = new Date(occurrence.start);
-      while (current <= occurrence.end) {
-        const dStr = toDateOnlyStr(current);
-        (eByDate[dStr] = eByDate[dStr] || []).push({
-          ...e,
-          occurrenceDate: toDateOnlyStr(occurrence.start),
-          occurrenceIndex: occurrence.occurrenceIndex,
-        });
-        current = addDays(current, 1);
-      }
-    });
-  });
+  const eByDate = useMemo(() => {
+    const windowStart = new Date(y, mo - 1, 1, 12, 0, 0, 0);
+    const windowEnd = new Date(y, mo + 2, 0, 12, 0, 0, 0);
+    return indexEventsByDate(events, windowStart, windowEnd);
+  }, [events, y, mo]);
 
   const categories = Array.from(new Set(focusTasks.map((t) => t.category).filter(Boolean))).sort();
   const now = new Date();
@@ -1144,15 +1058,15 @@ export default function App() {
             )}
           </div>
           <div className="brand-copy">
-            <span className="brand-title">{view === 'kanban' ? 'Kanban' : view === 'calendar' ? 'Calendario' : view === 'board' ? 'Tablero' : 'Tareas'}</span>
+            <span className="brand-title">{view === 'kanban' ? 'Kanban' : view === 'calendar' ? 'Calendario' : view === 'board' ? 'Tablero' : view === 'agenda' ? 'Agenda diaria' : 'Tareas'}</span>
             <span className="brand-subtitle hide-mobile">
-              {view === 'board' ? `Notas libres · ${activeProfileName}` : `Workspace: ${activeProfileName}`}
+              {view === 'board' ? `Notas libres · ${activeProfileName}` : view === 'agenda' ? `Plan por horas · ${activeProfileName}` : `Workspace: ${activeProfileName}`}
             </span>
           </div>
         </div>
 
         <div className="desktop-tabs hide-mobile">
-          {[['tasks', 'Tareas'], ['kanban', 'Kanban'], ['calendar', 'Calendario'], ['board', 'Tablero']].map(([v, l]) => (
+          {[['tasks', 'Tareas'], ['kanban', 'Kanban'], ['calendar', 'Calendario'], ['agenda', 'Agenda diaria'], ['board', 'Tablero']].map(([v, l]) => (
             <button
               key={v}
               type="button"
@@ -1233,7 +1147,7 @@ export default function App() {
         <section className="overview-panel compact">
           <div>
             <p className="eyebrow">Resumen</p>
-            <h1>{view === 'kanban' ? 'Visualiza el flujo real' : view === 'calendar' ? 'Planifica la semana' : view === 'board' ? 'Ordena tus ideas' : 'Prioriza lo importante'}</h1>
+            <h1>{view === 'kanban' ? 'Visualiza el flujo real' : view === 'calendar' ? 'Planifica la semana' : view === 'board' ? 'Ordena tus ideas' : view === 'agenda' ? 'Agenda y bloques de 30 min' : 'Prioriza lo importante'}</h1>
           </div>
           {view === 'tasks' && (
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
@@ -1304,6 +1218,16 @@ export default function App() {
                 onOpenPriorityPicker={(t) => setPriorityPickerTask(t)}
                 onAddEventForDay={(date) => openEventModal({ startDate: date, endDate: date })} onEditEvent={(e) => openEventModal(e)}
               />
+          : view === 'agenda'
+            ? (
+              <DailyAgendaView
+                tasks={focusTasks}
+                events={events}
+                todayStr={todayStr}
+                onSaveTaskSlots={saveTaskPlannedSlots}
+                onEditEvent={(e) => openEventModal(e)}
+              />
+            )
             : <BoardView notes={boardNotes} onAddNote={addBoardNote} onUpdateNote={updateBoardNote} onDeleteNote={deleteBoardNote} />
         }
       </main>

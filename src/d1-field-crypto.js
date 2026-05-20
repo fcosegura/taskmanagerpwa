@@ -1,3 +1,5 @@
+import { plannedSlotsStableJson } from './plannedSlots.js';
+
 /** Stable JSON for deterministic SHA-256 content hashes (sorted object keys, recursive). */
 export function stableStringify(value) {
   if (value === null) return 'null';
@@ -124,6 +126,7 @@ export function buildTaskPlainSnapshot(task, taskSchema, taskName, subtasksJson,
     subtasksJson,
     ticketNumber: typeof task.ticketNumber === 'string' ? task.ticketNumber.trim() : null,
     time: task.time ?? null,
+    plannedSlotsJson: plannedSlotsStableJson(task.plannedSlots),
     url: typeof task.url === 'string' ? task.url : ''
   };
   if (taskSchema?.hasDescription) snap.description = taskName;
