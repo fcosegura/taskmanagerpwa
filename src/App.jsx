@@ -7,6 +7,7 @@ import CalendarView from './components/CalendarView.jsx';
 import BoardView from './components/BoardView.jsx';
 import KanbanView from './components/KanbanView.jsx';
 import TaskModal from './components/TaskModal.jsx';
+import TaskPreviewModal from './components/TaskPreviewModal.jsx';
 import EventModal from './components/EventModal.jsx';
 import PriorityPickerModal from './components/PriorityPickerModal.jsx';
 import BottomNav from './components/BottomNav.jsx';
@@ -35,6 +36,7 @@ export default function App() {
   const [hydratedSession, setHydratedSession] = useState(null);
   const [view, setView] = useState('tasks');
   const [modal, setModal] = useState(null);
+  const [taskPreviewId, setTaskPreviewId] = useState(null);
   const [priorityPickerTask, setPriorityPickerTask] = useState(null);
   const [eventModal, setEventModal] = useState(null);
   const [calDate, setCalDate] = useState(new Date());
@@ -196,6 +198,8 @@ export default function App() {
     setTasks([]);
     setBoardNotes([]);
     setEvents([]);
+    setModal(null);
+    setTaskPreviewId(null);
     setProfiles([]);
     setActiveProfileId(null);
     setSyncState('idle');
@@ -210,6 +214,8 @@ export default function App() {
     setTasks([]);
     setBoardNotes([]);
     setEvents([]);
+    setModal(null);
+    setTaskPreviewId(null);
     setProfiles([]);
     setActiveProfileId(null);
     setSyncState('idle');
@@ -278,9 +284,12 @@ export default function App() {
     clearSyncDebounce();
   }, [clearSyncDebounce]);
 
+  const previewTaskResolved = taskPreviewId ? tasks.find((t) => t.id === taskPreviewId) : null;
+
   useEffect(() => {
     const onKeyDown = (e) => {
       if (e.key === 'Escape') {
+        setTaskPreviewId(null);
         setModal(null);
         setPriorityPickerTask(null);
         setEventModal(null);
@@ -475,7 +484,7 @@ export default function App() {
     setTasks(normalized.tasks);
     setBoardNotes(normalized.boardNotes);
     setEvents(normalized.events);
-    setFilter('all'); setCategoryFilter('all'); setModal(null); setEventModal(null);
+    setFilter('all'); setCategoryFilter('all'); setModal(null); setTaskPreviewId(null); setEventModal(null);
     setSummaryFilter('none');
     setBackupMessage('Importación completada correctamente.');
   };
@@ -526,7 +535,7 @@ export default function App() {
       setProfiles((prev) => [...prev, ...createdProfiles]);
     }
 
-    setFilter('all'); setCategoryFilter('all'); setModal(null); setEventModal(null);
+    setFilter('all'); setCategoryFilter('all'); setModal(null); setTaskPreviewId(null); setEventModal(null);
     setSummaryFilter('none');
     setReady(false);
     setAuthVersion((version) => version + 1);
@@ -639,8 +648,12 @@ export default function App() {
       return;
     }
     setModal(null);
+    setTaskPreviewId((currentId) => (currentId === id ? null : currentId));
   };
-  const open = (init = {}) => setModal({ name: '', url: '', notes: '', status: 'not_done', priority: 'medium', date: '', time: '', subtasks: [], dependencyTaskIds: [], category: '', ticketNumber: '', completedAt: '', hideInKanbanDone: false, ...init });
+  const open = (init = {}) => {
+    setTaskPreviewId(null);
+    setModal({ name: '', url: '', notes: '', status: 'not_done', priority: 'medium', date: '', time: '', subtasks: [], dependencyTaskIds: [], category: '', ticketNumber: '', completedAt: '', hideInKanbanDone: false, ...init });
+  };
 
   const addBoardNote = (note) => setBoardNotes((p) => [note, ...p]);
   const deleteBoardNote = (id) => setBoardNotes((p) => p.filter((note) => note.id !== id));
@@ -711,6 +724,7 @@ export default function App() {
   };
 
   const handleSummaryMetricClick = (metricKey) => {
+    setTaskPreviewId(null);
     setView('tasks');
     setSearchQuery('');
     setCategoryFilter('all');
@@ -737,6 +751,11 @@ export default function App() {
   const activeProfileName = activeProfile?.name || 'Trabajo';
   const profileGlyph = (activeProfileName[0] || 'T').toUpperCase();
 
+  const navigateToView = useCallback((nextView) => {
+    setTaskPreviewId(null);
+    setView(nextView);
+  }, []);
+
   const handleSelectProfile = (profileId) => {
     if (!profileId || profileId === activeProfileId) {
       setShowProfileMenu(false);
@@ -750,6 +769,7 @@ export default function App() {
     setSummaryFilter('none');
     setSearchQuery('');
     setModal(null);
+    setTaskPreviewId(null);
     setEventModal(null);
     setTasks([]);
     setBoardNotes([]);
@@ -1066,7 +1086,7 @@ export default function App() {
               type="button"
               aria-current={view === v ? 'page' : undefined}
               className={view === v ? 'active' : ''}
-              onClick={() => setView(v)}
+              onClick={() => navigateToView(v)}
             >
               {l}
             </button>
@@ -1186,7 +1206,9 @@ export default function App() {
               searchQuery={searchQuery} setSearchQuery={setSearchQuery}
               categoryFilter={categoryFilter} setCategoryFilter={setCategoryFilter}
               categories={categories} statusCounts={statusCounts} categoryCounts={categoryCounts}
-              onEdit={(t) => setModal(t)} onToggleDone={toggleDone}
+              onOpenTaskPreview={(t) => setTaskPreviewId(t.id)}
+              onEditTask={(t) => { setTaskPreviewId(null); setModal(t); }}
+              onToggleDone={toggleDone}
               onOpenPriorityPicker={(t) => setPriorityPickerTask(t)}
               onQuickAdd={handleQuickAdd} onQuickSuggest={handleQuickSuggest}
               onDropTaskOnTask={linkStandaloneTaskAsChild}
@@ -1198,7 +1220,7 @@ export default function App() {
                 allTasks={focusTasks}
                 kanbanColumnsStorageKey={`taskmanager_kanban_visible_columns_${activeProfileId || 'default'}`}
                 kanbanDoneRangeStorageKey={`taskmanager_kanban_done_range_${activeProfileId || 'default'}`}
-                onEditTask={(task) => setModal(task)}
+                onEditTask={(task) => { setTaskPreviewId(null); setModal(task); }}
                 onOpenPriorityPicker={(t) => setPriorityPickerTask(t)}
                 onMoveTaskStatus={moveTaskToStatus}
                 onDropTaskOnTask={linkStandaloneTaskAsChild}
@@ -1208,7 +1230,7 @@ export default function App() {
                 y={y} mo={mo} dIM={dIM} fD={fD} tByDate={tByDate} eByDate={eByDate} todayStr={todayStr}
                 prev={() => setCalDate(new Date(y, mo - 1, 1))} next={() => setCalDate(new Date(y, mo + 1, 1))}
                 selDay={selDay} setSelDay={setSelDay}
-                onAddTaskForDay={(date) => open({ date })} onEditTask={(t) => setModal(t)}
+                onAddTaskForDay={(date) => open({ date })} onEditTask={(t) => { setTaskPreviewId(null); setModal(t); }}
                 onOpenPriorityPicker={(t) => setPriorityPickerTask(t)}
                 onAddEventForDay={(date) => openEventModal({ startDate: date, endDate: date })} onEditEvent={(e) => openEventModal(e)}
               />
@@ -1220,12 +1242,26 @@ export default function App() {
                 todayStr={todayStr}
                 onSaveTaskSlots={saveTaskPlannedSlots}
                 onEditEvent={(e) => openEventModal(e)}
-                onOpenTaskModal={(t) => setModal({ ...t, _taskModalInitialAdvanced: false })}
+                onOpenTaskModal={(t) => { setTaskPreviewId(null); setModal({ ...t, _taskModalInitialAdvanced: false }); }}
               />
             )
             : <BoardView notes={boardNotes} onAddNote={addBoardNote} onUpdateNote={updateBoardNote} onDeleteNote={deleteBoardNote} />
         }
       </main>
+
+      {previewTaskResolved && (
+        <div className="modal-backdrop" onClick={(e) => e.target === e.currentTarget && setTaskPreviewId(null)}>
+          <TaskPreviewModal
+            task={previewTaskResolved}
+            allTasks={tasks}
+            onClose={() => setTaskPreviewId(null)}
+            onEdit={(t) => {
+              setTaskPreviewId(null);
+              setModal(t);
+            }}
+          />
+        </div>
+      )}
 
       {modal && (
         <div className="modal-backdrop" onClick={(e) => e.target === e.currentTarget && setModal(null)}>
@@ -1296,7 +1332,7 @@ export default function App() {
         </div>
       )}
 
-      <BottomNav currentView={view} setView={setView} />
+      <BottomNav currentView={view} setView={navigateToView} />
     </div>
   );
 }
