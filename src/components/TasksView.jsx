@@ -9,7 +9,7 @@ export default function TasksView({
   tasks, total, filter, setFilter, searchQuery, setSearchQuery,
   categoryFilter, setCategoryFilter, categories,
   statusCounts, categoryCounts,
-  onEdit, onToggleDone, onOpenPriorityPicker, onQuickAdd, onQuickSuggest, onDropTaskOnTask,
+  onOpenTaskPreview, onEditTask, onToggleDone, onOpenPriorityPicker, onQuickAdd, onQuickSuggest, onDropTaskOnTask,
 }) {
   const [quickText, setQuickText] = useState('');
   const [showFilters, setShowFilters] = useState(false);
@@ -235,7 +235,8 @@ export default function TasksView({
               <TaskRow
                 task={t}
                 allTasks={allTasks}
-                onClick={() => onEdit(t)}
+                onClick={() => onOpenTaskPreview?.(t)}
+                onEditClick={onEditTask}
                 onToggleDone={onToggleDone}
                 onOpenPriorityPicker={onOpenPriorityPicker}
                 collapsible
