@@ -54,6 +54,7 @@ export default function DailyAgendaView({
   todayStr,
   onSaveTaskSlots,
   onEditEvent,
+  onOpenTaskModal,
 }) {
   const [anchorDate, setAnchorDate] = useState(() => new Date());
   const [mode, setMode] = useState('day');
@@ -286,10 +287,9 @@ export default function DailyAgendaView({
                   const top = (clip.topMin / SLOT_MIN) * ROW_PX;
                   const h = (clip.heightMin / SLOT_MIN) * ROW_PX;
                   return (
-                    <button
+                    <div
                       key={`${task.id}-${slot.id}`}
-                      type="button"
-                      className="daily-agenda-block daily-agenda-block-task"
+                      className="daily-agenda-block daily-agenda-block-task-wrap"
                       style={{
                         top,
                         height: Math.max(h, 22),
@@ -297,11 +297,33 @@ export default function DailyAgendaView({
                         background: `var(${pri?.bv || '--color-background-secondary'})`,
                       }}
                       title={`${task.name} (${slot.startTime}–${slot.endTime})`}
-                      onClick={() => setPlanModal({ type: 'edit', task, slot })}
                     >
-                      <span className="blk-title">{task.name}</span>
-                      <span className="blk-time">{slot.startTime} – {slot.endTime}</span>
-                    </button>
+                      <div className="daily-agenda-block-task-inner">
+                        <button
+                          type="button"
+                          className="daily-agenda-block-task-main"
+                          onClick={() => setPlanModal({ type: 'edit', task, slot })}
+                        >
+                          <span className="blk-title">{task.name}</span>
+                          <span className="blk-time">{slot.startTime} – {slot.endTime}</span>
+                        </button>
+                        <button
+                          type="button"
+                          className="daily-agenda-task-ficha"
+                          aria-label="Abrir ficha de tarea"
+                          title="Ficha de tarea (opciones avanzadas ocultas)"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onOpenTaskModal?.(task);
+                          }}
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+                            <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
                   );
                 })}
 

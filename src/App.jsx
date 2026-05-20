@@ -1226,6 +1226,7 @@ export default function App() {
                 todayStr={todayStr}
                 onSaveTaskSlots={saveTaskPlannedSlots}
                 onEditEvent={(e) => openEventModal(e)}
+                onOpenTaskModal={(t) => setModal({ ...t, _taskModalInitialAdvanced: false })}
               />
             )
             : <BoardView notes={boardNotes} onAddNote={addBoardNote} onUpdateNote={updateBoardNote} onDeleteNote={deleteBoardNote} />
@@ -1234,7 +1235,7 @@ export default function App() {
 
       {modal && (
         <div className="modal-backdrop" onClick={(e) => e.target === e.currentTarget && setModal(null)}>
-          <TaskModal key={modal.id || 'new-task'} task={modal} categories={categories} allTasks={tasks} onSave={upsert} onDelete={modal.id ? () => del(modal.id) : null} onClose={() => setModal(null)} />
+          <TaskModal key={`${modal.id || 'new-task'}${modal._taskModalInitialAdvanced === false ? '-adv-min' : ''}`} task={modal} categories={categories} allTasks={tasks} onSave={upsert} onDelete={modal.id ? () => del(modal.id) : null} onClose={() => setModal(null)} />
         </div>
       )}
 
