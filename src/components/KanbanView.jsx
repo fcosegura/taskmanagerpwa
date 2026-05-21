@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { STATUS, PRIORITY } from '../constants.js';
 import { fmtDate, isCompletedAtWithinKanbanRange } from '../utils.jsx';
+import { shouldShowTaskInKanbanDoneColumn } from '../kanbanTaskVisibility.js';
 
 const STATUS_VALUES = STATUS.map((s) => s.v);
 
@@ -49,6 +50,7 @@ function KanbanTaskCard({
   task,
   allTasks,
   onEditTask,
+  onOpenTaskPreview,
   onOpenPriorityPicker,
   onDragStart,
   onDragEnd,
@@ -86,7 +88,7 @@ function KanbanTaskCard({
       draggable
       onDragStart={(event) => onDragStart(event, task.id)}
       onDragEnd={onDragEnd}
-      onClick={() => onEditTask(task)}
+      onClick={() => (onOpenTaskPreview ?? onEditTask)?.(task)}
       style={{
         ...dependencyBorderStyle,
         borderRadius: 12,
@@ -204,9 +206,12 @@ export default function KanbanView({
   tasks,
   allTasks = [],
   onEditTask,
+  onOpenTaskPreview,
   onOpenPriorityPicker,
   onMoveTaskStatus,
   onDropTaskOnTask,
+  onDailyStatus,
+  dailyStatusLoading = false,
   kanbanColumnsStorageKey = 'taskmanager_kanban_visible_columns_default',
   kanbanDoneRangeStorageKey = 'taskmanager_kanban_done_range_default',
 }) {
@@ -277,12 +282,13 @@ export default function KanbanView({
         if (status.v === 'done') {
           const completedAt = typeof task.completedAt === 'string' ? task.completedAt : task.completed_at;
           if (!isCompletedAtWithinKanbanRange(completedAt, doneRange)) return false;
+          if (!shouldShowTaskInKanbanDoneColumn(task, allTasks)) return false;
         }
         return true;
       });
       return accumulator;
     }, {})
-  ), [tasks, doneRange]);
+  ), [tasks, allTasks, doneRange]);
 
   const handleDropOnColumn = (status, targetIndex = null) => {
     if (!draggedTaskId) return;
@@ -319,6 +325,16 @@ export default function KanbanView({
             ))}
           </select>
         </label>
+        {onDailyStatus && (
+          <button
+            type="button"
+            className="ghost-button"
+            onClick={onDailyStatus}
+            disabled={dailyStatusLoading}
+          >
+            {dailyStatusLoading ? 'Generando...' : 'Daily Status'}
+          </button>
+        )}
         <div className="actions-menu-wrap" ref={columnsMenuRef}>
           <button
             type="button"
@@ -412,6 +428,7 @@ export default function KanbanView({
                       task={task}
                       allTasks={allTasks}
                       onEditTask={onEditTask}
+                      onOpenTaskPreview={onOpenTaskPreview}
                       onOpenPriorityPicker={onOpenPriorityPicker}
                       onDragStart={(event, taskId) => {
                         event.dataTransfer.effectAllowed = 'move';

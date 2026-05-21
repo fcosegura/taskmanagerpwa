@@ -6,6 +6,7 @@ export default function TaskRow({
   task,
   allTasks = [],
   onClick,
+  onEditClick,
   onToggleDone,
   onOpenPriorityPicker,
   draggable = false,
@@ -23,6 +24,11 @@ export default function TaskRow({
   const openPriority = (e) => {
     e.stopPropagation();
     onOpenPriorityPicker?.(task);
+  };
+
+  const openEdit = (e) => {
+    e.stopPropagation();
+    onEditClick?.(task);
   };
   const childTasks = allTasks.filter((candidate) => (task.dependencyTaskIds || []).includes(candidate.id));
   const parentTasks = allTasks.filter((candidate) => (candidate.dependencyTaskIds || []).includes(task.id));
@@ -188,6 +194,25 @@ export default function TaskRow({
         )}
       </div>
       <div className="task-meta" style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0, flexWrap: 'wrap' }}>
+        {onEditClick ? (
+          <button
+            type="button"
+            onClick={openEdit}
+            aria-label="Editar tarea"
+            title="Editar tarea"
+            style={{
+              width: 28, height: 28, borderRadius: 999, border: '1px solid var(--color-border-tertiary)',
+              background: 'var(--color-background-secondary)', color: 'var(--color-text-secondary)',
+              cursor: 'pointer', padding: 0,
+              display: 'grid', placeItems: 'center', flexShrink: 0,
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+            </svg>
+          </button>
+        ) : null}
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); onToggleDone?.(task.id); }}
