@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { STATUS, PRIORITY } from '../constants.js';
 import { fmtDate, isCompletedAtWithinKanbanRange } from '../utils.jsx';
+import { shouldShowTaskInKanbanDoneColumn } from '../kanbanTaskVisibility.js';
 
 const STATUS_VALUES = STATUS.map((s) => s.v);
 
@@ -49,6 +50,7 @@ function KanbanTaskCard({
   task,
   allTasks,
   onEditTask,
+  onOpenTaskPreview,
   onOpenPriorityPicker,
   onDragStart,
   onDragEnd,
@@ -72,7 +74,7 @@ function KanbanTaskCard({
       draggable
       onDragStart={(event) => onDragStart(event, task.id)}
       onDragEnd={onDragEnd}
-      onClick={() => onEditTask(task)}
+      onClick={() => (onOpenTaskPreview ?? onEditTask)?.(task)}
       style={{
         border: '1px solid var(--color-border-tertiary)',
         borderColor: isDragOver && dragMode === 'link' ? '#2563eb' : 'var(--color-border-tertiary)',
@@ -209,6 +211,7 @@ export default function KanbanView({
   tasks,
   allTasks = [],
   onEditTask,
+  onOpenTaskPreview,
   onOpenPriorityPicker,
   onMoveTaskStatus,
   onDropTaskOnTask,
@@ -282,12 +285,13 @@ export default function KanbanView({
         if (status.v === 'done') {
           const completedAt = typeof task.completedAt === 'string' ? task.completedAt : task.completed_at;
           if (!isCompletedAtWithinKanbanRange(completedAt, doneRange)) return false;
+          if (!shouldShowTaskInKanbanDoneColumn(task, allTasks)) return false;
         }
         return true;
       });
       return accumulator;
     }, {})
-  ), [tasks, doneRange]);
+  ), [tasks, allTasks, doneRange]);
 
   const handleDropOnColumn = (status, targetIndex = null) => {
     if (!draggedTaskId) return;
@@ -417,6 +421,7 @@ export default function KanbanView({
                       task={task}
                       allTasks={allTasks}
                       onEditTask={onEditTask}
+                      onOpenTaskPreview={onOpenTaskPreview}
                       onOpenPriorityPicker={onOpenPriorityPicker}
                       onDragStart={(event, taskId) => {
                         event.dataTransfer.effectAllowed = 'move';
