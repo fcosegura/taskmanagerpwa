@@ -10,6 +10,7 @@ import {
 } from './d1-field-crypto.js';
 import { isPlannedSlotsArrayShape, normalizePlannedSlots } from './plannedSlots.js';
 import { buildDailyStatusFallbackReport } from './dailyStatusFallback.js';
+import { partitionDailyStatusActivities, statusChangesForDailyReport } from './dailyStatusActivities.js';
 
 const VALID_STATUS = new Set(['not_done', 'started', 'in_progress', 'paused', 'blocked', 'done']);
 const VALID_PRIORITY = new Set(['low', 'medium', 'high', 'critical']);
@@ -928,15 +929,7 @@ function sanitizeDailyStatusActivities(activities) {
   if (!Array.isArray(activities)) return [];
   return activities.slice(0, 40).map((item) => {
     if (!item || typeof item !== 'object') return null;
-    const statusChanges = Array.isArray(item.statusChanges)
-      ? item.statusChanges.slice(0, 20).map((change) => ({
-        fromStatus: typeof change?.fromStatus === 'string' ? change.fromStatus : null,
-        toStatus: typeof change?.toStatus === 'string' ? change.toStatus : '',
-        comment: typeof change?.comment === 'string' ? change.comment.slice(0, 500) : '',
-        at: typeof change?.at === 'string' ? change.at : '',
-      })).filter((c) => c.toStatus && c.comment)
-      : [];
-    return {
+    const normalized = {
       name: typeof item.name === 'string' ? item.name.slice(0, 200) : '',
       ticketNumber: typeof item.ticketNumber === 'string' ? item.ticketNumber.slice(0, 40) : '',
       category: typeof item.category === 'string' ? item.category.slice(0, 80) : '',
@@ -944,27 +937,47 @@ function sanitizeDailyStatusActivities(activities) {
       currentStatus: typeof item.currentStatus === 'string' ? item.currentStatus : 'not_done',
       createdInWindow: Boolean(item.createdInWindow),
       completedInWindow: Boolean(item.completedInWindow),
-      statusChanges,
+      statusChanges: Array.isArray(item.statusChanges)
+        ? item.statusChanges.slice(0, 20).map((change) => ({
+          fromStatus: typeof change?.fromStatus === 'string' ? change.fromStatus : null,
+          toStatus: typeof change?.toStatus === 'string' ? change.toStatus : '',
+          comment: typeof change?.comment === 'string' ? change.comment.slice(0, 500) : '',
+          at: typeof change?.at === 'string' ? change.at : '',
+        })).filter((c) => c.toStatus && c.comment)
+        : [],
       notes: typeof item.notes === 'string' ? item.notes.slice(0, 600) : '',
     };
+    normalized.statusChanges = statusChangesForDailyReport(normalized);
+    return normalized;
   }).filter(Boolean);
+}
+
+function buildDailyStatusAiPayload(days, activities) {
+  const sanitized = sanitizeDailyStatusActivities(activities);
+  const { doneInPeriod, activeNow, blocked } = partitionDailyStatusActivities(sanitized);
+  return { days, doneInPeriod, activeNow, blocked };
 }
 
 async function generateDailyStatusWithAi(days, activities, env) {
   if (!env?.AI?.run) return null;
-  const payload = JSON.stringify({ days, activities });
-  if (payload.length > 12000) return null;
+  const payload = buildDailyStatusAiPayload(days, activities);
+  const payloadJson = JSON.stringify(payload);
+  if (payloadJson.length > 12000) return null;
   const prompt = [
-    'Genera un daily status estilo Scrum en español a partir del JSON de actividad de tareas.',
-    'Estructura obligatoria con estos encabezados en markdown:',
+    'Genera un daily status estilo Scrum en español a partir del JSON.',
+    'El JSON ya separa las tareas en tres listas; NO reasignes tareas entre secciones.',
+    'Estructura obligatoria (markdown):',
     '## Hecho',
+    'Lista SOLO las tareas de doneInPeriod (trabajo terminado o marcado completado).',
     '## Hoy / En curso',
+    'Lista SOLO las tareas de activeNow. Nunca incluyas tareas con currentStatus "done".',
     '## Bloqueadores',
-    'Usa viñetas breves. Menciona tickets si existen. Incluye comentarios de cambios de estado cuando aporten contexto.',
-    'No inventes tareas fuera del JSON. Si una sección no aplica, escribe "Ninguno."',
-    'Responde SOLO el texto del reporte (sin JSON).',
+    'Lista SOLO las tareas de blocked.',
+    'Usa viñetas breves. Menciona tickets si existen. Cita comentarios de statusChanges cuando aporten.',
+    'Si una lista viene vacía, escribe "Ninguno." bajo ese encabezado.',
+    'No inventes tareas fuera del JSON. Responde SOLO el texto del reporte.',
     `Periodo: ultimos ${days} dias.`,
-    `Datos: ${payload}`,
+    `Datos: ${payloadJson}`,
   ].join('\n');
   const result = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
     messages: [{ role: 'user', content: prompt }],
