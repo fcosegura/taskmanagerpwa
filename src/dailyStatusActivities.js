@@ -74,6 +74,54 @@ export function collectDailyStatusActivities(tasks, days, now = new Date()) {
   return { activities, days: safeDays, startMs, endMs };
 }
 
+/** For report/IA: done tasks should not surface intermediate in-progress steps from the window. */
+export function statusChangesForDailyReport(item) {
+  const changes = Array.isArray(item?.statusChanges) ? item.statusChanges : [];
+  if (item?.currentStatus === 'done') {
+    return changes.filter((entry) => entry.toStatus === 'done');
+  }
+  return changes;
+}
+
+export function movedToDoneInWindow(item) {
+  const changes = Array.isArray(item?.statusChanges) ? item.statusChanges : [];
+  return changes.some((entry) => entry.toStatus === 'done');
+}
+
+/**
+ * Splits activities for Scrum sections. Uses currentStatus as source of truth:
+ * done tasks never go to "active", even if the log shows in_progress in the period.
+ */
+export function partitionDailyStatusActivities(activities) {
+  const doneInPeriod = [];
+  const activeNow = [];
+  const blocked = [];
+
+  for (const item of Array.isArray(activities) ? activities : []) {
+    const enriched = {
+      ...item,
+      statusChanges: statusChangesForDailyReport(item),
+    };
+    const status = enriched.currentStatus;
+
+    if (status === 'blocked') {
+      blocked.push(enriched);
+      continue;
+    }
+
+    const isDoneNow = status === 'done';
+    const finishedInPeriod = enriched.completedInWindow || movedToDoneInWindow(enriched);
+
+    if (isDoneNow || finishedInPeriod) {
+      doneInPeriod.push(enriched);
+    } else {
+      activeNow.push(enriched);
+    }
+  }
+
+  return { doneInPeriod, activeNow, blocked };
+}
+
 export function clampDailyStatusDays(days) {
   const parsed = Number.parseInt(String(days), 10);
   if (!Number.isFinite(parsed)) return 2;
