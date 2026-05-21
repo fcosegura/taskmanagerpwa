@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   dependencies TEXT DEFAULT '[]', -- JSON string de ids de tareas requeridas
   hide_in_kanban_done INTEGER DEFAULT 0,
   completed_at TEXT,
+  status_log TEXT,
   content_hash TEXT,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP

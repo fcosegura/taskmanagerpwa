@@ -9,6 +9,7 @@ import {
   buildEventPlainSnapshot
 } from './d1-field-crypto.js';
 import { isPlannedSlotsArrayShape, normalizePlannedSlots } from './plannedSlots.js';
+import { buildDailyStatusFallbackReport } from './dailyStatusFallback.js';
 
 const VALID_STATUS = new Set(['not_done', 'started', 'in_progress', 'paused', 'blocked', 'done']);
 const VALID_PRIORITY = new Set(['low', 'medium', 'high', 'critical']);
@@ -213,6 +214,18 @@ function isValidTask(task) {
     (task.hideInKanbanDone === undefined || typeof task.hideInKanbanDone === 'boolean') &&
     (task.completedAt === undefined || task.completedAt === null || typeof task.completedAt === 'string') &&
     (task.completed_at === undefined || task.completed_at === null || typeof task.completed_at === 'string') &&
+    (task.statusLog === undefined || (
+      Array.isArray(task.statusLog) &&
+      task.statusLog.every((entry) => (
+        entry &&
+        typeof entry === 'object' &&
+        typeof entry.id === 'string' &&
+        (entry.fromStatus === null || entry.fromStatus === undefined || typeof entry.fromStatus === 'string') &&
+        typeof entry.toStatus === 'string' &&
+        typeof entry.comment === 'string' &&
+        typeof entry.at === 'string'
+      ))
+    )) &&
     Array.isArray(task.subtasks) &&
     (task.dependencyTaskIds === undefined || (
       Array.isArray(task.dependencyTaskIds) &&
@@ -318,12 +331,18 @@ async function prepareTaskUpsert(env, dataKey, profileId, userId, task, taskSche
   const hasNotes = Boolean(taskSchema?.hasNotes);
   const hasTicketNumber = Boolean(taskSchema?.hasTicketNumber);
   const hasCompletedAt = Boolean(taskSchema?.hasCompletedAt);
+  const hasStatusLog = Boolean(taskSchema?.hasStatusLog);
 
   const subtasksJson = JSON.stringify(task.subtasks || []);
   const dependenciesJson = JSON.stringify(
     [...(task.dependencyTaskIds || [])].filter((x) => typeof x === 'string').sort()
   );
-  const snapshot = buildTaskPlainSnapshot(task, taskSchema, taskName, subtasksJson, dependenciesJson);
+  const statusLogJson = JSON.stringify(
+    Array.isArray(task.statusLog)
+      ? task.statusLog.filter((entry) => entry && typeof entry === 'object')
+      : []
+  );
+  const snapshot = buildTaskPlainSnapshot(task, taskSchema, taskName, subtasksJson, dependenciesJson, statusLogJson);
   const contentHash = await sha256HexOfUtf8(stableStringify(snapshot));
 
   const columns = ['id', 'user_id', 'profile_id'];
@@ -383,6 +402,7 @@ async function prepareTaskUpsert(env, dataKey, profileId, userId, task, taskSche
   const encDeps = await encryptField(dataKey, dependenciesJson);
   const plannedSlotsJson = JSON.stringify(normalizePlannedSlots(task.plannedSlots));
   const encPlannedSlots = await encryptField(dataKey, plannedSlotsJson);
+  const encStatusLog = await encryptField(dataKey, statusLogJson);
 
   columns.push('status', 'priority', 'category', 'date', 'time', 'subtasks', 'dependencies', 'hide_in_kanban_done', 'planned_slots');
   placeholders.push('?', '?', '?', '?', '?', '?', '?', '?', '?');
@@ -409,6 +429,13 @@ async function prepareTaskUpsert(env, dataKey, profileId, userId, task, taskSche
     'planned_slots = excluded.planned_slots',
     'updated_at = CURRENT_TIMESTAMP'
   );
+
+  if (hasStatusLog) {
+    columns.push('status_log');
+    placeholders.push('?');
+    bindings.push(encStatusLog);
+    updates.push('status_log = excluded.status_log');
+  }
 
   columns.push('content_hash');
   placeholders.push('?');
@@ -557,6 +584,7 @@ async function ensureProfilesSchema(env) {
   await safeExec("ALTER TABLE notes ADD COLUMN content_hash TEXT");
   await safeExec("ALTER TABLE events ADD COLUMN content_hash TEXT");
   await safeExec("ALTER TABLE tasks ADD COLUMN planned_slots TEXT");
+  await safeExec("ALTER TABLE tasks ADD COLUMN status_log TEXT");
 
   const hasProfileColumn = async (tableName) => {
     try {
@@ -587,7 +615,8 @@ async function ensureProfilesSchema(env) {
     hasUrl: taskColumns.includes('url'),
     hasNotes: taskColumns.includes('notes'),
     hasTicketNumber: taskColumns.includes('ticket_number'),
-    hasCompletedAt: taskColumns.includes('completed_at')
+    hasCompletedAt: taskColumns.includes('completed_at'),
+    hasStatusLog: taskColumns.includes('status_log')
   };
 }
 
@@ -889,6 +918,63 @@ async function generateTasksFromTextWithAi(input, env) {
   }
 }
 
+function clampDailyStatusDaysInput(days) {
+  const parsed = Number.parseInt(String(days), 10);
+  if (!Number.isFinite(parsed)) return 2;
+  return Math.min(7, Math.max(1, parsed));
+}
+
+function sanitizeDailyStatusActivities(activities) {
+  if (!Array.isArray(activities)) return [];
+  return activities.slice(0, 40).map((item) => {
+    if (!item || typeof item !== 'object') return null;
+    const statusChanges = Array.isArray(item.statusChanges)
+      ? item.statusChanges.slice(0, 20).map((change) => ({
+        fromStatus: typeof change?.fromStatus === 'string' ? change.fromStatus : null,
+        toStatus: typeof change?.toStatus === 'string' ? change.toStatus : '',
+        comment: typeof change?.comment === 'string' ? change.comment.slice(0, 500) : '',
+        at: typeof change?.at === 'string' ? change.at : '',
+      })).filter((c) => c.toStatus && c.comment)
+      : [];
+    return {
+      name: typeof item.name === 'string' ? item.name.slice(0, 200) : '',
+      ticketNumber: typeof item.ticketNumber === 'string' ? item.ticketNumber.slice(0, 40) : '',
+      category: typeof item.category === 'string' ? item.category.slice(0, 80) : '',
+      priority: typeof item.priority === 'string' ? item.priority : 'medium',
+      currentStatus: typeof item.currentStatus === 'string' ? item.currentStatus : 'not_done',
+      createdInWindow: Boolean(item.createdInWindow),
+      completedInWindow: Boolean(item.completedInWindow),
+      statusChanges,
+      notes: typeof item.notes === 'string' ? item.notes.slice(0, 600) : '',
+    };
+  }).filter(Boolean);
+}
+
+async function generateDailyStatusWithAi(days, activities, env) {
+  if (!env?.AI?.run) return null;
+  const payload = JSON.stringify({ days, activities });
+  if (payload.length > 12000) return null;
+  const prompt = [
+    'Genera un daily status estilo Scrum en español a partir del JSON de actividad de tareas.',
+    'Estructura obligatoria con estos encabezados en markdown:',
+    '## Hecho',
+    '## Hoy / En curso',
+    '## Bloqueadores',
+    'Usa viñetas breves. Menciona tickets si existen. Incluye comentarios de cambios de estado cuando aporten contexto.',
+    'No inventes tareas fuera del JSON. Si una sección no aplica, escribe "Ninguno."',
+    'Responde SOLO el texto del reporte (sin JSON).',
+    `Periodo: ultimos ${days} dias.`,
+    `Datos: ${payload}`,
+  ].join('\n');
+  const result = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
+    messages: [{ role: 'user', content: prompt }],
+    max_tokens: 700,
+    temperature: 0.2,
+  });
+  const raw = typeof result?.response === 'string' ? result.response.trim() : '';
+  return raw || null;
+}
+
 function normalizeGeneratedTaskPlan(aiParsed, sourceText) {
   const fallback = generateTaskPlanFallback(sourceText);
   const inputMain = aiParsed && typeof aiParsed === 'object' && Array.isArray(aiParsed.mainTasks)
@@ -1088,6 +1174,32 @@ export default {
           }
         }
 
+        if (request.method === 'POST' && path === '/ai/daily-status') {
+          let body = null;
+          try {
+            body = await request.json();
+          } catch {
+            return json({ error: 'Body inválido' }, { status: 400 });
+          }
+          const days = clampDailyStatusDaysInput(body?.days);
+          const activities = sanitizeDailyStatusActivities(body?.activities);
+          if (activities.length === 0) {
+            return json({ error: 'No hay actividad para generar el daily status.' }, { status: 400 });
+          }
+
+          const rateLimited = await consumeAiRateLimit(env, userId);
+          if (rateLimited) return rateLimited;
+
+          const fallbackReport = buildDailyStatusFallbackReport(activities, days);
+          try {
+            const aiReport = await generateDailyStatusWithAi(days, activities, env);
+            if (!aiReport) return json({ report: fallbackReport, source: 'fallback' });
+            return json({ report: aiReport.slice(0, 8000), source: 'ai' });
+          } catch {
+            return json({ report: fallbackReport, source: 'fallback' });
+          }
+        }
+
         if (request.method === 'POST' && path === '/profiles') {
           const body = await request.json();
           const name = sanitizeProfileName(body?.name);
@@ -1173,9 +1285,11 @@ export default {
             const subRaw = await decryptField(dataKey, tr.subtasks || '[]');
             const depRaw = await decryptField(dataKey, tr.dependencies || '[]');
             const plannedRaw = await decryptField(dataKey, tr.planned_slots || '[]');
+            const statusLogRaw = await decryptField(dataKey, tr.status_log || '[]');
             let subtasks = [];
             let dependencyTaskIds = [];
             let plannedSlots = [];
+            let statusLog = [];
             try {
               subtasks = JSON.parse(subRaw || '[]');
             } catch {
@@ -1191,9 +1305,16 @@ export default {
             } catch {
               plannedSlots = [];
             }
+            try {
+              statusLog = JSON.parse(statusLogRaw || '[]');
+            } catch {
+              statusLog = [];
+            }
             delete tr.planned_slots;
+            delete tr.status_log;
+            const { created_at, updated_at, ...trRest } = tr;
             parsedTasks.push({
-              ...tr,
+              ...trRest,
               name: nameOut,
               url: typeof urlOut === 'string' ? urlOut : '',
               notes: typeof notesOut === 'string' ? notesOut : '',
@@ -1202,8 +1323,11 @@ export default {
               subtasks,
               dependencyTaskIds,
               plannedSlots: normalizePlannedSlots(plannedSlots),
+              statusLog: Array.isArray(statusLog) ? statusLog : [],
               ticketNumber: typeof ticketOut === 'string' ? ticketOut : '',
               completedAt: typeof completedOut === 'string' && completedOut ? completedOut : '',
+              createdAt: created_at || null,
+              updatedAt: updated_at || null,
               category: categoryOut,
               date: dateOut,
               time: timeOut

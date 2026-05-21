@@ -1,5 +1,6 @@
 import { STORAGE_KEY, STATUS, PRIORITY } from './constants.js';
 import { isPlannedSlotsArrayShape, normalizePlannedSlots } from './plannedSlots.js';
+import { isValidStatusLogEntry, normalizeStatusLog } from './statusLog.js';
 
 const lastCloudSnapshotByProfile = new Map();
 
@@ -114,6 +115,9 @@ export function isValidTask(task) {
   if (dependencyTaskIds !== undefined && !Array.isArray(dependencyTaskIds)) return false;
   if (Array.isArray(dependencyTaskIds) && !dependencyTaskIds.every((id) => typeof id === 'string')) return false;
   if (!isPlannedSlotsArrayShape(plannedSlots)) return false;
+  if (task.statusLog !== undefined && (
+    !Array.isArray(task.statusLog) || !task.statusLog.every(isValidStatusLogEntry)
+  )) return false;
   return subtasks.every(
     (st) => st && typeof st === 'object' && typeof st.id === 'string' && typeof st.text === 'string' && typeof st.done === 'boolean'
   );
@@ -138,6 +142,13 @@ function normalizeTask(task) {
     completedAt: typeof task.completedAt === 'string' ? task.completedAt : (typeof task.completed_at === 'string' ? task.completed_at : ''),
     hideInKanbanDone: Boolean(task.hideInKanbanDone),
     plannedSlots: normalizePlannedSlots(task.plannedSlots),
+    statusLog: normalizeStatusLog(task.statusLog),
+    createdAt: typeof task.createdAt === 'string'
+      ? task.createdAt
+      : (typeof task.created_at === 'string' ? task.created_at : ''),
+    updatedAt: typeof task.updatedAt === 'string'
+      ? task.updatedAt
+      : (typeof task.updated_at === 'string' ? task.updated_at : ''),
   };
 }
 
@@ -395,6 +406,32 @@ export async function generateTasksFromText(text, profileId = null) {
   return {
     mainTasks,
     childTasks,
+    source: data?.source === 'ai' ? 'ai' : 'fallback',
+  };
+}
+
+export async function generateDailyStatus(days, activities, profileId = null) {
+  const query = profileId ? `?profileId=${encodeURIComponent(profileId)}` : '';
+  const resp = await fetch(`/api/ai/daily-status${query}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
+    body: JSON.stringify({ days, activities }),
+  });
+  if (!resp.ok) {
+    let message = 'No se pudo generar el daily status.';
+    try {
+      const data = await resp.json();
+      if (typeof data?.error === 'string') message = data.error;
+    } catch {
+      // Keep default error message.
+    }
+    if (resp.status === 429) message = message.includes('IA') ? message : 'Demasiadas solicitudes. Espera un momento.';
+    throw new Error(message);
+  }
+  const data = await resp.json();
+  return {
+    report: typeof data?.report === 'string' ? data.report : '',
     source: data?.source === 'ai' ? 'ai' : 'fallback',
   };
 }
