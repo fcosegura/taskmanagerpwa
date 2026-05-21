@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   category TEXT,
   ticket_number TEXT,
   date TEXT,
+  end_date TEXT,
   time TEXT,
   planned_slots TEXT,
   subtasks TEXT, -- JSON string

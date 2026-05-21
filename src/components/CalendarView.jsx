@@ -170,9 +170,24 @@ export default function CalendarView({
                     {eventsForDay.slice(0, 3).map((event) => (
                       <div key={`${event.id}-${event.occurrenceDate || dateStr || 'event'}`} style={{ width: 6, height: 6, borderRadius: '50%', background: event.color }} />
                     ))}
-                    {tasksForDay.slice(0, 3 - eventsForDay.length).map((task) => (
-                      <div key={task.id} style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--color-accent)', opacity: task.status === 'done' ? 0.4 : 1 }} />
-                    ))}
+                    {tasksForDay.slice(0, 3 - eventsForDay.length).map((task) => {
+                      const isEndMarker = task.calendarDateRole === 'end';
+                      return (
+                        <div
+                          key={`${task.id}-${task.calendarDateRole || 'start'}`}
+                          title={isEndMarker ? 'Fecha fin' : undefined}
+                          style={{
+                            width: 6,
+                            height: 6,
+                            borderRadius: '50%',
+                            background: isEndMarker ? 'transparent' : 'var(--color-accent)',
+                            border: isEndMarker ? '1.5px solid var(--color-accent)' : 'none',
+                            boxSizing: 'border-box',
+                            opacity: task.status === 'done' ? 0.4 : 1,
+                          }}
+                        />
+                      );
+                    })}
                   </div>
                 </div>
               </div>
@@ -208,12 +223,18 @@ export default function CalendarView({
                 </div>
               ))}
               {(tByDate[selDs] || []).map((task) => (
-                <TaskRow
-                  key={task.id}
-                  task={task}
-                  onClick={() => onEditTask(task)}
-                  onOpenPriorityPicker={onOpenPriorityPicker}
-                />
+                <div key={`${task.id}-${task.calendarDateRole || 'start'}`} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {task.calendarDateRole === 'end' && (
+                    <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-secondary)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                      Fecha fin
+                    </div>
+                  )}
+                  <TaskRow
+                    task={task}
+                    onClick={() => onEditTask(task)}
+                    onOpenPriorityPicker={onOpenPriorityPicker}
+                  />
+                </div>
               ))}
             </div>
           ) : (
