@@ -18,7 +18,8 @@ export default function TasksView({
   const [draggedTaskId, setDraggedTaskId] = useState(null);
   const [hoverTaskId, setHoverTaskId] = useState(null);
   const [hoverDragMode, setHoverDragMode] = useState(null);
-  const [collapsedParentIds, setCollapsedParentIds] = useState(() => new Set());
+  /** Parents with children start collapsed; only IDs here are expanded. */
+  const [expandedParentIds, setExpandedParentIds] = useState(() => new Set());
 
   const handleQuickSubmit = (e) => {
     e.preventDefault();
@@ -122,7 +123,7 @@ export default function TasksView({
   }, [tasks]);
 
   const toggleParentCollapse = useCallback((parentId) => {
-    setCollapsedParentIds((prev) => {
+    setExpandedParentIds((prev) => {
       const next = new Set(prev);
       if (next.has(parentId)) next.delete(parentId);
       else next.add(parentId);
@@ -135,13 +136,13 @@ export default function TasksView({
       let cur = taskId;
       while (parentByChild.has(cur)) {
         const parentId = parentByChild.get(cur);
-        if (collapsedParentIds.has(parentId)) return true;
+        if (!expandedParentIds.has(parentId)) return true;
         cur = parentId;
       }
       return false;
     };
     return orderedTasks.filter((task) => !isHiddenByCollapse(task.id));
-  }, [orderedTasks, parentByChild, collapsedParentIds]);
+  }, [orderedTasks, parentByChild, expandedParentIds]);
 
   return (
     <div className="tasks-view">
@@ -240,7 +241,7 @@ export default function TasksView({
                 onToggleDone={onToggleDone}
                 onOpenPriorityPicker={onOpenPriorityPicker}
                 collapsible
-                collapsed={collapsedParentIds.has(t.id)}
+                collapsed={!expandedParentIds.has(t.id)}
                 onToggleCollapse={() => toggleParentCollapse(t.id)}
                 childTaskCount={(t.dependencyTaskIds || []).filter((id) => visibleIds.has(id)).length}
                 draggable
