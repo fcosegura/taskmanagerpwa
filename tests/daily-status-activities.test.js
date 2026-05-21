@@ -1,6 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { collectDailyStatusActivities, clampDailyStatusDays, dailyStatusWindowMs } from '../src/dailyStatusActivities.js';
+import {
+  collectDailyStatusActivities,
+  clampDailyStatusDays,
+  dailyStatusWindowMs,
+  partitionDailyStatusActivities,
+  statusChangesForDailyReport,
+} from '../src/dailyStatusActivities.js';
 
 test('clampDailyStatusDays defaults to 2 and caps at 7', () => {
   assert.equal(clampDailyStatusDays(undefined), 2);
@@ -65,4 +71,34 @@ test('dailyStatusWindowMs spans N local days', () => {
   const { startMs, endMs, days } = dailyStatusWindowMs(2, now);
   assert.equal(days, 2);
   assert.ok(startMs < endMs);
+});
+
+test('statusChangesForDailyReport hides in_progress steps when task is done', () => {
+  const item = {
+    currentStatus: 'done',
+    statusChanges: [
+      { id: '1', fromStatus: 'not_done', toStatus: 'in_progress', comment: 'a', at: '2026-05-21T10:00:00.000Z' },
+      { id: '2', fromStatus: 'in_progress', toStatus: 'done', comment: 'b', at: '2026-05-21T11:00:00.000Z' },
+    ],
+  };
+  assert.equal(statusChangesForDailyReport(item).length, 1);
+  assert.equal(statusChangesForDailyReport(item)[0].toStatus, 'done');
+});
+
+test('partitionDailyStatusActivities puts done tasks in doneInPeriod not activeNow', () => {
+  const { doneInPeriod, activeNow } = partitionDailyStatusActivities([{
+    name: 'Vieja hecha',
+    currentStatus: 'done',
+    completedInWindow: false,
+    createdInWindow: false,
+    statusChanges: [{
+      id: '1',
+      fromStatus: 'in_progress',
+      toStatus: 'in_progress',
+      comment: 'sigue',
+      at: '2026-05-21T09:00:00.000Z',
+    }],
+  }]);
+  assert.equal(activeNow.length, 0);
+  assert.equal(doneInPeriod.length, 1);
 });
