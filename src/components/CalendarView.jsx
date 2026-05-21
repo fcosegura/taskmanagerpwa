@@ -161,7 +161,12 @@ export default function CalendarView({
                   color: day ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
                   cursor: day ? 'pointer' : 'default',
                   display: 'flex', flexDirection: 'column',
-                  boxShadow: '0 2px 4px rgba(0,0,0,0.01)',
+                  boxShadow: hasEndDateTask && !isSelected
+                    ? 'inset 0 -4px 0 var(--calendar-end-marker), 0 2px 4px rgba(0,0,0,0.06)'
+                    : '0 2px 4px rgba(0,0,0,0.01)',
+                  ...(hasEndDateTask && !isSelected && !isToday
+                    ? { borderColor: 'var(--calendar-end-marker)' }
+                    : {}),
                 }}
                 onClick={() => day && setSelDay(day)}
                 onDoubleClick={() => day && onAddTaskForDay(dateStr)}
