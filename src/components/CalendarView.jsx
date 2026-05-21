@@ -71,7 +71,7 @@ function compareCalendarEvents(a, b) {
 
 export default function CalendarView({
   y, mo, dIM, fD, tByDate, eByDate, todayStr, prev, next, selDay, setSelDay,
-  onAddTaskForDay, onEditTask, onOpenPriorityPicker, onAddEventForDay, onEditEvent,
+  onAddTaskForDay, onOpenTaskPreview, onOpenPriorityPicker, onAddEventForDay, onEditEvent,
 }) {
   const cells = [...Array(fD).fill(null), ...Array.from({ length: dIM }, (_, i) => i + 1)];
   const selDs = selDay ? toDateStr(y, mo, selDay) : null;
@@ -181,7 +181,7 @@ export default function CalendarView({
                             height: 6,
                             borderRadius: '50%',
                             background: isEndMarker ? 'transparent' : 'var(--color-accent)',
-                            border: isEndMarker ? '1.5px solid var(--color-accent)' : 'none',
+                            border: isEndMarker ? '1.5px solid var(--color-text-danger)' : 'none',
                             boxSizing: 'border-box',
                             opacity: task.status === 'done' ? 0.4 : 1,
                           }}
@@ -231,7 +231,7 @@ export default function CalendarView({
                   )}
                   <TaskRow
                     task={task}
-                    onClick={() => onEditTask(task)}
+                    onClick={() => onOpenTaskPreview?.(task)}
                     onOpenPriorityPicker={onOpenPriorityPicker}
                   />
                 </div>
