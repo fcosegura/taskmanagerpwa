@@ -118,6 +118,7 @@ export function buildTaskPlainSnapshot(task, taskSchema, taskName, subtasksJson,
           ? task.completed_at.trim()
           : null,
     date: task.date ?? null,
+    endDate: typeof task.endDate === 'string' && task.endDate.trim() ? task.endDate.trim() : null,
     dependenciesJson,
     hideInKanbanDone: Boolean(task.hideInKanbanDone),
     name: taskName,

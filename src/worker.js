@@ -215,6 +215,7 @@ function isValidTask(task) {
     (task.hideInKanbanDone === undefined || typeof task.hideInKanbanDone === 'boolean') &&
     (task.completedAt === undefined || task.completedAt === null || typeof task.completedAt === 'string') &&
     (task.completed_at === undefined || task.completed_at === null || typeof task.completed_at === 'string') &&
+    (task.endDate === undefined || task.endDate === null || typeof task.endDate === 'string') &&
     (task.statusLog === undefined || (
       Array.isArray(task.statusLog) &&
       task.statusLog.every((entry) => (
@@ -333,6 +334,7 @@ async function prepareTaskUpsert(env, dataKey, profileId, userId, task, taskSche
   const hasTicketNumber = Boolean(taskSchema?.hasTicketNumber);
   const hasCompletedAt = Boolean(taskSchema?.hasCompletedAt);
   const hasStatusLog = Boolean(taskSchema?.hasStatusLog);
+  const hasEndDate = Boolean(taskSchema?.hasEndDate);
 
   const subtasksJson = JSON.stringify(task.subtasks || []);
   const dependenciesJson = JSON.stringify(
@@ -398,6 +400,7 @@ async function prepareTaskUpsert(env, dataKey, profileId, userId, task, taskSche
 
   const encCategory = await encryptField(dataKey, task.category || null);
   const encDate = await encryptField(dataKey, task.date || null);
+  const encEndDate = await encryptField(dataKey, typeof task.endDate === 'string' && task.endDate.trim() ? task.endDate.trim() : null);
   const encTime = await encryptField(dataKey, task.time || null);
   const encSubtasks = await encryptField(dataKey, subtasksJson);
   const encDeps = await encryptField(dataKey, dependenciesJson);
@@ -436,6 +439,13 @@ async function prepareTaskUpsert(env, dataKey, profileId, userId, task, taskSche
     placeholders.push('?');
     bindings.push(encStatusLog);
     updates.push('status_log = excluded.status_log');
+  }
+
+  if (hasEndDate) {
+    columns.push('end_date');
+    placeholders.push('?');
+    bindings.push(encEndDate);
+    updates.push('end_date = excluded.end_date');
   }
 
   columns.push('content_hash');
@@ -586,6 +596,7 @@ async function ensureProfilesSchema(env) {
   await safeExec("ALTER TABLE events ADD COLUMN content_hash TEXT");
   await safeExec("ALTER TABLE tasks ADD COLUMN planned_slots TEXT");
   await safeExec("ALTER TABLE tasks ADD COLUMN status_log TEXT");
+  await safeExec("ALTER TABLE tasks ADD COLUMN end_date TEXT");
 
   const hasProfileColumn = async (tableName) => {
     try {
@@ -617,7 +628,8 @@ async function ensureProfilesSchema(env) {
     hasNotes: taskColumns.includes('notes'),
     hasTicketNumber: taskColumns.includes('ticket_number'),
     hasCompletedAt: taskColumns.includes('completed_at'),
-    hasStatusLog: taskColumns.includes('status_log')
+    hasStatusLog: taskColumns.includes('status_log'),
+    hasEndDate: taskColumns.includes('end_date')
   };
 }
 
@@ -1294,6 +1306,7 @@ export default {
             const ticketOut = (await decryptField(dataKey, tr.ticket_number)) || '';
             const categoryOut = (await decryptField(dataKey, tr.category)) || null;
             const dateOut = (await decryptField(dataKey, tr.date)) || null;
+            const endDateOut = (await decryptField(dataKey, tr.end_date)) || '';
             const timeOut = (await decryptField(dataKey, tr.time)) || null;
             const completedOut = (await decryptField(dataKey, tr.completed_at)) || '';
             const subRaw = await decryptField(dataKey, tr.subtasks || '[]');
@@ -1344,6 +1357,7 @@ export default {
               updatedAt: updated_at || null,
               category: categoryOut,
               date: dateOut,
+              endDate: typeof endDateOut === 'string' && endDateOut ? endDateOut : '',
               time: timeOut
             });
           }

@@ -106,6 +106,7 @@ export function isValidTask(task) {
   if (typeof priority !== 'string' || !PRIORITY.some((p) => p.v === priority)) return false;
   if (category !== undefined && category !== null && typeof category !== 'string') return false;
   if (date !== undefined && date !== null && typeof date !== 'string') return false;
+  if (task.endDate !== undefined && task.endDate !== null && typeof task.endDate !== 'string') return false;
   if (time !== undefined && time !== null && typeof time !== 'string') return false;
   if (url !== undefined && url !== null && typeof url !== 'string') return false;
   if (notes !== undefined && notes !== null && typeof notes !== 'string') return false;
@@ -135,6 +136,7 @@ function normalizeTask(task) {
     dependencyTaskIds: [...new Set(rawDependencies.filter((id) => typeof id === 'string'))],
     category: task.category || '',
     date: task.date || '',
+    endDate: typeof task.endDate === 'string' ? task.endDate.trim() : '',
     time: task.time || '',
     url: task.url || '',
     notes: task.notes || '',

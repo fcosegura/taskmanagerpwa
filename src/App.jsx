@@ -19,6 +19,7 @@ import BottomNav from './components/BottomNav.jsx';
 import Login from './components/Login.jsx';
 import DailyAgendaView from './components/DailyAgendaView.jsx';
 import { indexEventsByDate } from './calendarEvents.js';
+import { indexTasksByDate } from './calendarTaskIndex.js';
 import { normalizePlannedSlots } from './plannedSlots.js';
 
 function serializePayload(payload) {
@@ -1093,8 +1094,7 @@ export default function App() {
     })()
     : tasks;
 
-  const tByDate = {};
-  focusTasks.forEach((t) => { if (t.date) { (tByDate[t.date] = tByDate[t.date] || []).push(t); } });
+  const tByDate = indexTasksByDate(focusTasks);
 
   const eByDate = useMemo(() => {
     const windowStart = new Date(y, mo - 1, 1, 12, 0, 0, 0);
