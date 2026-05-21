@@ -1363,7 +1363,7 @@ export default function App() {
                 y={y} mo={mo} dIM={dIM} fD={fD} tByDate={tByDate} eByDate={eByDate} todayStr={todayStr}
                 prev={() => setCalDate(new Date(y, mo - 1, 1))} next={() => setCalDate(new Date(y, mo + 1, 1))}
                 selDay={selDay} setSelDay={setSelDay}
-                onAddTaskForDay={(date) => open({ date })} onEditTask={(t) => { setTaskPreviewId(null); setModal(t); }}
+                onAddTaskForDay={(date) => open({ date })} onOpenTaskPreview={(t) => setTaskPreviewId(t.id)}
                 onOpenPriorityPicker={(t) => setPriorityPickerTask(t)}
                 onAddEventForDay={(date) => openEventModal({ startDate: date, endDate: date })} onEditEvent={(e) => openEventModal(e)}
               />

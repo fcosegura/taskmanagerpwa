@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { STATUS, PRIORITY } from '../constants.js';
 import { fmtDate, isCompletedAtWithinKanbanRange } from '../utils.jsx';
-import { shouldShowTaskInKanbanDoneColumn } from '../kanbanTaskVisibility.js';
+import { isChildTask, shouldShowTaskInKanbanDoneColumn } from '../kanbanTaskVisibility.js';
 
 const STATUS_VALUES = STATUS.map((s) => s.v);
 
@@ -13,6 +13,20 @@ const KANBAN_DONE_RANGE_OPTIONS = [
 ];
 
 const DONE_RANGE_ALLOWED = new Set(KANBAN_DONE_RANGE_OPTIONS.map((o) => o.key));
+
+const KANBAN_TASK_ROLE_OPTIONS = [
+  { key: 'all', label: 'Todas' },
+  { key: 'parent', label: 'Epic only' },
+  { key: 'child', label: 'Sub tasks only' },
+];
+
+const TASK_ROLE_ALLOWED = new Set(KANBAN_TASK_ROLE_OPTIONS.map((o) => o.key));
+
+function taskMatchesRoleFilter(task, allTasks, roleFilter) {
+  if (roleFilter === 'parent') return !isChildTask(allTasks, task.id);
+  if (roleFilter === 'child') return isChildTask(allTasks, task.id);
+  return true;
+}
 
 function readDoneRangeFromStorage(storageKey) {
   if (!storageKey) return 'week';
@@ -68,20 +82,10 @@ function KanbanTaskCard({
     if (isLinkDropTarget) {
       return { border: '2px solid #2563eb' };
     }
-    if (hasChildTasks && hasParentTask) {
-      return {
-        border: '2px solid transparent',
-        background: `linear-gradient(${cardSurface}, ${cardSurface}) padding-box,
-          linear-gradient(180deg, #f59e0b 0%, #f59e0b 50%, #9333ea 50%, #9333ea 100%) border-box`,
-      };
-    }
-    if (hasChildTasks) {
-      return { border: '2px solid #9333ea' };
-    }
     if (hasParentTask) {
       return { border: '2px solid #f59e0b' };
     }
-    return { border: '1px solid var(--color-border-tertiary)' };
+    return { border: '2px solid #9333ea' };
   })();
   return (
     <div
@@ -217,6 +221,7 @@ export default function KanbanView({
 }) {
   const [visibleStatuses, setVisibleStatuses] = useState(() => readVisibleFromStorage(kanbanColumnsStorageKey));
   const [doneRange, setDoneRange] = useState(() => readDoneRangeFromStorage(kanbanDoneRangeStorageKey));
+  const [taskRoleFilter, setTaskRoleFilter] = useState('all');
   const [showColumnsMenu, setShowColumnsMenu] = useState(false);
   const columnsMenuRef = useRef(null);
   const [draggedTaskId, setDraggedTaskId] = useState(null);
@@ -274,9 +279,14 @@ export default function KanbanView({
     return !sourceHasParent && !sourceHasChildren && !targetHasParent && !alreadyLinked;
   };
 
+  const roleFilteredTasks = useMemo(
+    () => tasks.filter((task) => taskMatchesRoleFilter(task, allTasks, taskRoleFilter)),
+    [tasks, allTasks, taskRoleFilter],
+  );
+
   const groupedTasks = useMemo(() => (
     STATUS.reduce((accumulator, status) => {
-      accumulator[status.v] = tasks.filter((task) => {
+      accumulator[status.v] = roleFilteredTasks.filter((task) => {
         if (task.status !== status.v) return false;
         if (status.v === 'done' && task.hideInKanbanDone) return false;
         if (status.v === 'done') {
@@ -288,7 +298,7 @@ export default function KanbanView({
       });
       return accumulator;
     }, {})
-  ), [tasks, allTasks, doneRange]);
+  ), [roleFilteredTasks, allTasks, doneRange]);
 
   const handleDropOnColumn = (status, targetIndex = null) => {
     if (!draggedTaskId) return;
@@ -303,6 +313,22 @@ export default function KanbanView({
   return (
     <section className="kanban-view">
       <div className="kanban-toolbar">
+        <label className="kanban-done-range">
+          <span className="kanban-done-range-label">Tareas</span>
+          <select
+            className="kanban-done-range-select"
+            value={taskRoleFilter}
+            aria-label="Filtrar tareas por rol en el Kanban"
+            onChange={(event) => {
+              const next = event.target.value;
+              if (TASK_ROLE_ALLOWED.has(next)) setTaskRoleFilter(next);
+            }}
+          >
+            {KANBAN_TASK_ROLE_OPTIONS.map((option) => (
+              <option key={option.key} value={option.key}>{option.label}</option>
+            ))}
+          </select>
+        </label>
         <label className="kanban-done-range">
           <span className="kanban-done-range-label">Completadas</span>
           <select
