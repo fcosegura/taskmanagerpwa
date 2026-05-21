@@ -6,6 +6,9 @@ export const STATUS = [
   { v: 'done', label: 'Completado', tv: '--color-text-success', bv: '--color-background-success', bov: '--color-border-success' },
 ];
 
+/** Parent statuses that propagate to dependency (child) tasks. */
+export const PARENT_CASCADE_STATUSES = new Set(['blocked', 'paused', 'done']);
+
 export const PRIORITY = [
   { v: 'low', label: 'Baja', tv: '--color-text-primary', bv: '--color-background-secondary', bov: '--color-border-secondary' },
   { v: 'medium', label: 'Media', tv: '--color-text-info', bv: '--color-background-info', bov: '--color-border-info' },
