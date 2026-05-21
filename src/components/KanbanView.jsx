@@ -16,8 +16,8 @@ const DONE_RANGE_ALLOWED = new Set(KANBAN_DONE_RANGE_OPTIONS.map((o) => o.key));
 
 const KANBAN_TASK_ROLE_OPTIONS = [
   { key: 'all', label: 'Todas' },
-  { key: 'parent', label: 'Solo padre' },
-  { key: 'child', label: 'Solo hija' },
+  { key: 'parent', label: 'Epic only' },
+  { key: 'child', label: 'Sub tasks only' },
 ];
 
 const TASK_ROLE_ALLOWED = new Set(KANBAN_TASK_ROLE_OPTIONS.map((o) => o.key));
