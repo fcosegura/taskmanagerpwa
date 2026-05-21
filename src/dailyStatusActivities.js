@@ -44,8 +44,14 @@ export function collectDailyStatusActivities(tasks, days, now = new Date()) {
 
     const createdInWindow = isWithinWindow(createdAt, startMs, endMs);
     const completedInWindow = isWithinWindow(completedAt, startMs, endMs);
+    const movedToDoneInWindow = statusChanges.some((entry) => entry.toStatus === 'done');
+    const currentStatus = typeof task.status === 'string' ? task.status : 'not_done';
 
-    if (!createdInWindow && statusChanges.length === 0 && !completedInWindow) continue;
+    if (currentStatus === 'done') {
+      if (!completedInWindow && !movedToDoneInWindow) continue;
+    } else if (!createdInWindow && statusChanges.length === 0 && !completedInWindow) {
+      continue;
+    }
 
     const lastActivityMs = Math.max(
       createdInWindow ? parseIsoMs(createdAt) : 0,
@@ -59,7 +65,8 @@ export function collectDailyStatusActivities(tasks, days, now = new Date()) {
       ticketNumber: typeof task.ticketNumber === 'string' ? task.ticketNumber : '',
       category: typeof task.category === 'string' ? task.category : '',
       priority: typeof task.priority === 'string' ? task.priority : 'medium',
-      currentStatus: typeof task.status === 'string' ? task.status : 'not_done',
+      currentStatus,
+      movedToDoneInWindow,
       createdAt: createdAt || null,
       createdInWindow,
       completedAt: completedAt || null,
@@ -84,13 +91,19 @@ export function statusChangesForDailyReport(item) {
 }
 
 export function movedToDoneInWindow(item) {
+  if (typeof item?.movedToDoneInWindow === 'boolean') return item.movedToDoneInWindow;
   const changes = Array.isArray(item?.statusChanges) ? item.statusChanges : [];
   return changes.some((entry) => entry.toStatus === 'done');
 }
 
+/** True when the task was completed or marked done inside the selected day window. */
+export function qualifiesForDoneSection(item) {
+  return Boolean(item?.completedInWindow || movedToDoneInWindow(item));
+}
+
 /**
- * Splits activities for Scrum sections. Uses currentStatus as source of truth:
- * done tasks never go to "active", even if the log shows in_progress in the period.
+ * Splits activities for Scrum sections.
+ * "Hecho" only includes work finished in the period (completedAt or transition to done in window).
  */
 export function partitionDailyStatusActivities(activities) {
   const doneInPeriod = [];
@@ -109,14 +122,16 @@ export function partitionDailyStatusActivities(activities) {
       continue;
     }
 
-    const isDoneNow = status === 'done';
-    const finishedInPeriod = enriched.completedInWindow || movedToDoneInWindow(enriched);
-
-    if (isDoneNow || finishedInPeriod) {
+    if (qualifiesForDoneSection(enriched)) {
       doneInPeriod.push(enriched);
-    } else {
-      activeNow.push(enriched);
+      continue;
     }
+
+    if (status === 'done') {
+      continue;
+    }
+
+    activeNow.push(enriched);
   }
 
   return { doneInPeriod, activeNow, blocked };

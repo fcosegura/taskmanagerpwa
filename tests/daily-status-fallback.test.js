@@ -27,23 +27,33 @@ test('buildDailyStatusFallbackReport lists status change comment', () => {
   assert.match(report, /Hoy \/ En curso/);
 });
 
-test('buildDailyStatusFallbackReport puts done tasks under Hecho not En curso', () => {
+test('buildDailyStatusFallbackReport puts period completions under Hecho only', () => {
   const report = buildDailyStatusFallbackReport([{
-    name: 'Legacy done',
+    name: 'Completada en periodo',
     currentStatus: 'done',
-    completedInWindow: false,
+    completedInWindow: true,
+    movedToDoneInWindow: false,
     createdInWindow: false,
-    statusChanges: [{
-      fromStatus: 'in_progress',
-      toStatus: 'in_progress',
-      comment: 'comentario reciente',
-      at: '2026-05-21T10:00:00.000Z',
-    }],
+    statusChanges: [],
     notes: '',
   }], 2);
   const hechoIdx = report.indexOf('## Hecho');
   const cursoIdx = report.indexOf('## Hoy / En curso');
-  const legacyIdx = report.indexOf('Legacy done');
+  const nameIdx = report.indexOf('Completada en periodo');
   assert.ok(hechoIdx >= 0 && cursoIdx > hechoIdx);
-  assert.ok(legacyIdx > hechoIdx && legacyIdx < cursoIdx);
+  assert.ok(nameIdx > hechoIdx && nameIdx < cursoIdx);
+});
+
+test('buildDailyStatusFallbackReport omits old done tasks from Hecho', () => {
+  const report = buildDailyStatusFallbackReport([{
+    name: 'Legacy done',
+    currentStatus: 'done',
+    completedInWindow: false,
+    movedToDoneInWindow: false,
+    createdInWindow: false,
+    statusChanges: [],
+    notes: '',
+  }], 2);
+  assert.doesNotMatch(report, /Legacy done/);
+  assert.match(report, /## Hecho[\s\S]*Ninguno/);
 });

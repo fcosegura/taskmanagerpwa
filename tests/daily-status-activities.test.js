@@ -85,20 +85,58 @@ test('statusChangesForDailyReport hides in_progress steps when task is done', ()
   assert.equal(statusChangesForDailyReport(item)[0].toStatus, 'done');
 });
 
-test('partitionDailyStatusActivities puts done tasks in doneInPeriod not activeNow', () => {
+test('collectDailyStatusActivities excludes old done tasks without completion in window', () => {
+  const now = new Date('2026-05-21T12:00:00');
+  const { activities } = collectDailyStatusActivities([{
+    id: 'old-done',
+    name: 'Hecha hace meses',
+    status: 'done',
+    priority: 'medium',
+    createdAt: '2025-01-10T10:00:00.000Z',
+    completedAt: '2025-02-01T10:00:00.000Z',
+    statusLog: [],
+  }], 2, now);
+  assert.equal(activities.length, 0);
+});
+
+test('collectDailyStatusActivities includes done task completed in window', () => {
+  const now = new Date('2026-05-21T12:00:00');
+  const { activities } = collectDailyStatusActivities([{
+    id: 'recent-done',
+    name: 'Hecha ayer',
+    status: 'done',
+    priority: 'medium',
+    createdAt: '2025-01-10T10:00:00.000Z',
+    completedAt: '2026-05-20T15:00:00.000Z',
+    statusLog: [],
+  }], 2, now);
+  assert.equal(activities.length, 1);
+  assert.equal(activities[0].completedInWindow, true);
+});
+
+test('partitionDailyStatusActivities puts only period completions in doneInPeriod', () => {
   const { doneInPeriod, activeNow } = partitionDailyStatusActivities([{
-    name: 'Vieja hecha',
+    name: 'Completada ayer',
     currentStatus: 'done',
-    completedInWindow: false,
+    completedInWindow: true,
+    movedToDoneInWindow: false,
     createdInWindow: false,
-    statusChanges: [{
-      id: '1',
-      fromStatus: 'in_progress',
-      toStatus: 'in_progress',
-      comment: 'sigue',
-      at: '2026-05-21T09:00:00.000Z',
-    }],
+    statusChanges: [],
   }]);
   assert.equal(activeNow.length, 0);
   assert.equal(doneInPeriod.length, 1);
+});
+
+test('partitionDailyStatusActivities omits stale done tasks from all sections', () => {
+  const { doneInPeriod, activeNow, blocked } = partitionDailyStatusActivities([{
+    name: 'Vieja hecha',
+    currentStatus: 'done',
+    completedInWindow: false,
+    movedToDoneInWindow: false,
+    createdInWindow: false,
+    statusChanges: [],
+  }]);
+  assert.equal(doneInPeriod.length, 0);
+  assert.equal(activeNow.length, 0);
+  assert.equal(blocked.length, 0);
 });
