@@ -22,12 +22,8 @@ const KANBAN_TASK_ROLE_OPTIONS = [
 
 const TASK_ROLE_ALLOWED = new Set(KANBAN_TASK_ROLE_OPTIONS.map((o) => o.key));
 
-function isParentTask(task) {
-  return Array.isArray(task?.dependencyTaskIds) && task.dependencyTaskIds.length > 0;
-}
-
 function taskMatchesRoleFilter(task, allTasks, roleFilter) {
-  if (roleFilter === 'parent') return isParentTask(task);
+  if (roleFilter === 'parent') return !isChildTask(allTasks, task.id);
   if (roleFilter === 'child') return isChildTask(allTasks, task.id);
   return true;
 }
