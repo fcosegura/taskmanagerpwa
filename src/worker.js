@@ -937,6 +937,7 @@ function sanitizeDailyStatusActivities(activities) {
       currentStatus: typeof item.currentStatus === 'string' ? item.currentStatus : 'not_done',
       createdInWindow: Boolean(item.createdInWindow),
       completedInWindow: Boolean(item.completedInWindow),
+      movedToDoneInWindow: Boolean(item.movedToDoneInWindow),
       statusChanges: Array.isArray(item.statusChanges)
         ? item.statusChanges.slice(0, 20).map((change) => ({
           fromStatus: typeof change?.fromStatus === 'string' ? change.fromStatus : null,
@@ -968,7 +969,7 @@ async function generateDailyStatusWithAi(days, activities, env) {
     'El JSON ya separa las tareas en tres listas; NO reasignes tareas entre secciones.',
     'Estructura obligatoria (markdown):',
     '## Hecho',
-    'Lista SOLO las tareas de doneInPeriod (trabajo terminado o marcado completado).',
+    'Lista SOLO las tareas de doneInPeriod (completadas o marcadas done dentro del periodo). No agregues otras tareas hechas.',
     '## Hoy / En curso',
     'Lista SOLO las tareas de activeNow. Nunca incluyas tareas con currentStatus "done".',
     '## Bloqueadores',
