@@ -62,13 +62,27 @@ function KanbanTaskCard({
   const parentTasks = allTasks.filter((candidate) => (candidate.dependencyTaskIds || []).includes(task.id));
   const hasParentTask = parentTasks.length > 0;
   const hasChildTasks = childTasks.length > 0;
-  const dependencyRailColor = hasChildTasks && hasParentTask
-    ? 'linear-gradient(180deg, #f59e0b 0%, #f59e0b 50%, #9333ea 50%, #9333ea 100%)'
-    : hasChildTasks
-      ? '#9333ea'
-      : hasParentTask
-      ? '#f59e0b'
-      : 'transparent';
+  const isLinkDropTarget = isDragOver && dragMode === 'link';
+  const cardSurface = isLinkDropTarget ? 'rgba(37,99,235,0.06)' : 'var(--color-background-primary)';
+  const dependencyBorderStyle = (() => {
+    if (isLinkDropTarget) {
+      return { border: '2px solid #2563eb' };
+    }
+    if (hasChildTasks && hasParentTask) {
+      return {
+        border: '2px solid transparent',
+        background: `linear-gradient(${cardSurface}, ${cardSurface}) padding-box,
+          linear-gradient(180deg, #f59e0b 0%, #f59e0b 50%, #9333ea 50%, #9333ea 100%) border-box`,
+      };
+    }
+    if (hasChildTasks) {
+      return { border: '2px solid #9333ea' };
+    }
+    if (hasParentTask) {
+      return { border: '2px solid #f59e0b' };
+    }
+    return { border: '1px solid var(--color-border-tertiary)' };
+  })();
   return (
     <div
       draggable
@@ -76,10 +90,9 @@ function KanbanTaskCard({
       onDragEnd={onDragEnd}
       onClick={() => (onOpenTaskPreview ?? onEditTask)?.(task)}
       style={{
-        border: '1px solid var(--color-border-tertiary)',
-        borderColor: isDragOver && dragMode === 'link' ? '#2563eb' : 'var(--color-border-tertiary)',
+        ...dependencyBorderStyle,
         borderRadius: 12,
-        background: isDragOver && dragMode === 'link' ? 'rgba(37,99,235,0.06)' : 'var(--color-background-primary)',
+        background: dependencyBorderStyle.background || cardSurface,
         padding: 12,
         cursor: 'grab',
         boxShadow: '0 8px 22px rgba(15,23,42,0.07)',
@@ -106,25 +119,7 @@ function KanbanTaskCard({
           <span style={{ fontSize: 12, lineHeight: 1 }}>⋮⋮</span>
           <span>Arrastrar</span>
         </div>
-        {hasChildTasks && (
-          <span
-            title="Tarea padre"
-            style={{ width: 8, height: 8, borderRadius: '50%', background: '#9333ea', display: 'inline-block' }}
-          />
-        )}
-        {hasParentTask && (
-          <span
-            title="Tarea hija"
-            style={{ width: 8, height: 8, borderRadius: '50%', background: '#f59e0b', display: 'inline-block' }}
-          />
-        )}
       </div>
-      {(hasParentTask || hasChildTasks) && (
-        <div style={{ display: 'flex', gap: 6 }}>
-          <div style={{ width: 4, borderRadius: 999, background: `var(${priority.tv})` }} />
-          <div style={{ width: 4, borderRadius: 999, background: dependencyRailColor }} />
-        </div>
-      )}
       {isDragOver && (
         <div style={{ fontSize: 10, fontWeight: 700, color: dragMode === 'link' ? 'var(--color-accent)' : 'var(--color-text-secondary)' }}>
           {dragMode === 'link' ? 'Soltar para crear dependencia' : 'Soltar para mover/reordenar'}
