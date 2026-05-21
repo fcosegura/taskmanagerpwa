@@ -130,11 +130,17 @@ export default function CalendarView({
             const isToday = dateStr === todayStr;
             const isSelected = dateStr === selDs;
             const holidayLike = isWeekend || isNationalHoliday;
+            const hasEndDateTask = tasksForDay.some((task) => task.calendarDateRole === 'end');
+            const visibleTaskMarkers = [...tasksForDay].sort((a, b) => {
+              if (a.calendarDateRole === 'end' && b.calendarDateRole !== 'end') return -1;
+              if (b.calendarDateRole === 'end' && a.calendarDateRole !== 'end') return 1;
+              return 0;
+            });
 
             return (
               <div
                 key={index}
-                className={`calendar-cell${isToday ? ' today' : ''}${isSelected ? ' selected' : ''}`}
+                className={`calendar-cell${isToday ? ' today' : ''}${isSelected ? ' selected' : ''}${hasEndDateTask ? ' has-end-date' : ''}`}
                 style={{
                   position: 'relative', minHeight: 65, padding: '8px 4px',
                   borderRadius: 12,
@@ -166,25 +172,18 @@ export default function CalendarView({
                       {day || ''}
                     </span>
                   </div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 2, justifyContent: 'center' }}>
+                  <div className="calendar-task-markers">
                     {eventsForDay.slice(0, 3).map((event) => (
-                      <div key={`${event.id}-${event.occurrenceDate || dateStr || 'event'}`} style={{ width: 6, height: 6, borderRadius: '50%', background: event.color }} />
+                      <div key={`${event.id}-${event.occurrenceDate || dateStr || 'event'}`} className="calendar-task-marker" style={{ width: 6, height: 6, background: event.color }} />
                     ))}
-                    {tasksForDay.slice(0, 3 - eventsForDay.length).map((task) => {
+                    {visibleTaskMarkers.slice(0, 3 - eventsForDay.length).map((task) => {
                       const isEndMarker = task.calendarDateRole === 'end';
                       return (
                         <div
                           key={`${task.id}-${task.calendarDateRole || 'start'}`}
-                          title={isEndMarker ? 'Fecha fin' : undefined}
-                          style={{
-                            width: 6,
-                            height: 6,
-                            borderRadius: '50%',
-                            background: isEndMarker ? 'transparent' : 'var(--color-accent)',
-                            border: isEndMarker ? '1.5px solid var(--color-text-danger)' : 'none',
-                            boxSizing: 'border-box',
-                            opacity: task.status === 'done' ? 0.4 : 1,
-                          }}
+                          className={`calendar-task-marker${isEndMarker ? ' calendar-task-marker--end' : ' calendar-task-marker--start'}`}
+                          title={isEndMarker ? 'Fecha fin' : 'Fecha inicio'}
+                          style={{ opacity: task.status === 'done' ? 0.45 : 1 }}
                         />
                       );
                     })}
@@ -225,9 +224,7 @@ export default function CalendarView({
               {(tByDate[selDs] || []).map((task) => (
                 <div key={`${task.id}-${task.calendarDateRole || 'start'}`} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                   {task.calendarDateRole === 'end' && (
-                    <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-secondary)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
-                      Fecha fin
-                    </div>
+                    <span className="calendar-end-date-badge">Fecha fin</span>
                   )}
                   <TaskRow
                     task={task}

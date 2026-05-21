@@ -46,6 +46,9 @@
   --calendar-holiday-border: rgba(248, 113, 113, 0.28);
   --calendar-default-border: rgba(148, 163, 184, 0.12);
   --calendar-today-pill-bg: #d1fae5;
+  --calendar-end-marker: #dc2626;
+  --calendar-end-marker-glow: rgba(220, 38, 38, 0.45);
+  --calendar-end-day-bg: rgba(254, 226, 226, 0.55);
 
   --board-canvas-bg: #f8fafc;
   --board-canvas-dot: #cbd5e1;
@@ -100,6 +103,9 @@
   --calendar-holiday-border: rgba(251, 113, 133, 0.38);
   --calendar-default-border: rgba(148, 163, 184, 0.22);
   --calendar-today-pill-bg: #14532d;
+  --calendar-end-marker: #f87171;
+  --calendar-end-marker-glow: rgba(248, 113, 113, 0.5);
+  --calendar-end-day-bg: rgba(127, 29, 29, 0.35);
 
   --board-canvas-bg: #111827;
   --board-canvas-dot: rgba(56, 189, 248, 0.25);
@@ -828,6 +834,50 @@ select:focus {
 
 [data-theme="dark"] .empty-state {
   background: rgba(15, 23, 42, 0.56);
+}
+
+.calendar-task-markers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  justify-content: center;
+  align-items: center;
+  min-height: 10px;
+}
+
+.calendar-task-marker {
+  flex-shrink: 0;
+  border-radius: 50%;
+}
+
+.calendar-task-marker--start {
+  width: 6px;
+  height: 6px;
+  background: var(--color-accent);
+}
+
+.calendar-task-marker--end {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  transform: rotate(45deg);
+  background: var(--calendar-end-marker);
+  box-shadow: 0 0 0 2px var(--calendar-end-marker-glow);
+}
+
+.calendar-end-date-badge {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #fff;
+  background: var(--calendar-end-marker);
+  box-shadow: 0 1px 4px var(--calendar-end-marker-glow);
 }
 
 .calendar-panel,
