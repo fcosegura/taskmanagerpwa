@@ -1,7 +1,6 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
 import { STATUS } from './constants.js';
 import { uid, toDateStr, compareTasksForTaskList, parseDateTimeFromDescription, parseDescriptionDateResult, cleanDescriptionSegment, isJiraCategory, normalizeTicketNumber, applyTicketNumberToTaskName, inheritTicketFromParentTask, mergeTaskCompletionMeta } from './utils.jsx';
-import { applyStatusWithChildCascade, getChildIdsForParent, shouldCascadeStatusToChildren } from './taskStatusCascade.js';
 import { loadData, saveData, validateBackupPayload, normalizeDataPayload, loginWithGoogleCredential, logoutSession, createProfile, deleteProfile, parseTaskWithAI, checkSession, generateTasksFromText, fetchWorkspaceData, isMultiBackupPayload, validateMultiBackupPayload, normalizeMultiBackupPayload } from './storage.js';
 import TasksView from './components/TasksView.jsx';
 import CalendarView from './components/CalendarView.jsx';
@@ -325,8 +324,15 @@ export default function App() {
       const task = previousTasks.find((item) => item.id === id);
       if (!task) return previousTasks;
       const nextStatus = task.status === 'done' ? 'not_done' : 'done';
-      if (shouldCascadeStatusToChildren(nextStatus) && getChildIdsForParent(task).length > 0) {
-        return applyStatusWithChildCascade(previousTasks, id, nextStatus);
+      if (nextStatus === 'done') {
+        const openChildTasks = previousTasks.filter((item) => (
+          (task.dependencyTaskIds || []).includes(item.id) &&
+          item.status !== 'done'
+        ));
+        if (openChildTasks.length > 0) {
+          showParentBlockedMessage('completar', openChildTasks.length);
+          return previousTasks;
+        }
       }
       return previousTasks.map((item) => (
         item.id === id ? mergeTaskCompletionMeta(item, { ...item, status: nextStatus }) : item
@@ -338,14 +344,18 @@ export default function App() {
       const sourceTask = prev.find((task) => task.id === taskId);
       if (!sourceTask) return prev;
       const nextStatus = targetStatus || sourceTask.status;
-      const withStatus = shouldCascadeStatusToChildren(nextStatus) && getChildIdsForParent(sourceTask).length > 0
-        ? applyStatusWithChildCascade(prev, taskId, nextStatus)
-        : prev.map((task) => (
-          task.id === taskId ? mergeTaskCompletionMeta(task, { ...task, status: nextStatus }) : task
+      if (nextStatus === 'done') {
+        const openChildTasks = prev.filter((task) => (
+          (sourceTask.dependencyTaskIds || []).includes(task.id) &&
+          task.status !== 'done'
         ));
-      const movedTask = withStatus.find((task) => task.id === taskId);
-      if (!movedTask) return prev;
-      const remaining = withStatus.filter((task) => task.id !== taskId);
+        if (openChildTasks.length > 0) {
+          showParentBlockedMessage('mover a Hecha', openChildTasks.length);
+          return prev;
+        }
+      }
+      const movedTask = mergeTaskCompletionMeta(sourceTask, { ...sourceTask, status: nextStatus });
+      const remaining = prev.filter((task) => task.id !== taskId);
       const byStatus = STATUS.reduce((acc, status) => {
         acc[status.v] = [];
         return acc;
@@ -577,15 +587,22 @@ export default function App() {
         item.dependencyTaskIds.includes(taskId)
       ));
       const finalDependencyIds = parentTasks.length > 0 ? [] : cleanedDependencyIds;
+      if (normalizedTask.status === 'done') {
+        const openChildTasks = previousTasks.filter((item) => (
+          finalDependencyIds.includes(item.id) &&
+          item.status !== 'done'
+        ));
+        if (openChildTasks.length > 0) {
+          setBackupMessage(`No se puede guardar en Hecha: tiene ${openChildTasks.length} tarea(s) hija(s) abierta(s).`);
+          setTimeout(() => setBackupMessage(''), 4200);
+          return previousTasks;
+        }
+      }
       const prevForMerge = normalizedTask.id ? previousTasks.find((item) => item.id === normalizedTask.id) : null;
       const nextTask = mergeTaskCompletionMeta(prevForMerge, { ...normalizedTask, id: taskId, dependencyTaskIds: finalDependencyIds });
-      const withParent = normalizedTask.id
+      return normalizedTask.id
         ? previousTasks.map((item) => item.id === normalizedTask.id ? nextTask : item)
         : [...previousTasks, nextTask];
-      if (shouldCascadeStatusToChildren(nextTask.status) && finalDependencyIds.length > 0) {
-        return applyStatusWithChildCascade(withParent, taskId, nextTask.status);
-      }
-      return withParent;
     });
     setModal(null);
   };
@@ -1203,6 +1220,7 @@ export default function App() {
                 allTasks={focusTasks}
                 kanbanColumnsStorageKey={`taskmanager_kanban_visible_columns_${activeProfileId || 'default'}`}
                 kanbanDoneRangeStorageKey={`taskmanager_kanban_done_range_${activeProfileId || 'default'}`}
+                onOpenTaskPreview={(t) => setTaskPreviewId(t.id)}
                 onEditTask={(task) => { setTaskPreviewId(null); setModal(task); }}
                 onOpenPriorityPicker={(t) => setPriorityPickerTask(t)}
                 onMoveTaskStatus={moveTaskToStatus}

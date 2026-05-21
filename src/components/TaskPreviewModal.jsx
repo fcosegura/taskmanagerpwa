@@ -109,33 +109,56 @@ export default function TaskPreviewModal({ task, allTasks = [], onClose, onEdit 
         </div>
       )}
 
+      {hasChildTasks && (
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 8 }}>
+            Tareas hijas ({childTasks.length})
+          </div>
+          <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {childTasks.map((childTask) => {
+              const childStatus = STATUS.find((x) => x.v === childTask.status) || STATUS[0];
+              return (
+                <li
+                  key={childTask.id}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    justifyContent: 'space-between',
+                    gap: 10,
+                    padding: '10px 12px',
+                    borderRadius: 'var(--border-radius-md)',
+                    border: '1px solid var(--color-border-tertiary)',
+                    background: 'var(--color-background-secondary)',
+                  }}
+                >
+                  <span style={{ fontSize: 13, fontWeight: 600, wordBreak: 'break-word', flex: 1 }}>
+                    {childTask.name}
+                  </span>
+                  <Pill s={childStatus} fixedWidth={82} />
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+
+      {hasParentTask && (
+        <div style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginBottom: 16 }}>
+          <span style={{ fontWeight: 600 }}>Tarea padre:</span>{' '}
+          {parentTasks.map((parentTask) => parentTask.name).join(', ')}
+        </div>
+      )}
+
       <div style={{ marginBottom: 8 }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 6 }}>Notas</div>
+        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 6 }}>Comentarios</div>
         {task.notes && String(task.notes).trim() ? (
           <div style={{ fontSize: 14, lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: 'var(--color-text-primary)' }}>
             {linkifyText(task.notes)}
           </div>
         ) : (
-          <div style={{ fontSize: 13, color: 'var(--color-text-secondary)', fontStyle: 'italic' }}>Sin notas.</div>
+          <div style={{ fontSize: 13, color: 'var(--color-text-secondary)', fontStyle: 'italic' }}>Sin comentarios.</div>
         )}
       </div>
-
-      {(hasChildTasks || hasParentTask) && (
-        <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--color-border-tertiary)', display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {hasChildTasks && (
-            <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>
-              <span style={{ fontWeight: 600 }}>Depende de:</span>{' '}
-              {childTasks.map((childTask) => childTask.name).join(', ')}
-            </div>
-          )}
-          {hasParentTask && (
-            <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>
-              <span style={{ fontWeight: 600 }}>Parte de:</span>{' '}
-              {parentTasks.map((parentTask) => parentTask.name).join(', ')}
-            </div>
-          )}
-        </div>
-      )}
 
       <div style={{ marginTop: 18 }}>
         <button
