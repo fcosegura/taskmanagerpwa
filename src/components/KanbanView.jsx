@@ -215,6 +215,8 @@ export default function KanbanView({
   onOpenPriorityPicker,
   onMoveTaskStatus,
   onDropTaskOnTask,
+  onDailyStatus,
+  dailyStatusLoading = false,
   kanbanColumnsStorageKey = 'taskmanager_kanban_visible_columns_default',
   kanbanDoneRangeStorageKey = 'taskmanager_kanban_done_range_default',
 }) {
@@ -328,6 +330,16 @@ export default function KanbanView({
             ))}
           </select>
         </label>
+        {onDailyStatus && (
+          <button
+            type="button"
+            className="ghost-button"
+            onClick={onDailyStatus}
+            disabled={dailyStatusLoading}
+          >
+            {dailyStatusLoading ? 'Generando...' : 'Daily Status'}
+          </button>
+        )}
         <div className="actions-menu-wrap" ref={columnsMenuRef}>
           <button
             type="button"

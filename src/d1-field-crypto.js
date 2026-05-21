@@ -106,8 +106,9 @@ export async function decryptField(key, stored) {
 /**
  * @param {string} subtasksJson exact JSON string stored for subtasks (must match encrypted payload)
  * @param {string} dependenciesJson exact JSON string for dependency ids
+ * @param {string} statusLogJson exact JSON string for status change log
  */
-export function buildTaskPlainSnapshot(task, taskSchema, taskName, subtasksJson, dependenciesJson) {
+export function buildTaskPlainSnapshot(task, taskSchema, taskName, subtasksJson, dependenciesJson, statusLogJson = '[]') {
   const snap = {
     category: task.category ?? null,
     completedAt:
@@ -127,6 +128,7 @@ export function buildTaskPlainSnapshot(task, taskSchema, taskName, subtasksJson,
     ticketNumber: typeof task.ticketNumber === 'string' ? task.ticketNumber.trim() : null,
     time: task.time ?? null,
     plannedSlotsJson: plannedSlotsStableJson(task.plannedSlots),
+    statusLogJson,
     url: typeof task.url === 'string' ? task.url : ''
   };
   if (taskSchema?.hasDescription) snap.description = taskName;

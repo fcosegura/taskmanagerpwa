@@ -1,5 +1,6 @@
 import { STATUS, PRIORITY } from '../constants.js';
 import { fmtDate, linkifyText, isJiraCategory } from '../utils.jsx';
+import { normalizeStatusLog } from '../statusLog.js';
 import { Pill, CategoryPill } from './shared/index.jsx';
 
 function PencilIcon() {
@@ -20,6 +21,7 @@ export default function TaskPreviewModal({ task, allTasks = [], onClose, onEdit 
   const hasParentTask = parentTasks.length > 0;
   const category = task.category || '';
   const showTicket = isJiraCategory(category) && task.ticketNumber;
+  const statusLog = normalizeStatusLog(task.statusLog).slice().reverse();
 
   const openEdit = () => onEdit?.(task);
 
@@ -146,6 +148,40 @@ export default function TaskPreviewModal({ task, allTasks = [], onClose, onEdit 
         <div style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginBottom: 16 }}>
           <span style={{ fontWeight: 600 }}>Tarea padre:</span>{' '}
           {parentTasks.map((parentTask) => parentTask.name).join(', ')}
+        </div>
+      )}
+
+      {statusLog.length > 0 && (
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 8 }}>
+            Historial de estado
+          </div>
+          <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'grid', gap: 10 }}>
+            {statusLog.map((entry) => {
+              const fromLabel = STATUS.find((x) => x.v === entry.fromStatus)?.label;
+              const toLabel = STATUS.find((x) => x.v === entry.toStatus)?.label || entry.toStatus;
+              const when = entry.at ? new Date(entry.at).toLocaleString() : '';
+              return (
+                <li
+                  key={entry.id}
+                  style={{
+                    border: '1px solid var(--color-border-tertiary)',
+                    borderRadius: 10,
+                    padding: '10px 12px',
+                    fontSize: 13,
+                  }}
+                >
+                  <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 4 }}>{when}</div>
+                  <div style={{ fontWeight: 600, marginBottom: 4 }}>
+                    {fromLabel ? `${fromLabel} → ${toLabel}` : toLabel}
+                  </div>
+                  <div style={{ lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                    {entry.comment}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
         </div>
       )}
 

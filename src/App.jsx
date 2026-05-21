@@ -1,7 +1,9 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
 import { STATUS } from './constants.js';
 import { uid, toDateStr, compareTasksForTaskList, parseDateTimeFromDescription, parseDescriptionDateResult, cleanDescriptionSegment, isJiraCategory, normalizeTicketNumber, applyTicketNumberToTaskName, inheritTicketFromParentTask, mergeTaskCompletionMeta } from './utils.jsx';
-import { loadData, saveData, validateBackupPayload, normalizeDataPayload, loginWithGoogleCredential, logoutSession, createProfile, deleteProfile, parseTaskWithAI, checkSession, generateTasksFromText, fetchWorkspaceData, isMultiBackupPayload, validateMultiBackupPayload, normalizeMultiBackupPayload } from './storage.js';
+import { loadData, saveData, validateBackupPayload, normalizeDataPayload, loginWithGoogleCredential, logoutSession, createProfile, deleteProfile, parseTaskWithAI, checkSession, generateTasksFromText, generateDailyStatus, fetchWorkspaceData, isMultiBackupPayload, validateMultiBackupPayload, normalizeMultiBackupPayload } from './storage.js';
+import { appendStatusLogEntry } from './statusLog.js';
+import { collectDailyStatusActivities } from './dailyStatusActivities.js';
 import TasksView from './components/TasksView.jsx';
 import CalendarView from './components/CalendarView.jsx';
 import BoardView from './components/BoardView.jsx';
@@ -10,6 +12,9 @@ import TaskModal from './components/TaskModal.jsx';
 import TaskPreviewModal from './components/TaskPreviewModal.jsx';
 import EventModal from './components/EventModal.jsx';
 import PriorityPickerModal from './components/PriorityPickerModal.jsx';
+import StatusChangeCommentModal from './components/StatusChangeCommentModal.jsx';
+import DailyStatusDaysModal from './components/DailyStatusDaysModal.jsx';
+import DailyStatusResultModal from './components/DailyStatusResultModal.jsx';
 import BottomNav from './components/BottomNav.jsx';
 import Login from './components/Login.jsx';
 import DailyAgendaView from './components/DailyAgendaView.jsx';
@@ -59,6 +64,12 @@ export default function App() {
   const [aiGenerationLoading, setAiGenerationLoading] = useState(false);
   const [aiGenerationError, setAiGenerationError] = useState('');
   const [aiPlanPreview, setAiPlanPreview] = useState(null);
+  const [pendingStatusChange, setPendingStatusChange] = useState(null);
+  const [pendingModalUpsert, setPendingModalUpsert] = useState(null);
+  const [dailyStatusDaysOpen, setDailyStatusDaysOpen] = useState(false);
+  const [dailyStatusResult, setDailyStatusResult] = useState(null);
+  const [dailyStatusLoading, setDailyStatusLoading] = useState(false);
+  const [dailyStatusError, setDailyStatusError] = useState('');
   const [swUpdateAvailable, setSwUpdateAvailable] = useState(false);
   const fileInputRef = useRef(null);
   const profileMenuRef = useRef(null);
@@ -319,42 +330,41 @@ export default function App() {
     };
   };
 
-  const toggleDone = (id) => {
+  const applyTaskUpdate = (normalizedTask) => {
     setTasks((previousTasks) => {
-      const task = previousTasks.find((item) => item.id === id);
-      if (!task) return previousTasks;
-      const nextStatus = task.status === 'done' ? 'not_done' : 'done';
-      if (nextStatus === 'done') {
+      const taskId = normalizedTask.id || uid();
+      const cleanedDependencyIds = [...new Set((normalizedTask.dependencyTaskIds || []).filter((dependencyId) => (
+        typeof dependencyId === 'string' &&
+        dependencyId !== taskId &&
+        previousTasks.some((item) => item.id === dependencyId)
+      )))];
+      const parentTasks = previousTasks.filter((item) => (
+        item.id !== taskId &&
+        Array.isArray(item.dependencyTaskIds) &&
+        item.dependencyTaskIds.includes(taskId)
+      ));
+      const finalDependencyIds = parentTasks.length > 0 ? [] : cleanedDependencyIds;
+      if (normalizedTask.status === 'done') {
         const openChildTasks = previousTasks.filter((item) => (
-          (task.dependencyTaskIds || []).includes(item.id) &&
+          finalDependencyIds.includes(item.id) &&
           item.status !== 'done'
         ));
         if (openChildTasks.length > 0) {
-          showParentBlockedMessage('completar', openChildTasks.length);
+          setBackupMessage(`No se puede guardar en Hecha: tiene ${openChildTasks.length} tarea(s) hija(s) abierta(s).`);
+          setTimeout(() => setBackupMessage(''), 4200);
           return previousTasks;
         }
       }
-      return previousTasks.map((item) => (
-        item.id === id ? mergeTaskCompletionMeta(item, { ...item, status: nextStatus }) : item
-      ));
+      const prevForMerge = normalizedTask.id ? previousTasks.find((item) => item.id === normalizedTask.id) : null;
+      const nextTask = mergeTaskCompletionMeta(prevForMerge, { ...normalizedTask, id: taskId, dependencyTaskIds: finalDependencyIds });
+      return normalizedTask.id
+        ? previousTasks.map((item) => item.id === normalizedTask.id ? nextTask : item)
+        : [...previousTasks, nextTask];
     });
   };
-  const moveTaskToStatus = (taskId, targetStatus, targetIndex = null) => {
+
+  const reorderTaskInKanban = (taskId, targetStatus, targetIndex, movedTask) => {
     setTasks((prev) => {
-      const sourceTask = prev.find((task) => task.id === taskId);
-      if (!sourceTask) return prev;
-      const nextStatus = targetStatus || sourceTask.status;
-      if (nextStatus === 'done') {
-        const openChildTasks = prev.filter((task) => (
-          (sourceTask.dependencyTaskIds || []).includes(task.id) &&
-          task.status !== 'done'
-        ));
-        if (openChildTasks.length > 0) {
-          showParentBlockedMessage('mover a Hecha', openChildTasks.length);
-          return prev;
-        }
-      }
-      const movedTask = mergeTaskCompletionMeta(sourceTask, { ...sourceTask, status: nextStatus });
       const remaining = prev.filter((task) => task.id !== taskId);
       const byStatus = STATUS.reduce((acc, status) => {
         acc[status.v] = [];
@@ -364,14 +374,148 @@ export default function App() {
         if (!byStatus[task.status]) byStatus[task.status] = [];
         byStatus[task.status].push(task);
       });
-      const list = byStatus[nextStatus] || [];
+      const list = byStatus[targetStatus] || [];
       const insertionIndex = targetIndex === null
         ? list.length
         : Math.max(0, Math.min(targetIndex, list.length));
       list.splice(insertionIndex, 0, movedTask);
-      byStatus[nextStatus] = list;
+      byStatus[targetStatus] = list;
       return STATUS.flatMap((status) => byStatus[status.v] || []);
     });
+  };
+
+  const commitStatusChange = ({ taskId, fromStatus, toStatus, comment, targetIndex = null }) => {
+    const trimmed = typeof comment === 'string' ? comment.trim() : '';
+    if (!trimmed) return;
+
+    const sourceTask = tasks.find((task) => task.id === taskId);
+    if (!sourceTask) return;
+
+    if (toStatus === 'done') {
+      const openChildTasks = tasks.filter((task) => (
+        (sourceTask.dependencyTaskIds || []).includes(task.id) &&
+        task.status !== 'done'
+      ));
+      if (openChildTasks.length > 0) {
+        showParentBlockedMessage('mover a Hecha', openChildTasks.length);
+        return;
+      }
+    }
+
+    let nextTask = mergeTaskCompletionMeta(sourceTask, { ...sourceTask, status: toStatus });
+    nextTask = appendStatusLogEntry(nextTask, {
+      fromStatus: fromStatus ?? sourceTask.status,
+      toStatus,
+      comment: trimmed,
+    });
+
+    if (targetIndex !== null && targetIndex !== undefined) {
+      reorderTaskInKanban(taskId, toStatus, targetIndex, nextTask);
+    } else {
+      setTasks((prev) => prev.map((item) => (item.id === taskId ? nextTask : item)));
+    }
+    setPendingStatusChange(null);
+    setPendingModalUpsert(null);
+  };
+
+  const requestStatusChange = ({ taskId, fromStatus, toStatus, targetIndex = null, source }) => {
+    if (!toStatus || fromStatus === toStatus) return false;
+    const sourceTask = tasks.find((task) => task.id === taskId);
+    if (!sourceTask) return false;
+    if (toStatus === 'done') {
+      const openChildTasks = tasks.filter((task) => (
+        (sourceTask.dependencyTaskIds || []).includes(task.id) &&
+        task.status !== 'done'
+      ));
+      if (openChildTasks.length > 0) {
+        showParentBlockedMessage(source === 'list' ? 'completar' : 'mover a Hecha', openChildTasks.length);
+        return false;
+      }
+    }
+    setPendingStatusChange({ taskId, fromStatus, toStatus, targetIndex, source });
+    return true;
+  };
+
+  const handleStatusCommentConfirm = (comment) => {
+    if (!pendingStatusChange) return;
+    if (pendingStatusChange.source === 'modal' && pendingModalUpsert) {
+      const existing = tasks.find((item) => item.id === pendingModalUpsert.id);
+      let nextTask = mergeTaskCompletionMeta(existing, pendingModalUpsert);
+      nextTask = appendStatusLogEntry(nextTask, {
+        fromStatus: pendingStatusChange.fromStatus,
+        toStatus: pendingStatusChange.toStatus,
+        comment,
+      });
+      applyTaskUpdate(nextTask);
+      setModal(null);
+      setPendingStatusChange(null);
+      setPendingModalUpsert(null);
+      return;
+    }
+    commitStatusChange({ ...pendingStatusChange, comment });
+  };
+
+  const handleStatusCommentCancel = () => {
+    setPendingStatusChange(null);
+    setPendingModalUpsert(null);
+  };
+
+  const toggleDone = (id) => {
+    const task = tasks.find((item) => item.id === id);
+    if (!task) return;
+    const nextStatus = task.status === 'done' ? 'not_done' : 'done';
+    requestStatusChange({
+      taskId: id,
+      fromStatus: task.status,
+      toStatus: nextStatus,
+      source: 'list',
+    });
+  };
+
+  const moveTaskToStatus = (taskId, targetStatus, targetIndex = null) => {
+    const sourceTask = tasks.find((task) => task.id === taskId);
+    if (!sourceTask) return;
+    const nextStatus = targetStatus || sourceTask.status;
+    if (nextStatus === sourceTask.status) {
+      reorderTaskInKanban(taskId, nextStatus, targetIndex, sourceTask);
+      return;
+    }
+    requestStatusChange({
+      taskId,
+      fromStatus: sourceTask.status,
+      toStatus: nextStatus,
+      targetIndex,
+      source: 'kanban',
+    });
+  };
+
+  const handleOpenDailyStatus = () => {
+    if (dailyStatusLoading) return;
+    setDailyStatusError('');
+    setDailyStatusDaysOpen(true);
+  };
+
+  const handleDailyStatusDaysConfirm = async (days) => {
+    setDailyStatusDaysOpen(false);
+    const { activities } = collectDailyStatusActivities(focusTasks, days);
+    if (activities.length === 0) {
+      setBackupMessage('No hay actividad en ese periodo.');
+      setTimeout(() => setBackupMessage(''), 4000);
+      return;
+    }
+    setDailyStatusLoading(true);
+    setDailyStatusError('');
+    try {
+      const result = await generateDailyStatus(days, activities, activeProfileId);
+      setDailyStatusResult({
+        report: result.report,
+        source: result.source,
+      });
+    } catch (error) {
+      setDailyStatusError(error.message || 'No se pudo generar el daily status.');
+    } finally {
+      setDailyStatusLoading(false);
+    }
   };
   const linkStandaloneTaskAsChild = (sourceTaskId, targetTaskId) => {
     if (!sourceTaskId || !targetTaskId || sourceTaskId === targetTaskId) return false;
@@ -574,36 +718,19 @@ export default function App() {
 
   const upsert = (task) => {
     const normalizedTask = normalizeTaskWithTicket(task);
-    setTasks((previousTasks) => {
-      const taskId = normalizedTask.id || uid();
-      const cleanedDependencyIds = [...new Set((normalizedTask.dependencyTaskIds || []).filter((dependencyId) => (
-        typeof dependencyId === 'string' &&
-        dependencyId !== taskId &&
-        previousTasks.some((item) => item.id === dependencyId)
-      )))];
-      const parentTasks = previousTasks.filter((item) => (
-        item.id !== taskId &&
-        Array.isArray(item.dependencyTaskIds) &&
-        item.dependencyTaskIds.includes(taskId)
-      ));
-      const finalDependencyIds = parentTasks.length > 0 ? [] : cleanedDependencyIds;
-      if (normalizedTask.status === 'done') {
-        const openChildTasks = previousTasks.filter((item) => (
-          finalDependencyIds.includes(item.id) &&
-          item.status !== 'done'
-        ));
-        if (openChildTasks.length > 0) {
-          setBackupMessage(`No se puede guardar en Hecha: tiene ${openChildTasks.length} tarea(s) hija(s) abierta(s).`);
-          setTimeout(() => setBackupMessage(''), 4200);
-          return previousTasks;
-        }
-      }
-      const prevForMerge = normalizedTask.id ? previousTasks.find((item) => item.id === normalizedTask.id) : null;
-      const nextTask = mergeTaskCompletionMeta(prevForMerge, { ...normalizedTask, id: taskId, dependencyTaskIds: finalDependencyIds });
-      return normalizedTask.id
-        ? previousTasks.map((item) => item.id === normalizedTask.id ? nextTask : item)
-        : [...previousTasks, nextTask];
-    });
+    const existing = normalizedTask.id ? tasks.find((item) => item.id === normalizedTask.id) : null;
+    if (existing && existing.status !== normalizedTask.status) {
+      setPendingModalUpsert(normalizedTask);
+      const opened = requestStatusChange({
+        taskId: existing.id,
+        fromStatus: existing.status,
+        toStatus: normalizedTask.status,
+        source: 'modal',
+      });
+      if (!opened) setPendingModalUpsert(null);
+      return;
+    }
+    applyTaskUpdate(normalizedTask);
     setModal(null);
   };
 
@@ -1197,6 +1324,9 @@ export default function App() {
           {view === 'tasks' && aiGenerationError && (
             <div style={{ marginTop: 10, fontSize: 12, color: 'var(--color-text-danger)' }}>{aiGenerationError}</div>
           )}
+          {view === 'kanban' && dailyStatusError && (
+            <div style={{ marginTop: 10, fontSize: 12, color: 'var(--color-text-danger)' }}>{dailyStatusError}</div>
+          )}
         </section>
 
         {view === 'tasks'
@@ -1225,6 +1355,8 @@ export default function App() {
                 onOpenPriorityPicker={(t) => setPriorityPickerTask(t)}
                 onMoveTaskStatus={moveTaskToStatus}
                 onDropTaskOnTask={linkStandaloneTaskAsChild}
+                onDailyStatus={handleOpenDailyStatus}
+                dailyStatusLoading={dailyStatusLoading}
               />
           : view === 'calendar'
             ? <CalendarView
@@ -1281,6 +1413,31 @@ export default function App() {
           task={priorityPickerTask}
           onClose={() => setPriorityPickerTask(null)}
           onSelect={applyPriorityPick}
+        />
+      )}
+
+      {pendingStatusChange && (
+        <StatusChangeCommentModal
+          taskName={tasks.find((item) => item.id === pendingStatusChange.taskId)?.name}
+          fromStatus={pendingStatusChange.fromStatus}
+          toStatus={pendingStatusChange.toStatus}
+          onConfirm={handleStatusCommentConfirm}
+          onClose={handleStatusCommentCancel}
+        />
+      )}
+
+      {dailyStatusDaysOpen && (
+        <DailyStatusDaysModal
+          onConfirm={handleDailyStatusDaysConfirm}
+          onClose={() => setDailyStatusDaysOpen(false)}
+        />
+      )}
+
+      {dailyStatusResult && (
+        <DailyStatusResultModal
+          report={dailyStatusResult.report}
+          source={dailyStatusResult.source}
+          onClose={() => setDailyStatusResult(null)}
         />
       )}
 
