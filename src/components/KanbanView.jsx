@@ -70,6 +70,9 @@ function KanbanTaskCard({
   onDragEnd,
   isDragOver = false,
   dragMode = null,
+  isChild = false,
+  isDragging = false,
+  isLanding = false,
 }) {
   const priority = PRIORITY.find((item) => item.v === task.priority) || PRIORITY[1];
   const childTasks = allTasks.filter((candidate) => (task.dependencyTaskIds || []).includes(candidate.id));
@@ -87,40 +90,32 @@ function KanbanTaskCard({
     }
     return { border: '2px solid #9333ea' };
   })();
+  const cardClassName = [
+    'kanban-task-card',
+    isChild ? 'kanban-task-card--child' : '',
+    isDragging ? 'kanban-task-card--dragging' : '',
+    isLanding ? 'kanban-task-card--landing' : '',
+  ].filter(Boolean).join(' ');
   return (
     <div
       draggable
+      className={cardClassName}
       onDragStart={(event) => onDragStart(event, task.id)}
       onDragEnd={onDragEnd}
       onClick={() => (onOpenTaskPreview ?? onEditTask)?.(task)}
       style={{
         ...dependencyBorderStyle,
-        borderRadius: 12,
+        borderRadius: isChild ? 10 : 12,
         background: dependencyBorderStyle.background || cardSurface,
-        padding: 12,
         cursor: 'grab',
-        boxShadow: '0 8px 22px rgba(15,23,42,0.07)',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 8,
-        transition: 'background 140ms ease, border-color 140ms ease, transform 140ms ease'
       }}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', minHeight: 10, gap: 10 }}>
+      <div className="kanban-task-card-handle">
         <div
           title="Arrastra desde aquí para mover o crear dependencia"
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 6,
-            color: 'var(--color-text-secondary)',
-            fontSize: 10,
-            fontWeight: 700,
-            letterSpacing: '0.01em',
-            userSelect: 'none'
-          }}
+          className="kanban-task-card-handle-label"
         >
-          <span style={{ fontSize: 12, lineHeight: 1 }}>⋮⋮</span>
+          <span className="kanban-task-card-handle-icon">⋮⋮</span>
           <span>Arrastrar</span>
         </div>
       </div>
@@ -129,19 +124,7 @@ function KanbanTaskCard({
           {dragMode === 'link' ? 'Soltar para crear dependencia' : 'Soltar para mover/reordenar'}
         </div>
       )}
-      <div
-        style={{
-          fontSize: 13,
-          fontWeight: 700,
-          color: 'var(--color-text-primary)',
-          display: '-webkit-box',
-          WebkitLineClamp: 2,
-          WebkitBoxOrient: 'vertical',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          wordBreak: 'break-word'
-        }}
-      >
+      <div className="kanban-task-card-title">
         {task.name}
       </div>
       {task.date && (
@@ -225,10 +208,36 @@ export default function KanbanView({
   const [showColumnsMenu, setShowColumnsMenu] = useState(false);
   const columnsMenuRef = useRef(null);
   const [draggedTaskId, setDraggedTaskId] = useState(null);
+  const [dragSourceStatus, setDragSourceStatus] = useState(null);
+  const [landingTaskId, setLandingTaskId] = useState(null);
   const [hoverStatus, setHoverStatus] = useState(null);
   const [hoverIndex, setHoverIndex] = useState(null);
   const [hoverTaskId, setHoverTaskId] = useState(null);
   const [hoverDragMode, setHoverDragMode] = useState(null);
+  const landingTimeoutRef = useRef(null);
+
+  useEffect(() => () => {
+    if (landingTimeoutRef.current) clearTimeout(landingTimeoutRef.current);
+  }, []);
+
+  const triggerLandingAnimation = (taskId) => {
+    if (!taskId) return;
+    setLandingTaskId(taskId);
+    if (landingTimeoutRef.current) clearTimeout(landingTimeoutRef.current);
+    landingTimeoutRef.current = setTimeout(() => {
+      setLandingTaskId(null);
+      landingTimeoutRef.current = null;
+    }, 520);
+  };
+
+  const resetDragState = () => {
+    setDraggedTaskId(null);
+    setDragSourceStatus(null);
+    setHoverStatus(null);
+    setHoverIndex(null);
+    setHoverTaskId(null);
+    setHoverDragMode(null);
+  };
 
   useEffect(() => {
     if (!showColumnsMenu) return;
@@ -302,12 +311,11 @@ export default function KanbanView({
 
   const handleDropOnColumn = (status, targetIndex = null) => {
     if (!draggedTaskId) return;
+    const movedTaskId = draggedTaskId;
+    const isCrossColumn = dragSourceStatus && dragSourceStatus !== status;
     onMoveTaskStatus?.(draggedTaskId, status, targetIndex);
-    setDraggedTaskId(null);
-    setHoverStatus(null);
-    setHoverIndex(null);
-    setHoverTaskId(null);
-    setHoverDragMode(null);
+    if (isCrossColumn) triggerLandingAnimation(movedTaskId);
+    resetDragState();
   };
 
   return (
@@ -393,10 +401,22 @@ export default function KanbanView({
         </div>
       </div>
       <div className="kanban-grid">
-        {visibleColumns.map((status) => (
+        {visibleColumns.map((status) => {
+          const isActiveDrop = hoverStatus === status.v;
+          const isSuctionDrop = Boolean(
+            draggedTaskId &&
+            dragSourceStatus &&
+            isActiveDrop &&
+            dragSourceStatus !== status.v,
+          );
+          return (
           <div
             key={status.v}
-            className={`kanban-column${hoverStatus === status.v ? ' active-drop' : ''}`}
+            className={[
+              'kanban-column',
+              isActiveDrop ? 'active-drop' : '',
+              isSuctionDrop ? 'suction-drop' : '',
+            ].filter(Boolean).join(' ')}
             onDragOver={(event) => {
               event.preventDefault();
               if (hoverStatus !== status.v) setHoverStatus(status.v);
@@ -420,11 +440,11 @@ export default function KanbanView({
               <span>{status.label}</span>
               <strong>{groupedTasks[status.v]?.length || 0}</strong>
             </div>
-            <div className="kanban-column-body">
+            <div className={`kanban-column-body${isSuctionDrop ? ' suction-pull' : ''}`}>
               {(groupedTasks[status.v] || []).map((task, index) => (
                 <div key={task.id}>
                   {hoverStatus === status.v && hoverIndex === index && (
-                    <div className="kanban-drop-indicator" />
+                    <div className={`kanban-drop-indicator${isSuctionDrop ? ' suction-slot' : ''}`} />
                   )}
                   <div
                     onDragOver={(event) => {
@@ -440,11 +460,7 @@ export default function KanbanView({
                       event.stopPropagation();
                       const linkedAsChild = onDropTaskOnTask?.(draggedTaskId, task.id);
                       if (linkedAsChild) {
-                        setDraggedTaskId(null);
-                        setHoverStatus(null);
-                        setHoverIndex(null);
-                        setHoverTaskId(null);
-                        setHoverDragMode(null);
+                        resetDragState();
                         return;
                       }
                       handleDropOnColumn(status.v, index);
@@ -458,30 +474,30 @@ export default function KanbanView({
                       onOpenPriorityPicker={onOpenPriorityPicker}
                       onDragStart={(event, taskId) => {
                         event.dataTransfer.effectAllowed = 'move';
+                        const sourceTask = allTasks.find((item) => item.id === taskId);
                         setDraggedTaskId(taskId);
+                        setDragSourceStatus(sourceTask?.status ?? null);
                       }}
-                      onDragEnd={() => {
-                        setDraggedTaskId(null);
-                        setHoverStatus(null);
-                        setHoverIndex(null);
-                        setHoverTaskId(null);
-                        setHoverDragMode(null);
-                      }}
+                      onDragEnd={resetDragState}
                       isDragOver={hoverTaskId === task.id}
                       dragMode={hoverDragMode}
+                      isChild={isChildTask(allTasks, task.id)}
+                      isDragging={draggedTaskId === task.id}
+                      isLanding={landingTaskId === task.id}
                     />
                   </div>
                 </div>
               ))}
               {hoverStatus === status.v && hoverIndex === (groupedTasks[status.v] || []).length && (
-                <div className="kanban-drop-indicator" />
+                <div className={`kanban-drop-indicator${isSuctionDrop ? ' suction-slot' : ''}`} />
               )}
               {(groupedTasks[status.v] || []).length === 0 && (
                 <div className="kanban-empty">Arrastra tareas aquí</div>
               )}
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
     </section>
   );
