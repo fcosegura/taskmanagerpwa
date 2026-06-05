@@ -1,0 +1,208 @@
+/* Focused UI cleanup overrides
+   Goal: keep the current personality, but make the app feel calmer, denser and more task-first. */
+
+:root {
+  --shadow-card: 0 10px 28px rgba(20, 33, 61, 0.075);
+  --shadow-soft: 0 6px 18px rgba(20, 33, 61, 0.055);
+  --surface-border: 1px solid rgba(100, 116, 139, 0.18);
+}
+
+[data-theme="dark"] {
+  --shadow-card: 0 14px 34px rgba(2, 6, 23, 0.34);
+  --shadow-soft: 0 8px 22px rgba(2, 6, 23, 0.28);
+  --surface-border: 1px solid rgba(148, 163, 184, 0.22);
+}
+
+body {
+  background:
+    linear-gradient(180deg, rgba(23, 107, 135, 0.045), rgba(245, 247, 250, 0) 280px),
+    #f8fafc;
+}
+
+[data-theme="dark"] body {
+  background:
+    linear-gradient(180deg, rgba(56, 189, 248, 0.09), rgba(2, 6, 23, 0) 300px),
+    #020617;
+}
+
+.app-header {
+  min-height: 68px;
+  padding: calc(8px + env(safe-area-inset-top)) clamp(14px, 3vw, 28px) 8px;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.035);
+}
+
+[data-theme="dark"] .app-header {
+  background: rgba(2, 6, 23, 0.9);
+  box-shadow: 0 1px 0 rgba(148, 163, 184, 0.14);
+}
+
+.brand-mark,
+.login-mark {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  box-shadow: none;
+}
+
+.brand-title {
+  font-size: 16px;
+  letter-spacing: -0.01em;
+}
+
+.brand-subtitle,
+.eyebrow {
+  font-size: 10px;
+  letter-spacing: 0.03em;
+}
+
+.app-main {
+  width: min(1120px, calc(100% - 24px));
+  padding-top: 16px;
+}
+
+.overview-panel {
+  padding: 16px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: var(--shadow-soft);
+}
+
+[data-theme="dark"] .overview-panel {
+  background: rgba(15, 23, 42, 0.82);
+}
+
+.overview-panel h1 {
+  font-size: clamp(22px, 2.4vw, 30px);
+  letter-spacing: -0.03em;
+}
+
+.metric-strip {
+  gap: 8px;
+}
+
+.metric-strip .metric-card {
+  min-width: 82px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  box-shadow: none;
+}
+
+.metric-strip strong {
+  font-size: 18px;
+}
+
+.metric-strip span {
+  font-size: 11px;
+}
+
+.desktop-tabs {
+  padding: 3px;
+  background: rgba(241, 245, 249, 0.88);
+  box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.08);
+}
+
+.desktop-tabs button {
+  min-width: 88px;
+  padding: 8px 14px;
+  font-size: 12px;
+}
+
+.desktop-tabs button.active {
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+}
+
+.ghost-button,
+.primary-button {
+  padding: 8px 13px;
+  font-size: 12px;
+}
+
+.primary-button {
+  background: var(--color-accent);
+  box-shadow: 0 8px 18px rgba(23, 107, 135, 0.18);
+}
+
+[data-theme="dark"] .primary-button {
+  background: #0369a1;
+  box-shadow: 0 10px 22px rgba(2, 6, 23, 0.38);
+}
+
+.icon-button {
+  width: 36px;
+  height: 36px;
+  font-size: 17px;
+}
+
+.toolbar-panel,
+.filters-panel,
+.tasks-list,
+.calendar-shell,
+.board-shell,
+.kanban-shell,
+.daily-agenda-shell {
+  border-color: rgba(100, 116, 139, 0.16);
+  box-shadow: var(--shadow-soft);
+}
+
+.task-card,
+.task-row,
+.kanban-card,
+.board-note,
+.event-card {
+  box-shadow: none;
+}
+
+.task-card:hover,
+.task-row:hover,
+.kanban-card:hover,
+.board-note:hover,
+.event-card:hover {
+  transform: none;
+  border-color: rgba(23, 107, 135, 0.28);
+}
+
+.task-card,
+.task-row {
+  border-radius: 14px;
+}
+
+.toolbar-panel input,
+.search-box input,
+.quick-add input,
+.quick-add textarea {
+  min-height: 40px;
+}
+
+.toast-message,
+.sw-update-banner {
+  box-shadow: none;
+}
+
+.modal-card,
+.dialog-card,
+.task-modal,
+.event-modal {
+  box-shadow: var(--shadow-card);
+}
+
+@media (max-width: 760px) {
+  .app-header {
+    min-height: 62px;
+    gap: 10px;
+  }
+
+  .app-main {
+    width: min(100% - 18px, 1120px);
+    padding-top: 12px;
+  }
+
+  .overview-panel {
+    padding: 14px;
+  }
+
+  .metric-strip .metric-card {
+    min-width: 74px;
+  }
+}
