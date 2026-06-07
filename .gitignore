@@ -31,3 +31,6 @@ dist-ssr
 /test-results/
 /playwright-report/
 /.cache/playwright/
+
+# Local Wrangler dev secrets
+.dev.vars

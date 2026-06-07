@@ -1,7 +1,7 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
 import { STATUS } from './constants.js';
 import { uid, toDateStr, compareTasksForTaskList, parseDateTimeFromDescription, parseDescriptionDateResult, cleanDescriptionSegment, isJiraCategory, normalizeTicketNumber, applyTicketNumberToTaskName, inheritTicketFromParentTask, mergeTaskCompletionMeta } from './utils.jsx';
-import { loadData, saveData, validateBackupPayload, normalizeDataPayload, loginWithGoogleCredential, logoutSession, createProfile, deleteProfile, parseTaskWithAI, checkSession, generateTasksFromText, generateDailyStatus, fetchWorkspaceData, isMultiBackupPayload, validateMultiBackupPayload, normalizeMultiBackupPayload } from './storage.js';
+import { loadData, saveData, validateBackupPayload, normalizeDataPayload, loginWithGoogleCredential, logoutSession, createProfile, deleteProfile, parseTaskWithAI, checkSession, generateTasksFromText, generateDailyStatus, fetchWorkspaceData, isMultiBackupPayload, validateMultiBackupPayload, normalizeMultiBackupPayload, generateMyNotebookToken } from './storage.js';
 import { appendStatusLogEntry } from './statusLog.js';
 import { collectDailyStatusActivities } from './dailyStatusActivities.js';
 import TasksView from './components/TasksView.jsx';
@@ -713,6 +713,27 @@ export default function App() {
     reader.readAsText(file);
   };
 
+  const handleOpenMyNotebook = async (ticketNumber = null) => {
+    setBackupMessage('Abriendo myNotebook...');
+    try {
+      const token = await generateMyNotebookToken();
+      const baseUrl = window.location.hostname === 'localhost'
+        ? 'http://localhost:5173'
+        : 'https://mynotebook.fcovidalsegura.workers.dev';
+      
+      let targetUrl = `${baseUrl}/?token=${encodeURIComponent(token)}`;
+      if (typeof ticketNumber === 'string' && ticketNumber.trim()) {
+        targetUrl += `&notebook=${encodeURIComponent(ticketNumber.trim())}`;
+      }
+      
+      window.open(targetUrl, '_blank');
+      setBackupMessage('');
+    } catch (error) {
+      setBackupMessage(error.message || 'Error al intentar abrir myNotebook.');
+      setTimeout(() => setBackupMessage(''), 5000);
+    }
+  };
+
   const toggleTheme = () => {
     setTheme((currentTheme) => (currentTheme === 'dark' ? 'light' : 'dark'));
   };
@@ -1194,6 +1215,14 @@ export default function App() {
                   </div>
                 ))}
                 <button type="button" className="workspace-create" onClick={handleCreateProfile}>+ Nuevo workspace</button>
+                <button
+                  type="button"
+                  className="workspace-create"
+                  style={{ borderTop: '0.5px solid var(--color-border-secondary)', color: 'var(--color-accent)' }}
+                  onClick={() => { setShowProfileMenu(false); handleOpenMyNotebook(); }}
+                >
+                  Abrir myNotebook ↗
+                </button>
                 <button type="button" className="workspace-logout" onClick={handleLogout}>Cerrar sesión</button>
               </div>
             )}
@@ -1392,6 +1421,7 @@ export default function App() {
               setTaskPreviewId(null);
               setModal(t);
             }}
+            onOpenNotebook={handleOpenMyNotebook}
           />
         </div>
       )}

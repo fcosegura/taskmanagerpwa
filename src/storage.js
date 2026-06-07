@@ -553,3 +553,25 @@ export async function saveData(payload, authenticated = false, profileId = null)
     }
   }
 }
+
+export async function generateMyNotebookToken() {
+  const resp = await fetch('/api/mynotebook/generate-token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
+  });
+  if (!resp.ok) {
+    let errMsg = `No se pudo generar el token de acceso (HTTP ${resp.status})`;
+    try {
+      const data = await resp.json();
+      if (data && data.error) {
+        errMsg += `: ${data.error}`;
+      }
+    } catch (e) {
+      // ignore
+    }
+    throw new Error(errMsg);
+  }
+  const data = await resp.json();
+  return data.token;
+}

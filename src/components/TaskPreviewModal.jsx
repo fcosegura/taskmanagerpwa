@@ -12,7 +12,7 @@ function PencilIcon() {
   );
 }
 
-export default function TaskPreviewModal({ task, allTasks = [], onClose, onEdit }) {
+export default function TaskPreviewModal({ task, allTasks = [], onClose, onEdit, onOpenNotebook }) {
   const s = STATUS.find((x) => x.v === task.status) || STATUS[0];
   const p = PRIORITY.find((x) => x.v === task.priority) || PRIORITY[1];
   const childTasks = allTasks.filter((candidate) => (task.dependencyTaskIds || []).includes(candidate.id));
@@ -83,9 +83,32 @@ export default function TaskPreviewModal({ task, allTasks = [], onClose, onEdit 
       </div>
 
       {showTicket && (
-        <div style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginBottom: 12 }}>
-          <span style={{ fontWeight: 600 }}>Ticket:</span>{' '}
-          {task.ticketNumber}
+        <div style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <div>
+            <span style={{ fontWeight: 600 }}>Ticket:</span>{' '}
+            {task.ticketNumber}
+          </div>
+          {task.createNotebook && (
+            <button
+              type="button"
+              onClick={() => onOpenNotebook?.(task.ticketNumber)}
+              style={{
+                background: 'rgba(37,99,235,0.1)',
+                border: 'none',
+                borderRadius: '4px',
+                color: 'var(--color-accent)',
+                padding: '2px 8px',
+                fontSize: 11,
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4
+              }}
+            >
+              Ver libreta ↗
+            </button>
+          )}
         </div>
       )}
 

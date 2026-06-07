@@ -28,6 +28,8 @@ CREATE TABLE IF NOT EXISTS tasks (
   hide_in_kanban_done INTEGER DEFAULT 0,
   completed_at TEXT,
   status_log TEXT,
+  create_notebook INTEGER DEFAULT 0,
+  notebook_created INTEGER DEFAULT 0,
   content_hash TEXT,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -89,3 +91,18 @@ CREATE TABLE IF NOT EXISTS ai_rate_limits (
   window_start INTEGER NOT NULL,
   request_count INTEGER NOT NULL DEFAULT 0
 );
+
+-- Tablas de integración con myNotebook
+CREATE TABLE IF NOT EXISTS mynotebook_sync_tokens (
+  token TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  expires_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_mynotebook_tokens_expires ON mynotebook_sync_tokens(expires_at);
+
+CREATE TABLE IF NOT EXISTS mynotebook_user_keys (
+  user_id TEXT PRIMARY KEY,
+  notebook_key TEXT NOT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+

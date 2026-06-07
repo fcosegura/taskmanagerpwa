@@ -22,7 +22,9 @@ export default function TaskModal({ task, categories, allTasks = [], onSave, onD
     category: taskRest.category || '',
     ticketNumber: taskRest.ticketNumber || '',
     time: taskRest.time || '',
-    hideInKanbanDone: Boolean(taskRest.hideInKanbanDone)
+    hideInKanbanDone: Boolean(taskRest.hideInKanbanDone),
+    createNotebook: Boolean(taskRest.createNotebook),
+    notebookCreated: Boolean(taskRest.notebookCreated)
   });
   const [showAdvanced, setShowAdvanced] = useState(
     _taskModalInitialAdvanced !== undefined ? Boolean(_taskModalInitialAdvanced) : Boolean(taskRest.id)
@@ -220,15 +222,28 @@ export default function TaskModal({ task, categories, allTasks = [], onSave, onD
         Elige una categoría existente o escribe una nueva; la nueva categoría reemplazará la selección.
       </div>
       {showTicketNumberField && (
-        <label style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 14, fontSize: 13, color: 'var(--color-text-secondary)' }}>
-          <span style={{ fontWeight: 500 }}>Num ticket</span>
-          <input
-            value={form.ticketNumber || ''}
-            onChange={(e) => handleChange('ticketNumber', e.target.value)}
-            placeholder="ABC-123"
-            style={{ width: '100%', height: 44, boxSizing: 'border-box', borderRadius: 'var(--border-radius-md)', border: '0.5px solid var(--color-border-secondary)', padding: '10px 12px', fontSize: 13, background: 'var(--color-background-primary)' }}
-          />
-        </label>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 14 }}>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, color: 'var(--color-text-secondary)' }}>
+            <span style={{ fontWeight: 500 }}>Num ticket</span>
+            <input
+              value={form.ticketNumber || ''}
+              onChange={(e) => handleChange('ticketNumber', e.target.value)}
+              placeholder="ABC-123"
+              style={{ width: '100%', height: 44, boxSizing: 'border-box', borderRadius: 'var(--border-radius-md)', border: '0.5px solid var(--color-border-secondary)', padding: '10px 12px', fontSize: 13, background: 'var(--color-background-primary)' }}
+            />
+          </label>
+          {form.ticketNumber?.trim() && (
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--color-text-secondary)', userSelect: 'none', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={Boolean(form.createNotebook)}
+                onChange={(e) => handleChange('createNotebook', e.target.checked)}
+                style={{ width: 16, height: 16, margin: 0 }}
+              />
+              <span>Crear libreta en myNotebook {form.notebookCreated && ' (Creada ✓)'}</span>
+            </label>
+          )}
+        </div>
       )}
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 10, marginBottom: 14 }}>

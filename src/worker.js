@@ -335,6 +335,8 @@ async function prepareTaskUpsert(env, dataKey, profileId, userId, task, taskSche
   const hasCompletedAt = Boolean(taskSchema?.hasCompletedAt);
   const hasStatusLog = Boolean(taskSchema?.hasStatusLog);
   const hasEndDate = Boolean(taskSchema?.hasEndDate);
+  const hasCreateNotebook = Boolean(taskSchema?.hasCreateNotebook);
+  const hasNotebookCreated = Boolean(taskSchema?.hasNotebookCreated);
 
   const subtasksJson = JSON.stringify(task.subtasks || []);
   const dependenciesJson = JSON.stringify(
@@ -396,6 +398,18 @@ async function prepareTaskUpsert(env, dataKey, profileId, userId, task, taskSche
       : (typeof task.completed_at === 'string' && task.completed_at.trim() ? task.completed_at.trim() : null);
     bindings.push(await encryptField(dataKey, ca || null));
     updates.push('completed_at = excluded.completed_at');
+  }
+  if (hasCreateNotebook) {
+    columns.push('create_notebook');
+    placeholders.push('?');
+    bindings.push(task.createNotebook ? 1 : 0);
+    updates.push('create_notebook = excluded.create_notebook');
+  }
+  if (hasNotebookCreated) {
+    columns.push('notebook_created');
+    placeholders.push('?');
+    bindings.push(task.notebookCreated ? 1 : 0);
+    updates.push('notebook_created = excluded.notebook_created');
   }
 
   const encCategory = await encryptField(dataKey, task.category || null);
@@ -597,6 +611,11 @@ async function ensureProfilesSchema(env) {
   await safeExec("ALTER TABLE tasks ADD COLUMN planned_slots TEXT");
   await safeExec("ALTER TABLE tasks ADD COLUMN status_log TEXT");
   await safeExec("ALTER TABLE tasks ADD COLUMN end_date TEXT");
+  await safeExec("ALTER TABLE tasks ADD COLUMN create_notebook INTEGER DEFAULT 0");
+  await safeExec("ALTER TABLE tasks ADD COLUMN notebook_created INTEGER DEFAULT 0");
+  await safeExec("CREATE TABLE IF NOT EXISTS mynotebook_sync_tokens (token TEXT PRIMARY KEY, user_id TEXT NOT NULL, expires_at INTEGER NOT NULL)");
+  await safeExec("CREATE INDEX IF NOT EXISTS idx_mynotebook_tokens_expires ON mynotebook_sync_tokens(expires_at)");
+  await safeExec("CREATE TABLE IF NOT EXISTS mynotebook_user_keys (user_id TEXT PRIMARY KEY, notebook_key TEXT NOT NULL, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)");
 
   const hasProfileColumn = async (tableName) => {
     try {
@@ -629,7 +648,9 @@ async function ensureProfilesSchema(env) {
     hasTicketNumber: taskColumns.includes('ticket_number'),
     hasCompletedAt: taskColumns.includes('completed_at'),
     hasStatusLog: taskColumns.includes('status_log'),
-    hasEndDate: taskColumns.includes('end_date')
+    hasEndDate: taskColumns.includes('end_date'),
+    hasCreateNotebook: taskColumns.includes('create_notebook'),
+    hasNotebookCreated: taskColumns.includes('notebook_created')
   };
 }
 
@@ -1076,6 +1097,39 @@ async function authenticate(request, env) {
   return verifyGoogleToken(token, env);
 }
 
+function getCorsHeaders(request) {
+  const origin = request.headers.get('Origin') || '';
+  const allowedOrigins = [
+    'https://mynotebook.fcovidalsegura.workers.dev',
+    'http://localhost:5173',
+    'http://localhost:5174'
+  ];
+  let allowOrigin = 'https://mynotebook.fcovidalsegura.workers.dev';
+  if (allowedOrigins.includes(origin) || origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
+    allowOrigin = origin;
+  }
+  return {
+    'Access-Control-Allow-Origin': allowOrigin,
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Allow-Credentials': 'true',
+  };
+}
+
+async function authenticateMyNotebook(request, env) {
+  const authHeader = request.headers.get('Authorization') || '';
+  if (!authHeader.startsWith('Bearer ')) return null;
+  const token = authHeader.substring(7).trim();
+  if (!token) return null;
+  
+  const now = Math.floor(Date.now() / 1000);
+  const row = await env.DB.prepare(
+    'SELECT user_id FROM mynotebook_sync_tokens WHERE token = ? AND expires_at > ?'
+  ).bind(token, now).first();
+  
+  return row?.user_id || null;
+}
+
 export default {
   // Worker Version: 2026.05.13.2
   async fetch(request, env) {
@@ -1117,6 +1171,144 @@ export default {
           { success: true },
           { headers: { 'Set-Cookie': clearSessionCookie(request) } }
         );
+      }
+
+      // CORS preflight y endpoints de myNotebook (antes de autenticar sesión normal)
+      if (request.method === 'OPTIONS' && url.pathname.startsWith('/api/mynotebook/')) {
+        return new Response(null, {
+          status: 204,
+          headers: getCorsHeaders(request)
+        });
+      }
+
+      if (request.method === 'GET' && url.pathname === '/api/mynotebook/verify-token') {
+        const token = url.searchParams.get('token');
+        if (!token) {
+          return json({ error: 'Token es requerido' }, { status: 400, headers: getCorsHeaders(request) });
+        }
+        
+        const now = Math.floor(Date.now() / 1000);
+        const row = await env.DB.prepare(
+          'SELECT user_id FROM mynotebook_sync_tokens WHERE token = ? AND expires_at > ?'
+        ).bind(token, now).first();
+        
+        if (!row) {
+          return json({ error: 'Token inválido o expirado' }, { status: 401, headers: getCorsHeaders(request) });
+        }
+        
+        const userId = row.user_id;
+        await env.DB.prepare('DELETE FROM mynotebook_sync_tokens WHERE token = ?').bind(token).run();
+        await env.DB.prepare('DELETE FROM mynotebook_sync_tokens WHERE expires_at <= ?').bind(now).run();
+        
+        const userIdHash = await sha256HexOfUtf8(userId);
+        const apiSessionToken = crypto.randomUUID();
+        const apiExpiresAt = now + 86400; // 24h
+        await env.DB.prepare(
+          'INSERT INTO mynotebook_sync_tokens (token, user_id, expires_at) VALUES (?, ?, ?)'
+        ).bind(apiSessionToken, userId, apiExpiresAt).run();
+        
+        let keyRow = await env.DB.prepare(
+          'SELECT notebook_key FROM mynotebook_user_keys WHERE user_id = ?'
+        ).bind(userId).first();
+        
+        let notebookKey;
+        if (keyRow) {
+          notebookKey = keyRow.notebook_key;
+        } else {
+          const rawBytes = crypto.getRandomValues(new Uint8Array(32));
+          let keyString = '';
+          for (const byte of rawBytes) {
+            keyString += String.fromCharCode(byte);
+          }
+          const base64Key = btoa(keyString);
+          const dataKey = await importDataEncryptionKey(env.DATA_ENCRYPTION_KEY);
+          const encryptedKey = await encryptField(dataKey, base64Key);
+          
+          await env.DB.prepare(
+            'INSERT INTO mynotebook_user_keys (user_id, notebook_key) VALUES (?, ?)'
+          ).bind(userId, encryptedKey).run();
+          
+          notebookKey = encryptedKey;
+        }
+        
+        const dataKey = await importDataEncryptionKey(env.DATA_ENCRYPTION_KEY);
+        const decryptedNotebookKey = await decryptField(dataKey, notebookKey);
+        
+        return json({
+          success: true,
+          userIdHash,
+          notebookKey: decryptedNotebookKey,
+          sessionToken: apiSessionToken
+        }, { headers: getCorsHeaders(request) });
+      }
+
+      if (url.pathname.startsWith('/api/mynotebook/') && url.pathname !== '/api/mynotebook/generate-token') {
+        const myNotebookUserId = await authenticateMyNotebook(request, env);
+        if (!myNotebookUserId) {
+          return json({ error: 'No autorizado' }, { status: 401, headers: getCorsHeaders(request) });
+        }
+
+        if (request.method === 'GET' && url.pathname === '/api/mynotebook/pending-notebooks') {
+          const { results: tasks } = await env.DB.prepare(
+            'SELECT ticket_number FROM tasks WHERE user_id = ? AND create_notebook = 1 AND notebook_created = 0'
+          ).bind(myNotebookUserId).all();
+          
+          const dataKey = await importDataEncryptionKey(env.DATA_ENCRYPTION_KEY);
+          const pendingTickets = new Set();
+          
+          for (const t of tasks || []) {
+            if (t.ticket_number) {
+              const ticketDec = await decryptField(dataKey, t.ticket_number);
+              const cleanTicket = typeof ticketDec === 'string' ? ticketDec.trim() : '';
+              if (cleanTicket) {
+                pendingTickets.add(cleanTicket);
+              }
+            }
+          }
+          
+          return json({
+            tickets: [...pendingTickets]
+          }, { headers: getCorsHeaders(request) });
+        }
+
+        if (request.method === 'POST' && url.pathname === '/api/mynotebook/mark-notebook-created') {
+          let body;
+          try {
+            body = await request.json();
+          } catch {
+            return json({ error: 'Body inválido' }, { status: 400, headers: getCorsHeaders(request) });
+          }
+          const ticketNumber = typeof body?.ticketNumber === 'string' ? body.ticketNumber.trim() : '';
+          if (!ticketNumber) {
+            return json({ error: 'ticketNumber es requerido' }, { status: 400, headers: getCorsHeaders(request) });
+          }
+          
+          const { results: tasks } = await env.DB.prepare(
+            'SELECT id, ticket_number FROM tasks WHERE user_id = ? AND create_notebook = 1 AND notebook_created = 0'
+          ).bind(myNotebookUserId).all();
+          
+          const dataKey = await importDataEncryptionKey(env.DATA_ENCRYPTION_KEY);
+          const taskIdsToUpdate = [];
+          
+          for (const t of tasks || []) {
+            if (t.ticket_number) {
+              const ticketDec = await decryptField(dataKey, t.ticket_number);
+              const cleanTicket = typeof ticketDec === 'string' ? ticketDec.trim() : '';
+              if (cleanTicket.toLowerCase() === ticketNumber.toLowerCase()) {
+                taskIdsToUpdate.push(t.id);
+              }
+            }
+          }
+          
+          if (taskIdsToUpdate.length > 0) {
+            const statements = taskIdsToUpdate.map(id => 
+              env.DB.prepare('UPDATE tasks SET notebook_created = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(id)
+            );
+            await env.DB.batch(statements);
+          }
+          
+          return json({ success: true, updatedCount: taskIdsToUpdate.length }, { headers: getCorsHeaders(request) });
+        }
       }
 
       const userId = await authenticate(request, env);
@@ -1224,6 +1416,15 @@ export default {
           } catch {
             return json({ report: fallbackReport, source: 'fallback' });
           }
+        }
+
+        if (request.method === 'POST' && path === '/mynotebook/generate-token') {
+          const token = crypto.randomUUID();
+          const expiresAt = Math.floor(Date.now() / 1000) + 30; // 30 segundos de validez
+          await env.DB.prepare(
+            'INSERT INTO mynotebook_sync_tokens (token, user_id, expires_at) VALUES (?, ?, ?)'
+          ).bind(token, userId, expiresAt).run();
+          return json({ token });
         }
 
         if (request.method === 'POST' && path === '/profiles') {
@@ -1339,7 +1540,7 @@ export default {
             }
             delete tr.planned_slots;
             delete tr.status_log;
-            const { created_at, updated_at, ...trRest } = tr;
+            const { created_at, updated_at, create_notebook, notebook_created, ...trRest } = tr;
             parsedTasks.push({
               ...trRest,
               name: nameOut,
@@ -1347,6 +1548,8 @@ export default {
               notes: typeof notesOut === 'string' ? notesOut : '',
               id: unscopedEntityId(profileId, tr.id),
               hideInKanbanDone: Boolean(tr.hide_in_kanban_done),
+              createNotebook: Boolean(create_notebook),
+              notebookCreated: Boolean(notebook_created),
               subtasks,
               dependencyTaskIds,
               plannedSlots: normalizePlannedSlots(plannedSlots),
