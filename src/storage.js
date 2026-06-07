@@ -143,6 +143,8 @@ function normalizeTask(task) {
     ticketNumber: task.ticketNumber || '',
     completedAt: typeof task.completedAt === 'string' ? task.completedAt : (typeof task.completed_at === 'string' ? task.completed_at : ''),
     hideInKanbanDone: Boolean(task.hideInKanbanDone),
+    createNotebook: Boolean(task.createNotebook || task.create_notebook),
+    notebookCreated: Boolean(task.notebookCreated || task.notebook_created),
     plannedSlots: normalizePlannedSlots(task.plannedSlots),
     statusLog: normalizeStatusLog(task.statusLog),
     createdAt: typeof task.createdAt === 'string'
