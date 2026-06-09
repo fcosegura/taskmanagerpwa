@@ -30,7 +30,7 @@ const SECURITY_HEADERS = {
     "img-src 'self' data: https://lh3.googleusercontent.com",
     "font-src 'self'",
     "connect-src 'self' https://accounts.google.com https://www.googleapis.com https://oauth2.googleapis.com",
-    "frame-src https://accounts.google.com",
+    "frame-src https://accounts.google.com http://localhost:5173 http://localhost:5174 https://mynotebook.fcovidalsegura.workers.dev",
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",
@@ -1181,133 +1181,158 @@ export default {
         });
       }
 
-      if (request.method === 'GET' && url.pathname === '/api/mynotebook/verify-token') {
-        const token = url.searchParams.get('token');
-        if (!token) {
-          return json({ error: 'Token es requerido' }, { status: 400, headers: getCorsHeaders(request) });
-        }
-        
-        const now = Math.floor(Date.now() / 1000);
-        const row = await env.DB.prepare(
-          'SELECT user_id FROM mynotebook_sync_tokens WHERE token = ? AND expires_at > ?'
-        ).bind(token, now).first();
-        
-        if (!row) {
-          return json({ error: 'Token inválido o expirado' }, { status: 401, headers: getCorsHeaders(request) });
-        }
-        
-        const userId = row.user_id;
-        await env.DB.prepare('DELETE FROM mynotebook_sync_tokens WHERE token = ?').bind(token).run();
-        await env.DB.prepare('DELETE FROM mynotebook_sync_tokens WHERE expires_at <= ?').bind(now).run();
-        
-        const userIdHash = await sha256HexOfUtf8(userId);
-        const apiSessionToken = crypto.randomUUID();
-        const apiExpiresAt = now + 86400; // 24h
-        await env.DB.prepare(
-          'INSERT INTO mynotebook_sync_tokens (token, user_id, expires_at) VALUES (?, ?, ?)'
-        ).bind(apiSessionToken, userId, apiExpiresAt).run();
-        
-        let keyRow = await env.DB.prepare(
-          'SELECT notebook_key FROM mynotebook_user_keys WHERE user_id = ?'
-        ).bind(userId).first();
-        
-        let notebookKey;
-        if (keyRow) {
-          notebookKey = keyRow.notebook_key;
-        } else {
-          const rawBytes = crypto.getRandomValues(new Uint8Array(32));
-          let keyString = '';
-          for (const byte of rawBytes) {
-            keyString += String.fromCharCode(byte);
+      if (url.pathname.startsWith('/api/mynotebook/')) {
+        try {
+          if (request.method === 'GET' && url.pathname === '/api/mynotebook/verify-token') {
+            const token = url.searchParams.get('token');
+            if (!token) {
+              return json({ error: 'Token es requerido' }, { status: 400, headers: getCorsHeaders(request) });
+            }
+            
+            const now = Math.floor(Date.now() / 1000);
+            const row = await env.DB.prepare(
+              'SELECT user_id FROM mynotebook_sync_tokens WHERE token = ? AND expires_at > ?'
+            ).bind(token, now).first();
+            
+            if (!row) {
+              return json({ error: 'Token inválido o expirado' }, { status: 401, headers: getCorsHeaders(request) });
+            }
+            
+            const userId = row.user_id;
+            await env.DB.prepare('DELETE FROM mynotebook_sync_tokens WHERE token = ?').bind(token).run();
+            await env.DB.prepare('DELETE FROM mynotebook_sync_tokens WHERE expires_at <= ?').bind(now).run();
+            
+            const userIdHash = await sha256HexOfUtf8(userId);
+            const apiSessionToken = crypto.randomUUID();
+            const apiExpiresAt = now + 86400; // 24h
+            await env.DB.prepare(
+              'INSERT INTO mynotebook_sync_tokens (token, user_id, expires_at) VALUES (?, ?, ?)'
+            ).bind(apiSessionToken, userId, apiExpiresAt).run();
+            
+            const dataKey = await importDataEncryptionKey(env.DATA_ENCRYPTION_KEY);
+            if (!dataKey) {
+              return json({ error: 'data_encryption_misconfigured', message: 'DATA_ENCRYPTION_KEY is not configured or invalid on the Cloudflare Worker.' }, { status: 500, headers: getCorsHeaders(request) });
+            }
+
+            let keyRow = await env.DB.prepare(
+              'SELECT notebook_key FROM mynotebook_user_keys WHERE user_id = ?'
+            ).bind(userId).first();
+            
+            let notebookKey;
+            if (keyRow) {
+              notebookKey = keyRow.notebook_key;
+            } else {
+              const rawBytes = crypto.getRandomValues(new Uint8Array(32));
+              let keyString = '';
+              for (const byte of rawBytes) {
+                keyString += String.fromCharCode(byte);
+              }
+              const base64Key = btoa(keyString);
+              const encryptedKey = await encryptField(dataKey, base64Key);
+              
+              await env.DB.prepare(
+                'INSERT INTO mynotebook_user_keys (user_id, notebook_key) VALUES (?, ?)'
+              ).bind(userId, encryptedKey).run();
+              
+              notebookKey = encryptedKey;
+            }
+            
+            const decryptedNotebookKey = await decryptField(dataKey, notebookKey);
+            
+            return json({
+              success: true,
+              userIdHash,
+              notebookKey: decryptedNotebookKey,
+              sessionToken: apiSessionToken
+            }, { headers: getCorsHeaders(request) });
           }
-          const base64Key = btoa(keyString);
-          const dataKey = await importDataEncryptionKey(env.DATA_ENCRYPTION_KEY);
-          const encryptedKey = await encryptField(dataKey, base64Key);
-          
-          await env.DB.prepare(
-            'INSERT INTO mynotebook_user_keys (user_id, notebook_key) VALUES (?, ?)'
-          ).bind(userId, encryptedKey).run();
-          
-          notebookKey = encryptedKey;
-        }
-        
-        const dataKey = await importDataEncryptionKey(env.DATA_ENCRYPTION_KEY);
-        const decryptedNotebookKey = await decryptField(dataKey, notebookKey);
-        
-        return json({
-          success: true,
-          userIdHash,
-          notebookKey: decryptedNotebookKey,
-          sessionToken: apiSessionToken
-        }, { headers: getCorsHeaders(request) });
-      }
 
-      if (url.pathname.startsWith('/api/mynotebook/') && url.pathname !== '/api/mynotebook/generate-token') {
-        const myNotebookUserId = await authenticateMyNotebook(request, env);
-        if (!myNotebookUserId) {
-          return json({ error: 'No autorizado' }, { status: 401, headers: getCorsHeaders(request) });
-        }
+          const myNotebookUserId = await authenticateMyNotebook(request, env);
+          if (!myNotebookUserId) {
+            return json({ error: 'No autorizado' }, { status: 401, headers: getCorsHeaders(request) });
+          }
 
-        if (request.method === 'GET' && url.pathname === '/api/mynotebook/pending-notebooks') {
-          const { results: tasks } = await env.DB.prepare(
-            'SELECT ticket_number FROM tasks WHERE user_id = ? AND create_notebook = 1 AND notebook_created = 0'
-          ).bind(myNotebookUserId).all();
-          
-          const dataKey = await importDataEncryptionKey(env.DATA_ENCRYPTION_KEY);
-          const pendingTickets = new Set();
-          
-          for (const t of tasks || []) {
-            if (t.ticket_number) {
-              const ticketDec = await decryptField(dataKey, t.ticket_number);
-              const cleanTicket = typeof ticketDec === 'string' ? ticketDec.trim() : '';
-              if (cleanTicket) {
-                pendingTickets.add(cleanTicket);
+          if (request.method === 'GET' && url.pathname === '/api/mynotebook/pending-notebooks') {
+            const { results: tasks } = await env.DB.prepare(
+              'SELECT id, ticket_number FROM tasks WHERE user_id = ? AND create_notebook = 1 AND notebook_created = 0'
+            ).bind(myNotebookUserId).all();
+            
+            const dataKey = await importDataEncryptionKey(env.DATA_ENCRYPTION_KEY);
+            if (!dataKey) {
+              return json({ error: 'data_encryption_misconfigured', message: 'DATA_ENCRYPTION_KEY is not configured or invalid on the Cloudflare Worker.' }, { status: 500, headers: getCorsHeaders(request) });
+            }
+
+            const pendingTickets = [];
+            const seenTickets = new Set();
+            
+            for (const t of tasks || []) {
+              if (t.ticket_number) {
+                const ticketDec = await decryptField(dataKey, t.ticket_number);
+                const cleanTicket = typeof ticketDec === 'string' ? ticketDec.trim() : '';
+                if (cleanTicket && !seenTickets.has(cleanTicket.toLowerCase())) {
+                  seenTickets.add(cleanTicket.toLowerCase());
+                  const shortTaskId = t.id.includes('::') ? t.id.split('::').pop() : t.id;
+                  pendingTickets.push({
+                    ticketNumber: cleanTicket,
+                    taskId: shortTaskId
+                  });
+                }
               }
             }
+            
+            return json({
+              tickets: pendingTickets
+            }, { headers: getCorsHeaders(request) });
           }
-          
+
+          if (request.method === 'POST' && url.pathname === '/api/mynotebook/mark-notebook-created') {
+            let body;
+            try {
+              body = await request.json();
+            } catch {
+              return json({ error: 'Body inválido' }, { status: 400, headers: getCorsHeaders(request) });
+            }
+            const ticketNumber = typeof body?.ticketNumber === 'string' ? body.ticketNumber.trim() : '';
+            if (!ticketNumber) {
+              return json({ error: 'ticketNumber es requerido' }, { status: 400, headers: getCorsHeaders(request) });
+            }
+            
+            const { results: tasks } = await env.DB.prepare(
+              'SELECT id, ticket_number FROM tasks WHERE user_id = ? AND create_notebook = 1 AND notebook_created = 0'
+            ).bind(myNotebookUserId).all();
+            
+            const dataKey = await importDataEncryptionKey(env.DATA_ENCRYPTION_KEY);
+            if (!dataKey) {
+              return json({ error: 'data_encryption_misconfigured', message: 'DATA_ENCRYPTION_KEY is not configured or invalid on the Cloudflare Worker.' }, { status: 500, headers: getCorsHeaders(request) });
+            }
+
+            const taskIdsToUpdate = [];
+            
+            for (const t of tasks || []) {
+              if (t.ticket_number) {
+                const ticketDec = await decryptField(dataKey, t.ticket_number);
+                const cleanTicket = typeof ticketDec === 'string' ? ticketDec.trim() : '';
+                if (cleanTicket.toLowerCase() === ticketNumber.toLowerCase()) {
+                  taskIdsToUpdate.push(t.id);
+                }
+              }
+            }
+            
+            if (taskIdsToUpdate.length > 0) {
+              const statements = taskIdsToUpdate.map(id => 
+                env.DB.prepare('UPDATE tasks SET notebook_created = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(id)
+              );
+              await env.DB.batch(statements);
+            }
+            
+            return json({ success: true, updatedCount: taskIdsToUpdate.length }, { headers: getCorsHeaders(request) });
+          }
+        } catch (err) {
+          console.error('myNotebook API error:', url.pathname, err);
           return json({
-            tickets: [...pendingTickets]
-          }, { headers: getCorsHeaders(request) });
-        }
-
-        if (request.method === 'POST' && url.pathname === '/api/mynotebook/mark-notebook-created') {
-          let body;
-          try {
-            body = await request.json();
-          } catch {
-            return json({ error: 'Body inválido' }, { status: 400, headers: getCorsHeaders(request) });
-          }
-          const ticketNumber = typeof body?.ticketNumber === 'string' ? body.ticketNumber.trim() : '';
-          if (!ticketNumber) {
-            return json({ error: 'ticketNumber es requerido' }, { status: 400, headers: getCorsHeaders(request) });
-          }
-          
-          const { results: tasks } = await env.DB.prepare(
-            'SELECT id, ticket_number FROM tasks WHERE user_id = ? AND create_notebook = 1 AND notebook_created = 0'
-          ).bind(myNotebookUserId).all();
-          
-          const dataKey = await importDataEncryptionKey(env.DATA_ENCRYPTION_KEY);
-          const taskIdsToUpdate = [];
-          
-          for (const t of tasks || []) {
-            if (t.ticket_number) {
-              const ticketDec = await decryptField(dataKey, t.ticket_number);
-              const cleanTicket = typeof ticketDec === 'string' ? ticketDec.trim() : '';
-              if (cleanTicket.toLowerCase() === ticketNumber.toLowerCase()) {
-                taskIdsToUpdate.push(t.id);
-              }
-            }
-          }
-          
-          if (taskIdsToUpdate.length > 0) {
-            const statements = taskIdsToUpdate.map(id => 
-              env.DB.prepare('UPDATE tasks SET notebook_created = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(id)
-            );
-            await env.DB.batch(statements);
-          }
-          
-          return json({ success: true, updatedCount: taskIdsToUpdate.length }, { headers: getCorsHeaders(request) });
+            error: 'internal_error',
+            message: err.message || String(err)
+          }, { status: 500, headers: getCorsHeaders(request) });
         }
       }
 

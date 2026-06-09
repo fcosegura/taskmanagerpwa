@@ -72,6 +72,11 @@ export default function App() {
   const [dailyStatusLoading, setDailyStatusLoading] = useState(false);
   const [dailyStatusError, setDailyStatusError] = useState('');
   const [swUpdateAvailable, setSwUpdateAvailable] = useState(false);
+  const [notebookOpenMode, setNotebookOpenMode] = useState(() => {
+    return localStorage.getItem('taskmanager_notebook_open_mode') || 'tab';
+  });
+  const [isNotebookPanelOpen, setIsNotebookPanelOpen] = useState(false);
+  const [notebookIframeUrl, setNotebookIframeUrl] = useState('');
   const fileInputRef = useRef(null);
   const profileMenuRef = useRef(null);
   const actionsMenuRef = useRef(null);
@@ -144,6 +149,10 @@ export default function App() {
       themeMeta.setAttribute('content', theme === 'dark' ? '#111827' : '#2563eb');
     }
   }, [theme]);
+
+  useEffect(() => {
+    localStorage.setItem('taskmanager_notebook_open_mode', notebookOpenMode);
+  }, [notebookOpenMode]);
 
   useEffect(() => {
     let cancelled = false;
@@ -297,6 +306,39 @@ export default function App() {
   }, [clearSyncDebounce]);
 
   const previewTaskResolved = taskPreviewId ? tasks.find((t) => t.id === taskPreviewId) : null;
+
+  useEffect(() => {
+    if (!ready || tasks.length === 0) return;
+    const params = new URLSearchParams(window.location.search);
+    const taskIdParam = params.get('taskId');
+    if (taskIdParam) {
+      const target = tasks.find(t => t.id === taskIdParam || t.id.split('::').pop() === taskIdParam);
+      if (target) {
+        setTaskPreviewId(target.id);
+      }
+      const newUrl = window.location.pathname + window.location.hash;
+      window.history.replaceState({}, document.title, newUrl);
+    }
+  }, [ready, tasks]);
+
+  useEffect(() => {
+    const channel = new BroadcastChannel('mynotebook-pwa-integration');
+    channel.onmessage = (event) => {
+      if (event.data?.type === 'SELECT_TASK') {
+        const taskId = event.data.taskId;
+        if (taskId && tasks.length > 0) {
+          const target = tasks.find(t => t.id === taskId || t.id.split('::').pop() === taskId);
+          if (target) {
+            setTaskPreviewId(target.id);
+            window.focus();
+          }
+        }
+      }
+    };
+    return () => {
+      channel.close();
+    };
+  }, [tasks]);
 
   useEffect(() => {
     const onKeyDown = (e) => {
@@ -714,23 +756,55 @@ export default function App() {
   };
 
   const handleOpenMyNotebook = async (ticketNumber = null) => {
-    setBackupMessage('Abriendo myNotebook...');
-    try {
-      const token = await generateMyNotebookToken();
-      const baseUrl = window.location.hostname === 'localhost'
-        ? 'http://localhost:5173'
-        : 'https://mynotebook.fcovidalsegura.workers.dev';
-      
-      let targetUrl = `${baseUrl}/?token=${encodeURIComponent(token)}`;
-      if (typeof ticketNumber === 'string' && ticketNumber.trim()) {
-        targetUrl += `&notebook=${encodeURIComponent(ticketNumber.trim())}`;
+    if (ticketNumber) {
+      try {
+        const channel = new BroadcastChannel('mynotebook-pwa-integration');
+        channel.postMessage({ type: 'SELECT_NOTEBOOK', ticketNumber });
+        channel.close();
+      } catch (err) {
+        console.error('Error posting to BroadcastChannel:', err);
       }
-      
-      window.open(targetUrl, '_blank');
-      setBackupMessage('');
-    } catch (error) {
-      setBackupMessage(error.message || 'Error al intentar abrir myNotebook.');
-      setTimeout(() => setBackupMessage(''), 5000);
+    }
+
+    if (notebookOpenMode === 'panel') {
+      setBackupMessage('Cargando myNotebook en panel...');
+      try {
+        const token = await generateMyNotebookToken();
+        const baseUrl = window.location.hostname === 'localhost'
+          ? 'http://localhost:5173'
+          : 'https://mynotebook.fcovidalsegura.workers.dev';
+        
+        let targetUrl = `${baseUrl}/?token=${encodeURIComponent(token)}`;
+        if (typeof ticketNumber === 'string' && ticketNumber.trim()) {
+          targetUrl += `&notebook=${encodeURIComponent(ticketNumber.trim())}`;
+        }
+        
+        setNotebookIframeUrl(targetUrl);
+        setIsNotebookPanelOpen(true);
+        setBackupMessage('');
+      } catch (error) {
+        setBackupMessage(error.message || 'Error al intentar cargar myNotebook.');
+        setTimeout(() => setBackupMessage(''), 5000);
+      }
+    } else {
+      setBackupMessage('Abriendo myNotebook...');
+      try {
+        const token = await generateMyNotebookToken();
+        const baseUrl = window.location.hostname === 'localhost'
+          ? 'http://localhost:5173'
+          : 'https://mynotebook.fcovidalsegura.workers.dev';
+        
+        let targetUrl = `${baseUrl}/?token=${encodeURIComponent(token)}`;
+        if (typeof ticketNumber === 'string' && ticketNumber.trim()) {
+          targetUrl += `&notebook=${encodeURIComponent(ticketNumber.trim())}`;
+        }
+        
+        window.open(targetUrl, 'mynotebook');
+        setBackupMessage('');
+      } catch (error) {
+        setBackupMessage(error.message || 'Error al intentar abrir myNotebook.');
+        setTimeout(() => setBackupMessage(''), 5000);
+      }
     }
   };
 
@@ -1215,6 +1289,27 @@ export default function App() {
                   </div>
                 ))}
                 <button type="button" className="workspace-create" onClick={handleCreateProfile}>+ Nuevo workspace</button>
+                <div className="workspace-notebook-mode" style={{ padding: '8px 10px', borderTop: '1px solid var(--color-border-secondary)', fontSize: 13, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <label htmlFor="notebook-mode-select" style={{ fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase', fontSize: 10 }}>Modo myNotebook:</label>
+                  <select
+                    id="notebook-mode-select"
+                    value={notebookOpenMode}
+                    onChange={(e) => setNotebookOpenMode(e.target.value)}
+                    style={{
+                      background: 'var(--color-background-primary)',
+                      color: 'var(--color-text-primary)',
+                      border: '1px solid var(--color-border)',
+                      borderRadius: 6,
+                      padding: '4px 8px',
+                      cursor: 'pointer',
+                      width: '100%',
+                      fontWeight: 600
+                    }}
+                  >
+                    <option value="tab">Pestaña nueva</option>
+                    <option value="panel">Panel lateral</option>
+                  </select>
+                </div>
                 <button
                   type="button"
                   className="workspace-create"
@@ -1521,6 +1616,34 @@ export default function App() {
       )}
 
       <BottomNav currentView={view} setView={navigateToView} />
+
+      {isNotebookPanelOpen && (
+        <div className="notebook-panel-overlay" onClick={() => setIsNotebookPanelOpen(false)}>
+          <div className="notebook-panel-container" onClick={(e) => e.stopPropagation()}>
+            <div className="notebook-panel-header">
+              <h3>myNotebook</h3>
+              <button
+                type="button"
+                className="notebook-panel-close"
+                onClick={() => setIsNotebookPanelOpen(false)}
+                aria-label="Cerrar panel de myNotebook"
+              >
+                ×
+              </button>
+            </div>
+            <div className="notebook-panel-body">
+              {notebookIframeUrl && (
+                <iframe
+                  src={notebookIframeUrl}
+                  title="myNotebook"
+                  className="notebook-iframe"
+                  allow="clipboard-read; clipboard-write"
+                />
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
