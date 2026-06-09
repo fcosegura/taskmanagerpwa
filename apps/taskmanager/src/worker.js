@@ -22,30 +22,40 @@ const MAX_SYNC_NOTES = 2000;
 const MAX_SYNC_EVENTS = 4000;
 const AI_RATE_WINDOW_SEC = 60;
 const AI_RATE_MAX_PER_WINDOW = 48;
-const SECURITY_HEADERS = {
-  'Content-Security-Policy': [
+const DEFAULT_MYNOTEBOOK_ORIGIN = 'https://mynotebook.fcovidalsegura.workers.dev';
+
+function configuredMyNotebookOrigin(env) {
+  const value = typeof env?.MYNOTEBOOK_ORIGIN === 'string' ? env.MYNOTEBOOK_ORIGIN.trim() : '';
+  return value || DEFAULT_MYNOTEBOOK_ORIGIN;
+}
+
+function securityHeaders(env) {
+  const myNotebookOrigin = configuredMyNotebookOrigin(env);
+  return {
+    'Content-Security-Policy': [
     "default-src 'self'",
     "script-src 'self' https://accounts.google.com",
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: https://lh3.googleusercontent.com",
     "font-src 'self'",
     "connect-src 'self' https://accounts.google.com https://www.googleapis.com https://oauth2.googleapis.com",
-    "frame-src https://accounts.google.com http://localhost:5173 http://localhost:5174 https://mynotebook.fcovidalsegura.workers.dev",
+    `frame-src https://accounts.google.com http://localhost:5173 http://localhost:5174 ${myNotebookOrigin}`,
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",
     "frame-ancestors 'none'",
     "upgrade-insecure-requests"
   ].join('; '),
-  'Cross-Origin-Opener-Policy': 'same-origin-allow-popups',
-  'Referrer-Policy': 'strict-origin-when-cross-origin',
-  'X-Content-Type-Options': 'nosniff',
-  'X-Frame-Options': 'DENY',
-  'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=()'
-};
+    'Cross-Origin-Opener-Policy': 'same-origin-allow-popups',
+    'Referrer-Policy': 'strict-origin-when-cross-origin',
+    'X-Content-Type-Options': 'nosniff',
+    'X-Frame-Options': 'DENY',
+    'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=()'
+  };
+}
 
-function withSecurityHeaders(headers = {}) {
-  return { ...SECURITY_HEADERS, ...headers };
+function withSecurityHeaders(headers = {}, env = undefined) {
+  return { ...securityHeaders(env), ...headers };
 }
 
 function json(data, init = {}) {
@@ -1104,14 +1114,16 @@ async function authenticate(request, env) {
   return verifyGoogleToken(token, env);
 }
 
-function getCorsHeaders(request) {
+function getCorsHeaders(request, env) {
   const origin = request.headers.get('Origin') || '';
+  const myNotebookOrigin = configuredMyNotebookOrigin(env);
   const allowedOrigins = [
-    'https://mynotebook.fcovidalsegura.workers.dev',
+    DEFAULT_MYNOTEBOOK_ORIGIN,
+    myNotebookOrigin,
     'http://localhost:5173',
     'http://localhost:5174'
   ];
-  let allowOrigin = 'https://mynotebook.fcovidalsegura.workers.dev';
+  let allowOrigin = myNotebookOrigin;
   if (allowedOrigins.includes(origin) || origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
     allowOrigin = origin;
   }
@@ -1221,7 +1233,7 @@ export default {
       if (request.method === 'OPTIONS' && url.pathname.startsWith('/api/mynotebook/')) {
         return new Response(null, {
           status: 204,
-          headers: getCorsHeaders(request)
+          headers: getCorsHeaders(request, env)
         });
       }
 
@@ -1230,7 +1242,7 @@ export default {
           if (request.method === 'GET' && url.pathname === '/api/mynotebook/verify-token') {
             const token = url.searchParams.get('token');
             if (!token) {
-              return json({ error: 'Token es requerido' }, { status: 400, headers: getCorsHeaders(request) });
+              return json({ error: 'Token es requerido' }, { status: 400, headers: getCorsHeaders(request, env) });
             }
             
             const now = Math.floor(Date.now() / 1000);
@@ -1239,7 +1251,7 @@ export default {
             ).bind(token, now).first();
             
             if (!row) {
-              return json({ error: 'Token inválido o expirado' }, { status: 401, headers: getCorsHeaders(request) });
+              return json({ error: 'Token inválido o expirado' }, { status: 401, headers: getCorsHeaders(request, env) });
             }
             
             const userId = row.user_id;
@@ -1255,7 +1267,7 @@ export default {
             
             const dataKey = await importDataEncryptionKey(env.DATA_ENCRYPTION_KEY);
             if (!dataKey) {
-              return json({ error: 'data_encryption_misconfigured', message: 'DATA_ENCRYPTION_KEY is not configured or invalid on the Cloudflare Worker.' }, { status: 500, headers: getCorsHeaders(request) });
+              return json({ error: 'data_encryption_misconfigured', message: 'DATA_ENCRYPTION_KEY is not configured or invalid on the Cloudflare Worker.' }, { status: 500, headers: getCorsHeaders(request, env) });
             }
 
             let keyRow = await env.DB.prepare(
@@ -1288,12 +1300,12 @@ export default {
               userIdHash,
               notebookKey: decryptedNotebookKey,
               sessionToken: apiSessionToken
-            }, { headers: getCorsHeaders(request) });
+            }, { headers: getCorsHeaders(request, env) });
           }
 
           const myNotebookUserId = await authenticateMyNotebook(request, env);
           if (!myNotebookUserId) {
-            return json({ error: 'No autorizado' }, { status: 401, headers: getCorsHeaders(request) });
+            return json({ error: 'No autorizado' }, { status: 401, headers: getCorsHeaders(request, env) });
           }
 
           if (request.method === 'GET' && url.pathname === '/api/mynotebook/pending-notebooks') {
@@ -1303,7 +1315,7 @@ export default {
             
             const dataKey = await importDataEncryptionKey(env.DATA_ENCRYPTION_KEY);
             if (!dataKey) {
-              return json({ error: 'data_encryption_misconfigured', message: 'DATA_ENCRYPTION_KEY is not configured or invalid on the Cloudflare Worker.' }, { status: 500, headers: getCorsHeaders(request) });
+              return json({ error: 'data_encryption_misconfigured', message: 'DATA_ENCRYPTION_KEY is not configured or invalid on the Cloudflare Worker.' }, { status: 500, headers: getCorsHeaders(request, env) });
             }
 
             const pendingTickets = [];
@@ -1326,7 +1338,7 @@ export default {
             
             return json({
               tickets: pendingTickets
-            }, { headers: getCorsHeaders(request) });
+            }, { headers: getCorsHeaders(request, env) });
           }
 
           if (request.method === 'POST' && url.pathname === '/api/mynotebook/mark-notebook-created') {
@@ -1334,11 +1346,11 @@ export default {
             try {
               body = await request.json();
             } catch {
-              return json({ error: 'Body inválido' }, { status: 400, headers: getCorsHeaders(request) });
+              return json({ error: 'Body inválido' }, { status: 400, headers: getCorsHeaders(request, env) });
             }
             const ticketNumber = typeof body?.ticketNumber === 'string' ? body.ticketNumber.trim() : '';
             if (!ticketNumber) {
-              return json({ error: 'ticketNumber es requerido' }, { status: 400, headers: getCorsHeaders(request) });
+              return json({ error: 'ticketNumber es requerido' }, { status: 400, headers: getCorsHeaders(request, env) });
             }
             
             const { results: tasks } = await env.DB.prepare(
@@ -1347,7 +1359,7 @@ export default {
             
             const dataKey = await importDataEncryptionKey(env.DATA_ENCRYPTION_KEY);
             if (!dataKey) {
-              return json({ error: 'data_encryption_misconfigured', message: 'DATA_ENCRYPTION_KEY is not configured or invalid on the Cloudflare Worker.' }, { status: 500, headers: getCorsHeaders(request) });
+              return json({ error: 'data_encryption_misconfigured', message: 'DATA_ENCRYPTION_KEY is not configured or invalid on the Cloudflare Worker.' }, { status: 500, headers: getCorsHeaders(request, env) });
             }
 
             const taskIdsToUpdate = [];
@@ -1369,14 +1381,14 @@ export default {
               await env.DB.batch(statements);
             }
             
-            return json({ success: true, updatedCount: taskIdsToUpdate.length }, { headers: getCorsHeaders(request) });
+            return json({ success: true, updatedCount: taskIdsToUpdate.length }, { headers: getCorsHeaders(request, env) });
           }
         } catch (err) {
           console.error('myNotebook API error:', url.pathname, err);
           return json({
             error: 'internal_error',
             message: err.message || String(err)
-          }, { status: 500, headers: getCorsHeaders(request) });
+          }, { status: 500, headers: getCorsHeaders(request, env) });
         }
       }
 
@@ -1796,7 +1808,7 @@ export default {
     // Modern Assets (2026): El Worker sirve los archivos de la carpeta assets configurada
     const response = await env.ASSETS.fetch(request);
     const headers = new Headers(response.headers);
-    Object.entries(SECURITY_HEADERS).forEach(([key, value]) => headers.set(key, value));
+    Object.entries(securityHeaders(env)).forEach(([key, value]) => headers.set(key, value));
     return new Response(response.body, {
       status: response.status,
       statusText: response.statusText,

@@ -22,6 +22,9 @@ import { indexEventsByDate } from './calendarEvents.js';
 import { indexTasksByDate } from './calendarTaskIndex.js';
 import { normalizePlannedSlots } from './plannedSlots.js';
 
+const DEFAULT_MYNOTEBOOK_ORIGIN = 'https://mynotebook.fcovidalsegura.workers.dev';
+const MYNOTEBOOK_ORIGIN = import.meta.env.VITE_MYNOTEBOOK_ORIGIN || DEFAULT_MYNOTEBOOK_ORIGIN;
+
 function serializePayload(payload) {
   try {
     return JSON.stringify(payload);
@@ -779,7 +782,7 @@ export default function App() {
         const token = await generateMyNotebookToken();
         const baseUrl = window.location.hostname === 'localhost'
           ? 'http://localhost:5173'
-          : 'https://mynotebook.fcovidalsegura.workers.dev';
+          : MYNOTEBOOK_ORIGIN;
         
         let targetUrl = `${baseUrl}/?token=${encodeURIComponent(token)}`;
         if (typeof ticketNumber === 'string' && ticketNumber.trim()) {
@@ -799,7 +802,7 @@ export default function App() {
         const token = await generateMyNotebookToken();
         const baseUrl = window.location.hostname === 'localhost'
           ? 'http://localhost:5173'
-          : 'https://mynotebook.fcovidalsegura.workers.dev';
+          : MYNOTEBOOK_ORIGIN;
         
         let targetUrl = `${baseUrl}/?token=${encodeURIComponent(token)}`;
         if (typeof ticketNumber === 'string' && ticketNumber.trim()) {
