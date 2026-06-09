@@ -1181,7 +1181,7 @@ export default {
         });
       }
 
-      if (url.pathname.startsWith('/api/mynotebook/')) {
+      if (url.pathname.startsWith('/api/mynotebook/') && url.pathname !== '/api/mynotebook/generate-token') {
         try {
           if (request.method === 'GET' && url.pathname === '/api/mynotebook/verify-token') {
             const token = url.searchParams.get('token');
