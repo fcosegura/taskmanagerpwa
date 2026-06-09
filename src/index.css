@@ -1868,7 +1868,7 @@ nav.show-mobile button.active {
 }
 
 .notebook-panel-container {
-  width: min(650px, 90vw);
+  width: min(1350px, 95vw);
   height: 100%;
   background: var(--color-background-primary);
   box-shadow: -10px 0 40px rgba(0, 0, 0, 0.15);
