@@ -225,6 +225,14 @@ async function translateBackupPayloadToCurrentKey(
 
 const processedTokens = new Set<string>()
 
+async function shortSha256Hex(value: string): Promise<string> {
+  const bytes = new TextEncoder().encode(value)
+  const digest = await crypto.subtle.digest('SHA-256', bytes)
+  return Array.from(new Uint8Array(digest).slice(0, 8))
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('')
+}
+
 function App() {
   const [user, setUser] = useState<UserLocal | null>(null)
   const [unlocked, setUnlocked] = useState(false)
@@ -324,10 +332,12 @@ function App() {
   const editorBoundPageIdRef = useRef<string | null>(null)
   const selectedNotebookIdRef = useRef<string | null>(null)
   const pagePersistChainRef = useRef(Promise.resolve())
+  const bootstrapRef = useRef<() => Promise<void>>(async () => {})
+  const openNotebookByTitleRef = useRef<(title: string) => Promise<void>>(async () => {})
 
   useEffect(() => {
-    void bootstrap()
-  }, [setNotebookMenuId, setPageMenuId])
+    void bootstrapRef.current()
+  }, [])
 
   useEffect(() => {
     selectedNotebookIdRef.current = selectedNotebookId
@@ -339,7 +349,7 @@ function App() {
       if (event.data?.type === 'SELECT_NOTEBOOK') {
         const ticketNumber = event.data.ticketNumber
         if (ticketNumber) {
-          void openNotebookByTitle(ticketNumber)
+          void openNotebookByTitleRef.current(ticketNumber)
         }
       }
     }
@@ -541,6 +551,8 @@ function App() {
     }
   }
 
+  openNotebookByTitleRef.current = openNotebookByTitle
+
   function handleOpenPwaTask(taskId: string) {
     const channel = new BroadcastChannel('mynotebook-pwa-integration')
     channel.postMessage({ type: 'SELECT_TASK', taskId })
@@ -583,14 +595,15 @@ function App() {
         
         const data = await resp.json()
         const { userIdHash, notebookKey, sessionToken } = data
+        const scopedUserId = `${userIdHash}-${await shortSha256Hex(notebookKey)}`
         
-        await switchDatabase(userIdHash)
+        await switchDatabase(scopedUserId)
         const switchedUser = await ensureUser()
         setUser(switchedUser)
         await unlockVaultWithDirectKey(notebookKey)
         
         sessionStorage.setItem('mynotebook_bypass_key', notebookKey)
-        sessionStorage.setItem('mynotebook_bypass_user', userIdHash)
+        sessionStorage.setItem('mynotebook_bypass_user', scopedUserId)
         sessionStorage.setItem('mynotebook_bypass_token', sessionToken)
         
         const cleanUrl = window.location.pathname + (urlNotebook ? `?notebook=${encodeURIComponent(urlNotebook)}` : '')
@@ -648,6 +661,8 @@ function App() {
     
     setUnlocked(false)
   }
+
+  bootstrapRef.current = bootstrap
 
   async function clearWorkspaceWithoutNotebook() {
     setSelectedPageId(null)

@@ -1151,11 +1151,36 @@ export default {
 
       if (request.method === 'POST' && url.pathname === '/api/login') {
         try {
-          const { credential } = await request.json();
+          const contentType = request.headers.get('Content-Type') || '';
+          const isFormLogin = contentType.includes('application/x-www-form-urlencoded') ||
+            contentType.includes('multipart/form-data');
+          let credential = '';
+          if (isFormLogin) {
+            const formData = await request.formData();
+            credential = String(formData.get('credential') || '');
+          } else {
+            const body = await request.json();
+            credential = body?.credential;
+          }
           const userId = await verifyGoogleToken(credential, env);
-          if (!userId) return json({ error: 'Token inválido' }, { status: 401 });
+          if (!userId) {
+            if (isFormLogin) {
+              return Response.redirect(`${url.origin}/?login_error=1`, 303);
+            }
+            return json({ error: 'Token inválido' }, { status: 401 });
+          }
           await pruneExpiredSessions(env);
           const sessionToken = await createOpaqueSession(env, userId);
+          if (isFormLogin) {
+            return new Response(null, {
+              status: 303,
+              headers: withSecurityHeaders({
+                'Location': `${url.origin}/`,
+                'Set-Cookie': sessionCookie(sessionToken, request),
+                'Cache-Control': 'no-store',
+              })
+            });
+          }
           return json(
             { success: true },
             { headers: { 'Set-Cookie': sessionCookie(sessionToken, request) } }
@@ -1163,6 +1188,18 @@ export default {
         } catch {
           return json({ error: 'Login inválido' }, { status: 400 });
         }
+      }
+
+      if (request.method === 'POST' && url.pathname === '/api/dev-login') {
+        if (!isLocalRequest(request)) {
+          return json({ error: 'No autorizado' }, { status: 404 });
+        }
+        await pruneExpiredSessions(env);
+        const sessionToken = await createOpaqueSession(env, 'local-dev-user');
+        return json(
+          { success: true },
+          { headers: { 'Set-Cookie': sessionCookie(sessionToken, request) } }
+        );
       }
 
       if (request.method === 'POST' && url.pathname === '/api/logout') {

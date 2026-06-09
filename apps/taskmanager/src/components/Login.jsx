@@ -2,8 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
-export default function Login({ onLoginSuccess }) {
+export default function Login({ onLoginSuccess, onLocalDevLogin }) {
   const googleBtnRef = useRef(null);
+  const isLocalDev = ['localhost', '127.0.0.1'].includes(window.location.hostname);
   const [error, setError] = useState(() =>
     (GOOGLE_CLIENT_ID ? '' : 'Falta VITE_GOOGLE_CLIENT_ID en la configuración de build.')
   );
@@ -18,8 +19,15 @@ export default function Login({ onLoginSuccess }) {
 
     const init = () => {
       if (cancelled || !mount || !window.google?.accounts?.id) return;
+      const useRedirectLogin = new URLSearchParams(window.location.search).get('login') === 'redirect';
       window.google.accounts.id.initialize({
         client_id: GOOGLE_CLIENT_ID,
+        ...(useRedirectLogin
+          ? {
+              ux_mode: 'redirect',
+              login_uri: `${window.location.origin}/api/login`,
+            }
+          : {}),
         callback: async (response) => {
           try {
             setError('');
@@ -35,7 +43,7 @@ export default function Login({ onLoginSuccess }) {
       window.google.accounts.id.renderButton(mount, {
         theme: 'outline',
         size: 'large',
-        width: '100%',
+        width: Math.min(400, Math.max(240, Math.floor(mount.getBoundingClientRect().width || 320))),
         text: 'signin_with',
         shape: 'pill',
       });
@@ -74,6 +82,22 @@ export default function Login({ onLoginSuccess }) {
 
         <div className="login-actions">
           <div ref={googleBtnRef} style={{ width: '100%', minHeight: 44, display: 'flex', justifyContent: 'center' }}></div>
+          {isLocalDev && (
+            <button
+              type="button"
+              className="secondary-btn"
+              onClick={async () => {
+                try {
+                  setError('');
+                  await onLocalDevLogin();
+                } catch {
+                  setError('No se pudo iniciar sesión en modo desarrollo local.');
+                }
+              }}
+            >
+              Entrar en modo desarrollo local
+            </button>
+          )}
           {error && (
             <div className="login-error">
               {error}

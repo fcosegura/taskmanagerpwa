@@ -1,7 +1,7 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
 import { STATUS } from './constants.js';
 import { uid, toDateStr, compareTasksForTaskList, parseDateTimeFromDescription, parseDescriptionDateResult, cleanDescriptionSegment, isJiraCategory, normalizeTicketNumber, applyTicketNumberToTaskName, inheritTicketFromParentTask, mergeTaskCompletionMeta } from './utils.jsx';
-import { loadData, saveData, validateBackupPayload, normalizeDataPayload, loginWithGoogleCredential, logoutSession, createProfile, deleteProfile, parseTaskWithAI, checkSession, generateTasksFromText, generateDailyStatus, fetchWorkspaceData, isMultiBackupPayload, validateMultiBackupPayload, normalizeMultiBackupPayload, generateMyNotebookToken } from './storage.js';
+import { loadData, saveData, validateBackupPayload, normalizeDataPayload, loginWithGoogleCredential, loginWithLocalDevSession, logoutSession, createProfile, deleteProfile, parseTaskWithAI, checkSession, generateTasksFromText, generateDailyStatus, fetchWorkspaceData, isMultiBackupPayload, validateMultiBackupPayload, normalizeMultiBackupPayload, generateMyNotebookToken } from './storage.js';
 import { appendStatusLogEntry } from './statusLog.js';
 import { collectDailyStatusActivities } from './dailyStatusActivities.js';
 import TasksView from './components/TasksView.jsx';
@@ -201,6 +201,13 @@ export default function App() {
 
   const handleLoginSuccess = async (credential) => {
     await loginWithGoogleCredential(credential);
+    setReady(false);
+    setAuthenticated(true);
+    setAuthVersion((version) => version + 1);
+  };
+
+  const handleLocalDevLogin = async () => {
+    await loginWithLocalDevSession();
     setReady(false);
     setAuthenticated(true);
     setAuthVersion((version) => version + 1);
@@ -1234,7 +1241,7 @@ export default function App() {
   }
 
   if (!authenticated) {
-    return <Login onLoginSuccess={handleLoginSuccess} />;
+    return <Login onLoginSuccess={handleLoginSuccess} onLocalDevLogin={handleLocalDevLogin} />;
   }
 
   return (

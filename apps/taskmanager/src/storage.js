@@ -308,6 +308,15 @@ export async function loginWithGoogleCredential(credential) {
   return true;
 }
 
+export async function loginWithLocalDevSession() {
+  const resp = await fetch('/api/dev-login', {
+    method: 'POST',
+    credentials: 'same-origin',
+  });
+  if (!resp.ok) throw new Error('No se pudo iniciar sesión en modo desarrollo.');
+  return true;
+}
+
 export async function logoutSession() {
   await fetch('/api/logout', {
     method: 'POST',
