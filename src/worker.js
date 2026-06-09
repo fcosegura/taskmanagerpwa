@@ -102,6 +102,13 @@ async function ensureSecuritySchema(env) {
   await safeExec(
     'CREATE TABLE IF NOT EXISTS ai_rate_limits (user_id TEXT PRIMARY KEY, window_start INTEGER NOT NULL, request_count INTEGER NOT NULL DEFAULT 0)'
   );
+  await safeExec(
+    'CREATE TABLE IF NOT EXISTS mynotebook_sync_tokens (token TEXT PRIMARY KEY, user_id TEXT NOT NULL, expires_at INTEGER NOT NULL)'
+  );
+  await safeExec('CREATE INDEX IF NOT EXISTS idx_mynotebook_tokens_expires ON mynotebook_sync_tokens(expires_at)');
+  await safeExec(
+    'CREATE TABLE IF NOT EXISTS mynotebook_user_keys (user_id TEXT PRIMARY KEY, notebook_key TEXT NOT NULL, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)'
+  );
 }
 
 function countSyncEntities(normalizedBody) {
