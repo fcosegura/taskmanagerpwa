@@ -10,7 +10,9 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "deploy": "npm run build && npx wrangler deploy",
+    "deploy:dry-run": "npm run build && npx wrangler deploy --dry-run"
   },
   "dependencies": {
     "dexie": "^4.4.2",

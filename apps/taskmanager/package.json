@@ -17,7 +17,8 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:verify": "npm test && npm run lint && npm run test:e2e",
-    "deploy": "npm run build && npx wrangler deploy"
+    "deploy": "npm run build && npx wrangler deploy",
+    "deploy:dry-run": "npm run build && npx wrangler deploy --dry-run"
   },
   "dependencies": {
     "chrono-node": "^2.9.0",
