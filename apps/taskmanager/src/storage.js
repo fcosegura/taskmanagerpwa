@@ -569,7 +569,7 @@ export async function generateMyNotebookToken() {
       if (data && data.error) {
         errMsg += `: ${data.error}`;
       }
-    } catch (e) {
+    } catch {
       // ignore
     }
     throw new Error(errMsg);

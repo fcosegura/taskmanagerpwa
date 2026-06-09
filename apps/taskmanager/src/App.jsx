@@ -314,7 +314,7 @@ export default function App() {
     if (taskIdParam) {
       const target = tasks.find(t => t.id === taskIdParam || t.id.split('::').pop() === taskIdParam);
       if (target) {
-        setTaskPreviewId(target.id);
+        window.queueMicrotask(() => setTaskPreviewId(target.id));
       }
       const newUrl = window.location.pathname + window.location.hash;
       window.history.replaceState({}, document.title, newUrl);

@@ -7,5 +7,5 @@ if [ "${SKIP_HOOKS:-0}" = "1" ]; then
   exit 0
 fi
 
-echo "pre-push: npm run test:verify (unit + lint + e2e)"
+echo "pre-push: npm run test:verify (workspace unit + lint + e2e)"
 npm run test:verify
