@@ -18,8 +18,10 @@
     "test:verify": "npm run test && npm run lint && npm run test:e2e",
     "deploy:taskmanager": "npm run deploy -w apps/taskmanager",
     "deploy:taskmanager:dry-run": "npm run deploy:dry-run -w apps/taskmanager",
+    "preview:taskmanager": "npm run build -w apps/taskmanager && npx wrangler versions upload --cwd apps/taskmanager",
     "deploy:mynotebook": "npm run deploy -w apps/mynotebook",
     "deploy:mynotebook:dry-run": "npm run deploy:dry-run -w apps/mynotebook",
+    "preview:mynotebook": "npm run build -w apps/mynotebook && npx wrangler versions upload --cwd apps/mynotebook",
     "prepare": "husky"
   },
   "devDependencies": {

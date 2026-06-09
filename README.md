@@ -36,6 +36,7 @@ compartido.
 - Root directory: `.`
 - Build command: `npm install --include=optional && npm run build -w apps/taskmanager`
 - Deploy command: `npx wrangler deploy --cwd apps/taskmanager`
+- Preview deploy command: `npx wrangler versions upload --cwd apps/taskmanager`
 - Required secret: `DATA_ENCRYPTION_KEY`
 - Variables:
   - `GOOGLE_CLIENT_ID`
@@ -47,6 +48,7 @@ compartido.
 - Root directory: `.`
 - Build command: `npm install --include=optional && npm run build -w apps/mynotebook`
 - Deploy command: `npx wrangler deploy --cwd apps/mynotebook`
+- Preview deploy command: `npx wrangler versions upload --cwd apps/mynotebook`
 - Variables:
   - `VITE_TASKMANAGER_ORIGIN=https://taskmanagerpwa.fcovidalsegura.workers.dev`
 
