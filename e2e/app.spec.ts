@@ -54,3 +54,28 @@ test.describe('navegación', () => {
     await expect(page.locator('.brand-title').filter({ hasText: 'Tareas' })).toBeVisible();
   });
 });
+
+
+test.describe('panel MyNotebook', () => {
+  test('abre MyNotebook desde el header y cierra con Escape y click fuera', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.getByRole('heading', { name: /Prioriza lo importante/i })).toBeVisible({
+      timeout: 30_000,
+    });
+
+    await page.getByRole('button', { name: 'Notebook' }).click();
+    await expect(page.locator('.external-app-drawer')).toBeVisible();
+    await expect(page.locator('.external-app-frame')).toHaveAttribute(
+      'src',
+      'https://mynotebook.fcovidalsegura.workers.dev/',
+    );
+
+    await page.keyboard.press('Escape');
+    await expect(page.locator('.external-app-overlay')).not.toHaveClass(/open/);
+
+    await page.getByRole('button', { name: 'Notebook' }).click();
+    await expect(page.locator('.external-app-overlay')).toHaveClass(/open/);
+    await page.mouse.click(24, 160);
+    await expect(page.locator('.external-app-overlay')).not.toHaveClass(/open/);
+  });
+});

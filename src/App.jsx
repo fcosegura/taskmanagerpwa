@@ -18,6 +18,7 @@ import DailyStatusResultModal from './components/DailyStatusResultModal.jsx';
 import BottomNav from './components/BottomNav.jsx';
 import Login from './components/Login.jsx';
 import DailyAgendaView from './components/DailyAgendaView.jsx';
+import ExternalAppDrawer from './components/ExternalAppDrawer.jsx';
 import { indexEventsByDate } from './calendarEvents.js';
 import { indexTasksByDate } from './calendarTaskIndex.js';
 import { normalizePlannedSlots } from './plannedSlots.js';
@@ -58,6 +59,7 @@ export default function App() {
   const [activeProfileId, setActiveProfileId] = useState(() => localStorage.getItem(ACTIVE_PROFILE_STORAGE_KEY) || null);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showActionsMenu, setShowActionsMenu] = useState(false);
+  const [externalAppOpen, setExternalAppOpen] = useState(false);
   const [theme, setTheme] = useState(() => {
     const storedTheme = localStorage.getItem(THEME_STORAGE_KEY);
     return storedTheme === 'dark' ? 'dark' : 'light';
@@ -188,6 +190,15 @@ export default function App() {
     };
     window.addEventListener('pointerdown', onPointerDown);
     return () => window.removeEventListener('pointerdown', onPointerDown);
+  }, []);
+
+  const openExternalApp = useCallback(() => {
+    setShowActionsMenu(false);
+    setExternalAppOpen(true);
+  }, []);
+
+  const closeExternalApp = useCallback(() => {
+    setExternalAppOpen(false);
   }, []);
 
   const handleLoginSuccess = async (credential) => {
@@ -1251,11 +1262,19 @@ export default function App() {
                 <button type="button" role="menuitem" onClick={() => { toggleTheme(); setShowActionsMenu(false); }}>
                   {theme === 'dark' ? 'Modo claro' : 'Modo oscuro'}
                 </button>
+                <button type="button" role="menuitem" onClick={openExternalApp}>Abrir MyNotebook</button>
                 <button type="button" role="menuitem" onClick={() => { void downloadBackup(); setShowActionsMenu(false); }}>Exportar backup</button>
                 <button type="button" role="menuitem" onClick={() => { fileInputRef.current?.click(); setShowActionsMenu(false); }}>Importar backup</button>
               </div>
             )}
           </div>
+          <button
+            type="button"
+            className="ghost-button hide-mobile"
+            onClick={openExternalApp}
+          >
+            Notebook
+          </button>
           <button
             type="button"
             className={`ghost-button hide-mobile focus-toggle${focusMode ? ' active' : ''}`}
@@ -1490,7 +1509,8 @@ export default function App() {
         </div>
       )}
 
-      <BottomNav currentView={view} setView={navigateToView} />
+      <ExternalAppDrawer isOpen={externalAppOpen} onClose={closeExternalApp} />
+      <BottomNav currentView={view} setView={navigateToView} onOpenExternalApp={openExternalApp} />
     </div>
   );
 }

@@ -1,10 +1,11 @@
-export default function BottomNav({ currentView, setView }) {
+export default function BottomNav({ currentView, setView, onOpenExternalApp }) {
   const tabs = [
     { id: 'tasks', label: 'Tareas' },
     { id: 'kanban', label: 'Kanban' },
     { id: 'calendar', label: 'Calendario' },
     { id: 'agenda', label: 'Agenda' },
     { id: 'board', label: 'Tablero' },
+    { id: 'notebook', label: 'Notebook', external: true },
   ];
 
   const iconFor = (id) => {
@@ -44,6 +45,14 @@ export default function BottomNav({ currentView, setView }) {
         </svg>
       );
     }
+    if (id === 'notebook') {
+      return (
+        <svg {...common}>
+          <path d="M5 5.5A2.5 2.5 0 0 1 7.5 3H19v16H7.5A2.5 2.5 0 0 0 5 21.5z" />
+          <path d="M5 5.5v16M9 7h6M9 11h6" />
+        </svg>
+      );
+    }
     return (
       <svg {...common}>
         <path d="M8 5h8M8 9h8" />
@@ -58,9 +67,9 @@ export default function BottomNav({ currentView, setView }) {
         <button
           key={tab.id}
           type="button"
-          aria-current={currentView === tab.id ? 'page' : undefined}
-          onClick={() => setView(tab.id)}
-          className={currentView === tab.id ? 'active' : ''}
+          aria-current={!tab.external && currentView === tab.id ? 'page' : undefined}
+          onClick={() => (tab.external ? onOpenExternalApp?.() : setView(tab.id))}
+          className={!tab.external && currentView === tab.id ? 'active' : ''}
           style={{
             flex: 1,
             display: 'flex',
@@ -70,13 +79,13 @@ export default function BottomNav({ currentView, setView }) {
             gap: 4,
             border: 'none',
             background: 'transparent',
-            color: currentView === tab.id ? 'var(--color-accent)' : 'var(--color-text-secondary)',
+            color: !tab.external && currentView === tab.id ? 'var(--color-accent)' : 'var(--color-text-secondary)',
             cursor: 'pointer',
             transition: 'color 0.2s'
           }}
         >
           <span className="mobile-tab-icon" aria-hidden="true">{iconFor(tab.id)}</span>
-          <span className="mobile-tab-label" style={{ fontWeight: currentView === tab.id ? 700 : 500 }}>
+          <span className="mobile-tab-label" style={{ fontWeight: !tab.external && currentView === tab.id ? 700 : 500 }}>
             {tab.label}
           </span>
         </button>
