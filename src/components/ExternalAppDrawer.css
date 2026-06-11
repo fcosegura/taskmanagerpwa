@@ -19,9 +19,9 @@
 
 .external-app-drawer {
   position: relative;
-  width: var(--external-drawer-width, 720px);
+  width: var(--external-drawer-width, 1280px);
   min-width: 320px;
-  max-width: min(1200px, 96vw);
+  max-width: min(1280px, 96vw);
   height: 100%;
   display: flex;
   flex-direction: column;

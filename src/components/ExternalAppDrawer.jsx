@@ -4,13 +4,14 @@ import './ExternalAppDrawer.css';
 export const MY_NOTEBOOK_URL = 'https://mynotebook.fcovidalsegura.workers.dev/';
 
 const MIN_DRAWER_WIDTH = 320;
-const DEFAULT_DRAWER_WIDTH = 720;
+const DEFAULT_DRAWER_WIDTH = 1280;
+const MAX_DRAWER_WIDTH = 1280;
 const WIDTH_STEP = 32;
 
 function clampWidth(width) {
   if (typeof window === 'undefined') return width;
   const viewportWidth = window.innerWidth || DEFAULT_DRAWER_WIDTH;
-  const maxWidth = Math.max(MIN_DRAWER_WIDTH, Math.min(1200, Math.floor(viewportWidth * 0.96)));
+  const maxWidth = Math.max(MIN_DRAWER_WIDTH, Math.min(MAX_DRAWER_WIDTH, Math.floor(viewportWidth * 0.96)));
   return Math.min(Math.max(width, MIN_DRAWER_WIDTH), maxWidth);
 }
 

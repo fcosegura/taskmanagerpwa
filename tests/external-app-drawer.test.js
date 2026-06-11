@@ -20,10 +20,11 @@ test('ExternalAppDrawer supports click-outside and Escape close interactions', (
 
 test('ExternalAppDrawer exposes horizontal resizing with min and max bounds', () => {
   assert.match(drawerSource, /const MIN_DRAWER_WIDTH = 320/);
-  assert.match(drawerSource, /const DEFAULT_DRAWER_WIDTH = 720/);
+  assert.match(drawerSource, /const DEFAULT_DRAWER_WIDTH = 1280/);
   assert.match(drawerSource, /pointermove/);
   assert.match(drawerSource, /window\.innerWidth - moveEvent\.clientX/);
-  assert.match(drawerSource, /Math\.min\(1200, Math\.floor\(viewportWidth \* 0\.96\)\)/);
+  assert.match(drawerSource, /const MAX_DRAWER_WIDTH = 1280/);
+  assert.match(drawerSource, /Math\.min\(MAX_DRAWER_WIDTH, Math\.floor\(viewportWidth \* 0\.96\)\)/);
 });
 
 test('App and BottomNav expose a Notebook action without changing the current view', () => {
