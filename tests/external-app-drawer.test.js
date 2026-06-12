@@ -12,6 +12,16 @@ test('ExternalAppDrawer embeds MyNotebook in an iframe', () => {
   assert.match(drawerSource, /title="MyNotebook"/);
 });
 
+test('ExternalAppDrawer can request notebook creation through a trusted postMessage channel', () => {
+  assert.match(drawerSource, /MY_NOTEBOOK_ORIGIN = new URL\(MY_NOTEBOOK_URL\)\.origin/);
+  assert.match(drawerSource, /CREATE_NOTEBOOK_MESSAGE_TYPE = 'taskmanager:create-notebook'/);
+  assert.match(drawerSource, /CREATE_NOTEBOOK_RESULT_MESSAGE_TYPE = 'mynotebook:create-notebook:result'/);
+  assert.match(drawerSource, /const iframeRef = useRef\(null\)/);
+  assert.match(drawerSource, /targetWindow\.postMessage\(\{[\s\S]*type: CREATE_NOTEBOOK_MESSAGE_TYPE[\s\S]*payload: \{ title \}[\s\S]*\}, MY_NOTEBOOK_ORIGIN\)/);
+  assert.match(drawerSource, /event\.origin !== MY_NOTEBOOK_ORIGIN/);
+  assert.doesNotMatch(drawerSource, /postMessage\([\s\S]*, ['"]\*['"]\)/);
+});
+
 test('ExternalAppDrawer supports click-outside and Escape close interactions', () => {
   assert.match(drawerSource, /event\.target === event\.currentTarget/);
   assert.match(drawerSource, /event\.key === 'Escape'/);
