@@ -22,6 +22,7 @@ import ExternalAppDrawer from './components/ExternalAppDrawer.jsx';
 import { indexEventsByDate } from './calendarEvents.js';
 import { indexTasksByDate } from './calendarTaskIndex.js';
 import { normalizePlannedSlots } from './plannedSlots.js';
+import { countTasksWithParentStatusDedup, countTasksByStatus } from './taskFilterCounts.js';
 
 function serializePayload(payload) {
   try {
@@ -1130,13 +1131,25 @@ export default function App() {
   const sorted = [...bySearch].sort(compareTasksForTaskList);
 
   const statusBase = categoryFilter === 'all' ? focusTasks : focusTasks.filter((t) => t.category === categoryFilter);
-  const statusCounts = statusBase.reduce((acc, t) => { const key = t.status || 'not_done'; acc[key] = (acc[key] || 0) + 1; return acc; }, {});
+  const statusCounts = Object.fromEntries(
+    STATUS.map((s) => [s.v, countTasksByStatus(statusBase, s.v)]),
+  );
   const categoryBase = filter === 'all' ? activeTasks : focusTasks.filter((t) => t.status === filter);
-  const categoryCounts = categoryBase.reduce((acc, t) => { if (!t.category) return acc; acc[t.category] = (acc[t.category] || 0) + 1; return acc; }, {});
+  const categoryCounts = categories.reduce((acc, cat) => {
+    acc[cat] = countTasksWithParentStatusDedup(
+      categoryBase,
+      (t) => t.category === cat,
+    );
+    return acc;
+  }, {});
   const totalVisible = bySummary.length;
-  const completedCount = focusTasks.filter((t) => t.status === 'done').length;
-  const blockedCount = focusTasks.filter((t) => t.status === 'blocked').length;
-  const todayCount = (tByDate[todayStr] || []).filter((t) => t.status !== 'done').length;
+  const activeCount = countTasksWithParentStatusDedup(focusTasks, (t) => t.status !== 'done');
+  const completedCount = countTasksByStatus(focusTasks, 'done');
+  const blockedCount = countTasksByStatus(focusTasks, 'blocked');
+  const todayCount = countTasksWithParentStatusDedup(
+    focusTasks,
+    (t) => t.date === todayStr && t.status !== 'done',
+  );
   const activeMetric = summaryFilter === 'today'
     ? 'today'
     : filter === 'blocked'
@@ -1323,7 +1336,7 @@ export default function App() {
           )}
           <div className="metric-strip">
             {[
-              { key: 'active', label: 'Activas', count: activeTasks.length },
+              { key: 'active', label: 'Activas', count: activeCount },
               { key: 'today', label: 'Hoy', count: todayCount },
               { key: 'blocked', label: 'Bloqueadas', count: blockedCount },
               { key: 'done', label: 'Hechas', count: completedCount },
