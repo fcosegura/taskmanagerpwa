@@ -1,6 +1,7 @@
 import { STATUS, PRIORITY } from '../constants.js';
 import { fmtDate, linkifyText } from '../utils.jsx';
 import { Pill, CategoryPill } from './shared/index.jsx';
+import CopyTicketButton from './CopyTicketButton.jsx';
 
 export default function TaskRow({
   task,
@@ -242,6 +243,7 @@ export default function TaskRow({
         ) : (
           <Pill s={p} />
         )}
+        <CopyTicketButton ticketNumber={task.ticketNumber} />
         {task.category && <CategoryPill name={task.category} />}
         <Pill s={s} fixedWidth={82} />
       </div>
