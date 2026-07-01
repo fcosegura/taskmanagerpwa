@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { STATUS, PRIORITY } from '../constants.js';
-import { fmtDate, parseDateTimeFromDescription, parseDescriptionDateResult, cleanDescriptionSegment, isJiraCategory, normalizeTicketNumber, applyTicketNumberToTaskName } from '../utils.jsx';
+import { fmtDate, parseDateTimeFromDescription, parseDescriptionDateResult, cleanDescriptionSegment, isJiraCategory, normalizeTicketNumber, applyTicketNumberToTaskName, extractJiraTicketFromUrl } from '../utils.jsx';
 import { parseTaskWithAI } from '../storage.js';
 
 export default function TaskModal({ task, categories, allTasks = [], onSave, onDelete, onClose }) {
@@ -46,7 +46,21 @@ export default function TaskModal({ task, categories, allTasks = [], onSave, onD
     setForm((prev) => ({ ...prev, name: cleaned || form.name.trim(), date: preview.date, time: preview.time || prev.time }));
   };
 
-  const handleChange = (field, value) => setForm((prev) => ({ ...prev, [field]: value }));
+  const withAutoJiraTicket = (nextForm, categoryOverride = newCategory) => {
+    const category = categoryOverride.trim() || nextForm.category || '';
+    if (!isJiraCategory(category) || normalizeTicketNumber(nextForm.ticketNumber || '')) return nextForm;
+    const ticketFromUrl = extractJiraTicketFromUrl(nextForm.url || '');
+    return ticketFromUrl ? { ...nextForm, ticketNumber: ticketFromUrl } : nextForm;
+  };
+
+  const handleChange = (field, value) => {
+    setForm((prev) => withAutoJiraTicket({ ...prev, [field]: value }));
+  };
+
+  const handleNewCategoryChange = (value) => {
+    setNewCategory(value);
+    setForm((prev) => withAutoJiraTicket(prev, value));
+  };
   const toggleDependency = (dependencyId) => {
     setForm((prev) => {
       const current = Array.isArray(prev.dependencyTaskIds) ? prev.dependencyTaskIds : [];
@@ -105,7 +119,7 @@ export default function TaskModal({ task, categories, allTasks = [], onSave, onD
     if (!form.name || !form.name.trim()) return;
     const category = newCategory.trim() || form.category || '';
     const parsed = parseDateTimeFromDescription(form.name);
-    const ticketNumber = normalizeTicketNumber(form.ticketNumber || '');
+    const ticketNumber = normalizeTicketNumber(form.ticketNumber || '') || (isJiraCategory(category) ? extractJiraTicketFromUrl(form.url || '') : '');
     const baseName = typeof form.name === 'string' ? form.name.trim() : '';
     const finalName = isJiraCategory(category) && ticketNumber
       ? applyTicketNumberToTaskName(baseName, ticketNumber)
@@ -207,7 +221,7 @@ export default function TaskModal({ task, categories, allTasks = [], onSave, onD
         </label>
         <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, color: 'var(--color-text-secondary)' }}>
           <span style={{ fontWeight: 500 }}>Nueva categoría</span>
-          <input value={newCategory} onChange={(e) => setNewCategory(e.target.value)} placeholder="Nombre de categoría" style={{ width: '100%', height: 44, boxSizing: 'border-box', borderRadius: 'var(--border-radius-md)', border: '0.5px solid var(--color-border-secondary)', padding: '10px 12px', fontSize: 13, background: 'var(--color-background-primary)' }} />
+          <input value={newCategory} onChange={(e) => handleNewCategoryChange(e.target.value)} placeholder="Nombre de categoría" style={{ width: '100%', height: 44, boxSizing: 'border-box', borderRadius: 'var(--border-radius-md)', border: '0.5px solid var(--color-border-secondary)', padding: '10px 12px', fontSize: 13, background: 'var(--color-background-primary)' }} />
         </label>
       </div>
       <label style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 14, fontSize: 13, color: 'var(--color-text-secondary)' }}>

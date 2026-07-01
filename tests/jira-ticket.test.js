@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   applyTicketNumberToTaskName,
+  extractJiraTicketFromUrl,
   inheritTicketFromParentTask,
   isJiraCategory,
 } from '../src/jiraTicket.js';
@@ -31,4 +32,17 @@ test('inheritTicketFromParentTask keeps child ticket when already defined', () =
   const inherited = inheritTicketFromParentTask(parent, child);
   assert.equal(inherited.ticketNumber, 'OWN-1');
   assert.equal(inherited.name, 'Sub tarea [OWN-1]');
+});
+
+
+test('extractJiraTicketFromUrl copies ticket from Jira browse URL', () => {
+  assert.equal(
+    extractJiraTicketFromUrl('https://betssongroup.atlassian.net/browse/MAPP-17394'),
+    'MAPP-17394'
+  );
+  assert.equal(
+    extractJiraTicketFromUrl('https://betssongroup.atlassian.net/browse/mapp-17394?focusedCommentId=1'),
+    'MAPP-17394'
+  );
+  assert.equal(extractJiraTicketFromUrl('https://example.com/issues/MAPP-17394'), '');
 });
