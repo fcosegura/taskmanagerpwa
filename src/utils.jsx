@@ -4,6 +4,7 @@ import {
   isJiraCategory,
   normalizeTicketNumber,
   applyTicketNumberToTaskName,
+  extractJiraTicketFromUrl,
   inheritTicketFromParentTask,
 } from './jiraTicket.js';
 
@@ -196,4 +197,4 @@ export function parseDateTimeFromDescription(text) {
   return date || time ? { date, time } : null;
 }
 
-export { isJiraCategory, normalizeTicketNumber, applyTicketNumberToTaskName, inheritTicketFromParentTask };
+export { isJiraCategory, normalizeTicketNumber, applyTicketNumberToTaskName, extractJiraTicketFromUrl, inheritTicketFromParentTask };

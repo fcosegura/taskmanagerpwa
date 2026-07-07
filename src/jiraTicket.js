@@ -7,6 +7,14 @@ export function normalizeTicketNumber(ticketNumber) {
   return ticketNumber.trim();
 }
 
+export function extractJiraTicketFromUrl(url) {
+  if (typeof url !== 'string') return '';
+  const source = url.trim();
+  if (!source) return '';
+  const match = source.match(/(?:^|\/)browse\/([A-Z][A-Z0-9]+-\d+)(?=$|[/?#&])/i);
+  return match?.[1] ? normalizeTicketNumber(match[1]).toUpperCase() : '';
+}
+
 export function applyTicketNumberToTaskName(name, ticketNumber) {
   const cleanName = typeof name === 'string' ? name.trim() : '';
   const cleanTicket = normalizeTicketNumber(ticketNumber);

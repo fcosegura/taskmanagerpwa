@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { STATUS, PRIORITY } from '../constants.js';
 import { fmtDate, isCompletedAtWithinKanbanRange } from '../utils.jsx';
 import { isChildTask, shouldShowTaskInKanbanDoneColumn } from '../kanbanTaskVisibility.js';
+import CopyTicketButton from './CopyTicketButton.jsx';
 
 const STATUS_VALUES = STATUS.map((s) => s.v);
 
@@ -148,43 +149,46 @@ function KanbanTaskCard({
           )}
         </div>
       )}
-      {onOpenPriorityPicker ? (
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onOpenPriorityPicker(task);
-          }}
-          aria-label={`Cambiar prioridad, actualmente ${priority.label}`}
-          style={{
-            alignSelf: 'flex-start',
-            borderRadius: 999,
-            padding: '4px 8px',
-            fontSize: 11,
-            fontWeight: 700,
-            color: `var(${priority.tv})`,
-            background: `var(${priority.bv})`,
-            border: 'none',
-            cursor: 'pointer',
-          }}
-        >
-          {priority.label}
-        </button>
-      ) : (
-        <div
-          style={{
-            alignSelf: 'flex-start',
-            borderRadius: 999,
-            padding: '4px 8px',
-            fontSize: 11,
-            fontWeight: 700,
-            color: `var(${priority.tv})`,
-            background: `var(${priority.bv})`,
-          }}
-        >
-          {priority.label}
-        </div>
-      )}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+        {onOpenPriorityPicker ? (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenPriorityPicker(task);
+            }}
+            aria-label={`Cambiar prioridad, actualmente ${priority.label}`}
+            style={{
+              alignSelf: 'flex-start',
+              borderRadius: 999,
+              padding: '4px 8px',
+              fontSize: 11,
+              fontWeight: 700,
+              color: `var(${priority.tv})`,
+              background: `var(${priority.bv})`,
+              border: 'none',
+              cursor: 'pointer',
+            }}
+          >
+            {priority.label}
+          </button>
+        ) : (
+          <div
+            style={{
+              alignSelf: 'flex-start',
+              borderRadius: 999,
+              padding: '4px 8px',
+              fontSize: 11,
+              fontWeight: 700,
+              color: `var(${priority.tv})`,
+              background: `var(${priority.bv})`,
+            }}
+          >
+            {priority.label}
+          </div>
+        )}
+        <CopyTicketButton ticketNumber={task.ticketNumber} />
+      </div>
     </div>
   );
 }
