@@ -18,6 +18,13 @@ export default function StatusChangeCommentModal({
     onConfirm(comment);
   };
 
+  const handleKeyDown = (event) => {
+    if (event.key === 'Enter' && !event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey) {
+      event.preventDefault();
+      event.currentTarget.form?.requestSubmit();
+    }
+  };
+
   return (
     <div className="modal-backdrop" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div
@@ -55,6 +62,7 @@ export default function StatusChangeCommentModal({
             rows={4}
             autoFocus
             placeholder="¿Qué cambió y por qué?"
+            onKeyDown={handleKeyDown}
             style={{
               width: '100%',
               resize: 'vertical',
