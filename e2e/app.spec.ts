@@ -31,6 +31,32 @@ test.describe('tareas', () => {
 
     await expect(page.locator('.task-title', { hasText: name })).toBeVisible();
   });
+
+  test('permite introducir un comentario presionando Enter en el textarea', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.getByRole('heading', { name: /Prioriza lo importante/i })).toBeVisible({
+      timeout: 30_000,
+    });
+
+    const name = `E2E comment enter ${Date.now()}`;
+    await page.getByRole('button', { name: /crear nueva tarea/i }).click();
+    await page.getByLabel('Nombre').fill(name);
+    await page.getByRole('button', { name: 'Guardar' }).click();
+    await expect(page.locator('.task-title', { hasText: name })).toBeVisible();
+
+    const card = page.locator('.task-card', { hasText: name });
+    await card.getByRole('button', { name: 'Marcar como completada' }).click();
+
+    await expect(page.getByRole('dialog')).toBeVisible();
+    await expect(page.getByText('Comentario de cambio de estado')).toBeVisible();
+
+    await page.getByPlaceholder('¿Qué cambió y por qué?').fill('Comentario de prueba');
+    await page.keyboard.press('Enter');
+
+    await expect(page.getByRole('dialog')).not.toBeVisible();
+    await page.getByRole('button', { name: /Hechas/i }).click();
+    await expect(card.getByRole('button', { name: 'Marcar como no completada' })).toBeVisible();
+  });
 });
 
 test.describe('navegación', () => {
