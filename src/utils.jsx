@@ -1,4 +1,4 @@
-import { MONTHS, P_ORDER } from './constants.js';
+import { MONTHS } from './constants.js';
 import * as chrono from 'chrono-node';
 import {
   isJiraCategory,
@@ -27,14 +27,7 @@ export function toDateStr(y, mo, d) {
   return `${y}-${String(mo + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 }
 
-/** Same ordering as the main Tasks list: blocked before other non-done, done last, then priority. */
-export function compareTasksForTaskList(a, b) {
-  if (a.status === 'done' && b.status !== 'done') return 1;
-  if (b.status === 'done' && a.status !== 'done') return -1;
-  if (a.status === 'blocked' && b.status !== 'blocked') return -1;
-  if (b.status === 'blocked' && a.status !== 'blocked') return 1;
-  return (P_ORDER[a.priority] ?? 3) - (P_ORDER[b.priority] ?? 3);
-}
+export { compareTasksForTaskList } from './taskSorter.js';
 
 export function linkifyText(text) {
   if (!text) return null;
