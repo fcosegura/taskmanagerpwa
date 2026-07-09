@@ -3,7 +3,7 @@ import { STATUS, PRIORITY } from '../constants.js';
 import { fmtDate, parseDateTimeFromDescription, parseDescriptionDateResult, cleanDescriptionSegment, isJiraCategory, normalizeTicketNumber, applyTicketNumberToTaskName, extractJiraTicketFromUrl } from '../utils.jsx';
 import { parseTaskWithAI } from '../storage.js';
 
-export default function TaskModal({ task, categories, allTasks = [], onSave, onDelete, onClose }) {
+export default function TaskModal({ task, categories, allTasks = [], onSave, onDelete, onClose, statuses = STATUS }) {
   const { _taskModalInitialAdvanced, ...taskRest } = task;
   const parentTasks = allTasks.filter((candidate) => (candidate.dependencyTaskIds || []).includes(taskRest.id));
   const isChildTask = parentTasks.length > 0;
@@ -263,7 +263,7 @@ export default function TaskModal({ task, categories, allTasks = [], onSave, onD
       <label style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 18, fontSize: 13, color: 'var(--color-text-secondary)' }}>
         <span style={{ fontWeight: 500 }}>Estado</span>
         <select value={form.status} onChange={(e) => handleChange('status', e.target.value)} style={{ width: '100%', minHeight: 44, boxSizing: 'border-box', borderRadius: 'var(--border-radius-md)', border: '0.5px solid var(--color-border-secondary)', padding: '10px 12px', fontSize: 13, background: 'var(--color-background-primary)', appearance: 'none' }}>
-          {STATUS.map((option) => <option key={option.v} value={option.v}>{option.label}</option>)}
+          {statuses.map((option) => <option key={option.v} value={option.v}>{option.label}</option>)}
         </select>
       </label>
       {form.status === 'done' && (

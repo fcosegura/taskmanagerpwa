@@ -13,6 +13,7 @@ import TaskPreviewModal from './components/TaskPreviewModal.jsx';
 import EventModal from './components/EventModal.jsx';
 import PriorityPickerModal from './components/PriorityPickerModal.jsx';
 import StatusChangeCommentModal from './components/StatusChangeCommentModal.jsx';
+import StatusManagerModal from './components/StatusManagerModal.jsx';
 import DailyStatusDaysModal from './components/DailyStatusDaysModal.jsx';
 import DailyStatusResultModal from './components/DailyStatusResultModal.jsx';
 import BottomNav from './components/BottomNav.jsx';
@@ -37,6 +38,78 @@ export default function App() {
   const [authenticated, setAuthenticated] = useState(null);
   const [authVersion, setAuthVersion] = useState(0);
   const [tasks, setTasks] = useState([]);
+  const [statuses, setStatuses] = useState(() => {
+    try {
+      const stored = localStorage.getItem('taskmanager_custom_statuses');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {
+      // ignore
+    }
+    return STATUS;
+  });
+  const [showStatusManagerModal, setShowStatusManagerModal] = useState(false);
+
+  const handleSaveStatuses = (newStatuses) => {
+    const deletedStatuses = statuses.filter((s) => !newStatuses.some((ns) => ns.v === s.v));
+    if (deletedStatuses.length > 0) {
+      const deletedValues = new Set(deletedStatuses.map((s) => s.v));
+      setTasks((prevTasks) => {
+        return prevTasks.map((t) => {
+          if (deletedValues.has(t.status)) {
+            const logEntry = {
+              id: uid(),
+              fromStatus: t.status,
+              toStatus: 'not_done',
+              comment: 'Estado custom eliminado',
+              at: new Date().toISOString()
+            };
+            return {
+              ...t,
+              status: 'not_done',
+              statusLog: [...(t.statusLog || []), logEntry].slice(-100),
+              updatedAt: new Date().toISOString()
+            };
+          }
+          return t;
+        });
+      });
+
+      profiles.forEach((profile) => {
+        const key = `taskmanager_kanban_visible_columns_${profile.id || 'default'}`;
+        try {
+          const raw = localStorage.getItem(key);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) {
+              const nextCols = parsed.filter((v) => !deletedValues.has(v));
+              localStorage.setItem(key, JSON.stringify(nextCols));
+            }
+          }
+        } catch (e) {
+          void e;
+        }
+      });
+      try {
+        const defaultKey = 'taskmanager_kanban_visible_columns_default';
+        const raw = localStorage.getItem(defaultKey);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) {
+            const nextCols = parsed.filter((v) => !deletedValues.has(v));
+            localStorage.setItem(defaultKey, JSON.stringify(nextCols));
+          }
+        }
+      } catch (e) {
+        void e;
+      }
+    }
+    setStatuses(newStatuses);
+    localStorage.setItem('taskmanager_custom_statuses', JSON.stringify(newStatuses));
+  };
+
   const [boardNotes, setBoardNotes] = useState([]);
   const [events, setEvents] = useState([]);
   const [ready, setReady] = useState(false);
@@ -195,7 +268,7 @@ export default function App() {
   const openExternalApp = useCallback(() => {
     setShowActionsMenu(false);
     setExternalAppOpen(true);
-  }, []);
+  }, [setShowActionsMenu, setExternalAppOpen]);
 
   const closeExternalApp = useCallback(() => {
     setExternalAppOpen(false);
@@ -378,7 +451,7 @@ export default function App() {
   const reorderTaskInKanban = (taskId, targetStatus, targetIndex, movedTask) => {
     setTasks((prev) => {
       const remaining = prev.filter((task) => task.id !== taskId);
-      const byStatus = STATUS.reduce((acc, status) => {
+      const byStatus = statuses.reduce((acc, status) => {
         acc[status.v] = [];
         return acc;
       }, {});
@@ -392,7 +465,7 @@ export default function App() {
         : Math.max(0, Math.min(targetIndex, list.length));
       list.splice(insertionIndex, 0, movedTask);
       byStatus[targetStatus] = list;
-      return STATUS.flatMap((status) => byStatus[status.v] || []);
+      return statuses.flatMap((status) => byStatus[status.v] || []);
     });
   };
 
@@ -893,7 +966,7 @@ export default function App() {
   const navigateToView = useCallback((nextView) => {
     setTaskPreviewId(null);
     setView(nextView);
-  }, []);
+  }, [setTaskPreviewId, setView]);
 
   const handleSelectProfile = (profileId) => {
     if (!profileId || profileId === activeProfileId) {
@@ -1265,6 +1338,7 @@ export default function App() {
                 <button type="button" role="menuitem" onClick={openExternalApp}>Abrir MyNotebook</button>
                 <button type="button" role="menuitem" onClick={() => { void downloadBackup(); setShowActionsMenu(false); }}>Exportar backup</button>
                 <button type="button" role="menuitem" onClick={() => { fileInputRef.current?.click(); setShowActionsMenu(false); }}>Importar backup</button>
+                <button type="button" role="menuitem" onClick={() => { setShowStatusManagerModal(true); setShowActionsMenu(false); }}>Gestionar estados</button>
               </div>
             )}
           </div>
@@ -1361,6 +1435,7 @@ export default function App() {
               onOpenPriorityPicker={(t) => setPriorityPickerTask(t)}
               onQuickAdd={handleQuickAdd} onQuickSuggest={handleQuickSuggest}
               onDropTaskOnTask={linkStandaloneTaskAsChild}
+              statuses={statuses}
             />
           : view === 'kanban'
             ? <KanbanView
@@ -1376,6 +1451,7 @@ export default function App() {
                 onDropTaskOnTask={linkStandaloneTaskAsChild}
                 onDailyStatus={handleOpenDailyStatus}
                 dailyStatusLoading={dailyStatusLoading}
+                statuses={statuses}
               />
           : view === 'calendar'
             ? <CalendarView
@@ -1411,13 +1487,14 @@ export default function App() {
               setTaskPreviewId(null);
               setModal(t);
             }}
+            statuses={statuses}
           />
         </div>
       )}
 
       {modal && (
         <div className="modal-backdrop" onClick={(e) => e.target === e.currentTarget && setModal(null)}>
-          <TaskModal key={`${modal.id || 'new-task'}${modal._taskModalInitialAdvanced === false ? '-adv-min' : ''}`} task={modal} categories={categories} allTasks={tasks} onSave={upsert} onDelete={modal.id ? () => del(modal.id) : null} onClose={() => setModal(null)} />
+          <TaskModal key={`${modal.id || 'new-task'}${modal._taskModalInitialAdvanced === false ? '-adv-min' : ''}`} task={modal} categories={categories} allTasks={tasks} onSave={upsert} onDelete={modal.id ? () => del(modal.id) : null} onClose={() => setModal(null)} statuses={statuses} />
         </div>
       )}
 
@@ -1442,6 +1519,7 @@ export default function App() {
           toStatus={pendingStatusChange.toStatus}
           onConfirm={handleStatusCommentConfirm}
           onClose={handleStatusCommentCancel}
+          statuses={statuses}
         />
       )}
 
@@ -1457,6 +1535,14 @@ export default function App() {
           report={dailyStatusResult.report}
           source={dailyStatusResult.source}
           onClose={() => setDailyStatusResult(null)}
+        />
+      )}
+
+      {showStatusManagerModal && (
+        <StatusManagerModal
+          statuses={statuses}
+          onSave={handleSaveStatuses}
+          onClose={() => setShowStatusManagerModal(false)}
         />
       )}
 

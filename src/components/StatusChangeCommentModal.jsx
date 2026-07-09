@@ -1,16 +1,16 @@
 import { STATUS } from '../constants.js';
 
-function statusLabel(value) {
-  return STATUS.find((item) => item.v === value)?.label || value || '—';
-}
-
 export default function StatusChangeCommentModal({
   taskName,
   fromStatus,
   toStatus,
   onConfirm,
   onClose,
+  statuses = STATUS,
 }) {
+  const statusLabel = (value) => {
+    return statuses.find((item) => item.v === value)?.label || value || '—';
+  };
   const handleSubmit = (event) => {
     event.preventDefault();
     const comment = event.currentTarget.elements.comment?.value?.trim();

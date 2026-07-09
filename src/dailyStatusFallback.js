@@ -1,10 +1,22 @@
 import { STATUS } from './constants.js';
 import { partitionDailyStatusActivities } from './dailyStatusActivities.js';
 
-const STATUS_LABEL = Object.fromEntries(STATUS.map((s) => [s.v, s.label]));
+function getStoredStatuses() {
+  if (typeof window !== 'undefined' && window.localStorage) {
+    try {
+      const raw = localStorage.getItem('taskmanager_custom_statuses');
+      if (raw) return JSON.parse(raw);
+    } catch {
+      // ignore
+    }
+  }
+  return STATUS;
+}
 
 function label(status) {
-  return STATUS_LABEL[status] || status;
+  const currentStatuses = getStoredStatuses();
+  const match = currentStatuses.find((s) => s.v === status);
+  return match ? match.label : status;
 }
 
 function formatActivityLines(item) {

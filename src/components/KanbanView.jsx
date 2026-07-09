@@ -4,7 +4,7 @@ import { fmtDate, isCompletedAtWithinKanbanRange } from '../utils.jsx';
 import { isChildTask, shouldShowTaskInKanbanDoneColumn } from '../kanbanTaskVisibility.js';
 import CopyTicketButton from './CopyTicketButton.jsx';
 
-const STATUS_VALUES = STATUS.map((s) => s.v);
+
 
 const KANBAN_DONE_RANGE_OPTIONS = [
   { key: 'week', label: 'Semana actual' },
@@ -40,8 +40,8 @@ function readDoneRangeFromStorage(storageKey) {
   return 'week';
 }
 
-function parseStoredVisibleColumns(raw) {
-  const allowed = new Set(STATUS_VALUES);
+function parseStoredVisibleColumns(raw, allowedValues) {
+  const allowed = new Set(allowedValues);
   if (!raw) return null;
   try {
     const parsed = JSON.parse(raw);
@@ -54,11 +54,11 @@ function parseStoredVisibleColumns(raw) {
   }
 }
 
-function readVisibleFromStorage(storageKey) {
-  if (!storageKey) return [...STATUS_VALUES];
-  const parsed = parseStoredVisibleColumns(localStorage.getItem(storageKey));
-  if (!parsed) return [...STATUS_VALUES];
-  return STATUS_VALUES.filter((v) => parsed.includes(v));
+function readVisibleFromStorage(storageKey, allowedValues) {
+  if (!storageKey) return [...allowedValues];
+  const parsed = parseStoredVisibleColumns(localStorage.getItem(storageKey), allowedValues);
+  if (!parsed) return [...allowedValues];
+  return allowedValues.filter((v) => parsed.includes(v));
 }
 
 function KanbanTaskCard({
@@ -205,8 +205,23 @@ export default function KanbanView({
   dailyStatusLoading = false,
   kanbanColumnsStorageKey = 'taskmanager_kanban_visible_columns_default',
   kanbanDoneRangeStorageKey = 'taskmanager_kanban_done_range_default',
+  statuses = STATUS,
 }) {
-  const [visibleStatuses, setVisibleStatuses] = useState(() => readVisibleFromStorage(kanbanColumnsStorageKey));
+  const statusValues = useMemo(() => statuses.map((s) => s.v), [statuses]);
+  const [visibleStatuses, setVisibleStatuses] = useState(() => readVisibleFromStorage(kanbanColumnsStorageKey, statusValues));
+
+  const [prevStatusValues, setPrevStatusValues] = useState(statusValues);
+
+  if (statusValues.length !== prevStatusValues.length || statusValues.some((v, i) => prevStatusValues[i] !== v)) {
+    setPrevStatusValues(statusValues);
+    setVisibleStatuses((prev) => {
+      const allowed = new Set(statusValues);
+      const filtered = prev.filter((v) => allowed.has(v));
+      const newStatuses = statusValues.filter((v) => !prev.includes(v));
+      return [...filtered, ...newStatuses];
+    });
+  }
+
   const [doneRange, setDoneRange] = useState(() => readDoneRangeFromStorage(kanbanDoneRangeStorageKey));
   const [taskRoleFilter, setTaskRoleFilter] = useState('all');
   const [showColumnsMenu, setShowColumnsMenu] = useState(false);
@@ -261,7 +276,7 @@ export default function KanbanView({
       const nextSet = new Set(prev);
       if (has) nextSet.delete(statusV);
       else nextSet.add(statusV);
-      const ordered = STATUS_VALUES.filter((v) => nextSet.has(v));
+      const ordered = statusValues.filter((v) => nextSet.has(v));
       try {
         localStorage.setItem(kanbanColumnsStorageKey, JSON.stringify(ordered));
       } catch {
@@ -272,8 +287,8 @@ export default function KanbanView({
   };
 
   const visibleColumns = useMemo(
-    () => STATUS.filter((s) => visibleStatuses.includes(s.v)),
-    [visibleStatuses],
+    () => statuses.filter((s) => visibleStatuses.includes(s.v)),
+    [visibleStatuses, statuses],
   );
 
   const canLinkAsChild = (sourceTaskId, targetTaskId) => {
@@ -298,7 +313,7 @@ export default function KanbanView({
   );
 
   const groupedTasks = useMemo(() => (
-    STATUS.reduce((accumulator, status) => {
+    statuses.reduce((accumulator, status) => {
       accumulator[status.v] = roleFilteredTasks.filter((task) => {
         if (task.status !== status.v) return false;
         if (status.v === 'done' && task.hideInKanbanDone) return false;
@@ -311,7 +326,7 @@ export default function KanbanView({
       });
       return accumulator;
     }, {})
-  ), [roleFilteredTasks, allTasks, doneRange]);
+  ), [roleFilteredTasks, allTasks, doneRange, statuses]);
 
   const handleDropOnColumn = (status, targetIndex = null) => {
     if (!draggedTaskId) return;
@@ -385,7 +400,7 @@ export default function KanbanView({
           </button>
           {showColumnsMenu && (
             <div className="header-actions-menu kanban-columns-menu" role="menu">
-              {STATUS.map((status) => {
+              {statuses.map((status) => {
                 const checked = visibleStatuses.includes(status.v);
                 const onlyOne = checked && visibleStatuses.length <= 1;
                 return (

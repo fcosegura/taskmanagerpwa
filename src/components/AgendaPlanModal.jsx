@@ -2,8 +2,7 @@ import { useMemo, useState } from 'react';
 import { normalizePlannedSlots } from '../plannedSlots.js';
 import { uid } from '../utils.jsx';
 
-/** Solo Sin iniciar y En progreso (API legacy puede enviar started). */
-const AGENDA_ADD_TASK_STATUSES = new Set(['not_done', 'in_progress', 'started']);
+
 
 const fieldLabelStyle = { display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, color: 'var(--color-text-primary)' };
 const inputStyle = {
@@ -53,7 +52,7 @@ export default function AgendaPlanModal({
     const list = Array.isArray(tasks) ? tasks : [];
     return list
       .filter((t) => t && typeof t.name === 'string')
-      .filter((t) => AGENDA_ADD_TASK_STATUSES.has(t.status || 'not_done'))
+      .filter((t) => (t.status || 'not_done') !== 'done')
       .filter((t) => !q || t.name.toLowerCase().includes(q))
       .slice(0, 80);
   }, [tasks, query]);

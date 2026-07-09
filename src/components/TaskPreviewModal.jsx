@@ -12,8 +12,8 @@ function PencilIcon() {
   );
 }
 
-export default function TaskPreviewModal({ task, allTasks = [], onClose, onEdit }) {
-  const s = STATUS.find((x) => x.v === task.status) || STATUS[0];
+export default function TaskPreviewModal({ task, allTasks = [], onClose, onEdit, statuses = STATUS }) {
+  const s = statuses.find((x) => x.v === task.status) || statuses[0];
   const p = PRIORITY.find((x) => x.v === task.priority) || PRIORITY[1];
   const childTasks = allTasks.filter((candidate) => (task.dependencyTaskIds || []).includes(candidate.id));
   const parentTasks = allTasks.filter((candidate) => (candidate.dependencyTaskIds || []).includes(task.id));
@@ -118,7 +118,7 @@ export default function TaskPreviewModal({ task, allTasks = [], onClose, onEdit 
           </div>
           <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 8 }}>
             {childTasks.map((childTask) => {
-              const childStatus = STATUS.find((x) => x.v === childTask.status) || STATUS[0];
+              const childStatus = statuses.find((x) => x.v === childTask.status) || statuses[0];
               return (
                 <li
                   key={childTask.id}
@@ -158,8 +158,8 @@ export default function TaskPreviewModal({ task, allTasks = [], onClose, onEdit 
           </div>
           <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'grid', gap: 10 }}>
             {statusLog.map((entry) => {
-              const fromLabel = STATUS.find((x) => x.v === entry.fromStatus)?.label;
-              const toLabel = STATUS.find((x) => x.v === entry.toStatus)?.label || entry.toStatus;
+              const fromLabel = statuses.find((x) => x.v === entry.fromStatus)?.label;
+              const toLabel = statuses.find((x) => x.v === entry.toStatus)?.label || entry.toStatus;
               const when = entry.at ? new Date(entry.at).toLocaleString() : '';
               return (
                 <li
