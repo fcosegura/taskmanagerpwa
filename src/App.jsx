@@ -968,7 +968,7 @@ export default function App() {
         ? `${String(due.getHours()).padStart(2, '0')}:${String(due.getMinutes()).padStart(2, '0')}`
         : (fallbackParsed?.time || ''),
       status: 'not_done',
-      priority: ['low', 'medium', 'high', 'critical'].includes(parsed?.priority) ? parsed.priority : 'medium',
+      priority: ['low', 'medium', 'high', 'critical'].includes(parsed?.priority) ? parsed.priority : 'high',
       subtasks: [],
       dependencyTaskIds: [],
       category,
@@ -1056,7 +1056,7 @@ export default function App() {
       date: typeof taskInput?.date === 'string' ? taskInput.date : '',
       time: typeof taskInput?.time === 'string' ? taskInput.time : '',
       status: 'not_done',
-      priority: ['low', 'medium', 'high', 'critical'].includes(taskInput?.priority) ? taskInput.priority : 'medium',
+      priority: ['low', 'medium', 'high', 'critical'].includes(taskInput?.priority) ? taskInput.priority : 'high',
       subtasks: [],
       dependencyTaskIds: [],
       category: typeof taskInput?.category === 'string' ? taskInput.category : '',

@@ -164,6 +164,30 @@ export default function TaskModal({ task, categories, allTasks = [], onSave, onD
         Notas
         <textarea value={form.notes || ''} onChange={(e) => handleChange('notes', e.target.value)} rows={3} style={{ width: '100%', boxSizing: 'border-box', marginTop: 6, borderRadius: 'var(--border-radius-md)', border: '0.5px solid var(--color-border-secondary)', padding: 10, fontSize: 13, resize: 'vertical' }} />
       </label>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, color: 'var(--color-text-secondary)' }}>
+          <span style={{ fontWeight: 500 }}>Categoría</span>
+          <select value={form.category} onChange={(e) => { handleChange('category', e.target.value); setNewCategory(''); }} style={{ width: '100%', height: 44, boxSizing: 'border-box', borderRadius: 'var(--border-radius-md)', border: '0.5px solid var(--color-border-secondary)', padding: '10px 12px', fontSize: 13, background: 'var(--color-background-primary)', appearance: 'none' }}>
+            <option value="">Selecciona categoría</option>
+            {categories.map((cat) => <option key={cat} value={cat}>{cat}</option>)}
+          </select>
+        </label>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, color: 'var(--color-text-secondary)' }}>
+          <span style={{ fontWeight: 500 }}>Nueva categoría</span>
+          <input value={newCategory} onChange={(e) => handleNewCategoryChange(e.target.value)} placeholder="Nombre de categoría" style={{ width: '100%', height: 44, boxSizing: 'border-box', borderRadius: 'var(--border-radius-md)', border: '0.5px solid var(--color-border-secondary)', padding: '10px 12px', fontSize: 13, background: 'var(--color-background-primary)' }} />
+        </label>
+      </div>
+      <label style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 14, fontSize: 13, color: 'var(--color-text-secondary)' }}>
+        <span style={{ fontWeight: 500 }}>Prioridad</span>
+        <select value={form.priority || 'medium'} onChange={(e) => handleChange('priority', e.target.value)} style={{ width: '100%', minHeight: 44, boxSizing: 'border-box', borderRadius: 'var(--border-radius-md)', border: '0.5px solid var(--color-border-secondary)', padding: '10px 12px', fontSize: 13, background: 'var(--color-background-primary)', appearance: 'none' }}>
+          {PRIORITY.map((option) => <option key={option.v} value={option.v}>{option.label}</option>)}
+        </select>
+      </label>
+      <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 14 }}>
+        Elige una categoría existente o escribe una nueva; la nueva categoría reemplazará la selección.
+      </div>
+
       <div style={{ marginBottom: 14, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
         <button
           type="button"
@@ -211,28 +235,6 @@ export default function TaskModal({ task, categories, allTasks = [], onSave, onD
 
       {showAdvanced && (
       <>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
-        <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, color: 'var(--color-text-secondary)' }}>
-          <span style={{ fontWeight: 500 }}>Categoría</span>
-          <select value={form.category} onChange={(e) => { handleChange('category', e.target.value); setNewCategory(''); }} style={{ width: '100%', height: 44, boxSizing: 'border-box', borderRadius: 'var(--border-radius-md)', border: '0.5px solid var(--color-border-secondary)', padding: '10px 12px', fontSize: 13, background: 'var(--color-background-primary)', appearance: 'none' }}>
-            <option value="">Selecciona categoría</option>
-            {categories.map((cat) => <option key={cat} value={cat}>{cat}</option>)}
-          </select>
-        </label>
-        <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, color: 'var(--color-text-secondary)' }}>
-          <span style={{ fontWeight: 500 }}>Nueva categoría</span>
-          <input value={newCategory} onChange={(e) => handleNewCategoryChange(e.target.value)} placeholder="Nombre de categoría" style={{ width: '100%', height: 44, boxSizing: 'border-box', borderRadius: 'var(--border-radius-md)', border: '0.5px solid var(--color-border-secondary)', padding: '10px 12px', fontSize: 13, background: 'var(--color-background-primary)' }} />
-        </label>
-      </div>
-      <label style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 14, fontSize: 13, color: 'var(--color-text-secondary)' }}>
-        <span style={{ fontWeight: 500 }}>Prioridad</span>
-        <select value={form.priority || 'medium'} onChange={(e) => handleChange('priority', e.target.value)} style={{ width: '100%', minHeight: 44, boxSizing: 'border-box', borderRadius: 'var(--border-radius-md)', border: '0.5px solid var(--color-border-secondary)', padding: '10px 12px', fontSize: 13, background: 'var(--color-background-primary)', appearance: 'none' }}>
-          {PRIORITY.map((option) => <option key={option.v} value={option.v}>{option.label}</option>)}
-        </select>
-      </label>
-      <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 14 }}>
-        Elige una categoría existente o escribe una nueva; la nueva categoría reemplazará la selección.
-      </div>
       {showTicketNumberField && (
         <label style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 14, fontSize: 13, color: 'var(--color-text-secondary)' }}>
           <span style={{ fontWeight: 500 }}>Num ticket</span>
