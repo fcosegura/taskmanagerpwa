@@ -1,4 +1,4 @@
-import { STORAGE_KEY, STATUS, PRIORITY } from './constants.js';
+import { STORAGE_KEY, PRIORITY } from './constants.js';
 import { isPlannedSlotsArrayShape, normalizePlannedSlots } from './plannedSlots.js';
 import { isValidStatusLogEntry, normalizeStatusLog } from './statusLog.js';
 
@@ -98,23 +98,11 @@ function hasAnyData(payload) {
   );
 }
 
-function getStoredStatuses() {
-  if (typeof window === 'undefined' || !window.localStorage) return null;
-  try {
-    const raw = localStorage.getItem('taskmanager_custom_statuses');
-    if (raw) return JSON.parse(raw);
-  } catch {
-    // ignore
-  }
-  return null;
-}
-
 export function isValidTask(task) {
   if (!task || typeof task !== 'object') return false;
   const { id, name, status, priority, subtasks, category, date, time, dependencyTaskIds, url, notes, ticketNumber, completedAt, plannedSlots } = task;
   if (typeof id !== 'string' || typeof name !== 'string') return false;
-  const activeStatuses = getStoredStatuses() || STATUS;
-  if (typeof status !== 'string' || !activeStatuses.some((s) => s.v === status)) return false;
+  if (typeof status !== 'string' || status.trim().length === 0) return false;
   if (typeof priority !== 'string' || !PRIORITY.some((p) => p.v === priority)) return false;
   if (category !== undefined && category !== null && typeof category !== 'string') return false;
   if (date !== undefined && date !== null && typeof date !== 'string') return false;
