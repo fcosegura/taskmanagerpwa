@@ -1,7 +1,7 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
 import { STATUS } from './constants.js';
 import { uid, toDateStr, compareTasksForTaskList, parseDateTimeFromDescription, parseDescriptionDateResult, cleanDescriptionSegment, isJiraCategory, normalizeTicketNumber, applyTicketNumberToTaskName, inheritTicketFromParentTask, mergeTaskCompletionMeta } from './utils.jsx';
-import { loadData, saveData, validateBackupPayload, normalizeDataPayload, loginWithGoogleCredential, logoutSession, createProfile, deleteProfile, parseTaskWithAI, checkSession, generateTasksFromText, generateDailyStatus, fetchWorkspaceData, isMultiBackupPayload, validateMultiBackupPayload, normalizeMultiBackupPayload } from './storage.js';
+import { loadData, saveData, validateBackupPayload, normalizeDataPayload, loginWithGoogleCredential, logoutSession, createProfile, deleteProfile, updateProfileStatuses, parseTaskWithAI, checkSession, generateTasksFromText, generateDailyStatus, fetchWorkspaceData, isMultiBackupPayload, validateMultiBackupPayload, normalizeMultiBackupPayload } from './storage.js';
 import { appendStatusLogEntry } from './statusLog.js';
 import { collectDailyStatusActivities } from './dailyStatusActivities.js';
 import TasksView from './components/TasksView.jsx';
@@ -40,7 +40,9 @@ export default function App() {
   const [tasks, setTasks] = useState([]);
   const [statuses, setStatuses] = useState(() => {
     try {
-      const stored = localStorage.getItem('taskmanager_custom_statuses');
+      const activeId = localStorage.getItem(ACTIVE_PROFILE_STORAGE_KEY) || null;
+      const key = activeId ? `taskmanager_custom_statuses_${activeId}` : 'taskmanager_custom_statuses';
+      const stored = localStorage.getItem(key) || localStorage.getItem('taskmanager_custom_statuses');
       if (stored) {
         const parsed = JSON.parse(stored);
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
@@ -52,7 +54,7 @@ export default function App() {
   });
   const [showStatusManagerModal, setShowStatusManagerModal] = useState(false);
 
-  const handleSaveStatuses = (newStatuses) => {
+  const handleSaveStatuses = async (newStatuses) => {
     const deletedStatuses = statuses.filter((s) => !newStatuses.some((ns) => ns.v === s.v));
     if (deletedStatuses.length > 0) {
       const deletedValues = new Set(deletedStatuses.map((s) => s.v));
@@ -107,7 +109,18 @@ export default function App() {
       }
     }
     setStatuses(newStatuses);
-    localStorage.setItem('taskmanager_custom_statuses', JSON.stringify(newStatuses));
+    localStorage.setItem(`taskmanager_custom_statuses_${activeProfileId || 'default'}`, JSON.stringify(newStatuses));
+
+    if (authenticated && activeProfileId) {
+      try {
+        const data = await updateProfileStatuses(activeProfileId, newStatuses);
+        if (Array.isArray(data.profiles)) {
+          setProfiles(data.profiles);
+        }
+      } catch (error) {
+        console.error("Error sincronizando estados con la nube:", error);
+      }
+    }
   };
 
   const [boardNotes, setBoardNotes] = useState([]);
@@ -234,8 +247,37 @@ export default function App() {
       };
       latestPayloadRef.current = loadedPayload;
       lastSyncedPayloadRef.current = serializePayload(loadedPayload);
-      if (Array.isArray(data.profiles)) {
+      const resolvedId = data.activeProfileId || activeProfileId;
+      const loadLocalStatuses = (profileId) => {
+        const stored = localStorage.getItem(`taskmanager_custom_statuses_${profileId || 'default'}`) || localStorage.getItem('taskmanager_custom_statuses');
+        if (stored) {
+          try {
+            const parsed = JSON.parse(stored);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              setStatuses(parsed);
+              return;
+            }
+          } catch {
+            // ignore
+          }
+        }
+        setStatuses(STATUS);
+      };
+
+      if (Array.isArray(data.profiles) && data.profiles.length > 0) {
         setProfiles(data.profiles);
+        const activeProfile = data.profiles.find((p) => p.id === resolvedId);
+        if (activeProfile && Array.isArray(activeProfile.customStatuses)) {
+          setStatuses(activeProfile.customStatuses);
+          localStorage.setItem(`taskmanager_custom_statuses_${activeProfile.id}`, JSON.stringify(activeProfile.customStatuses));
+        } else {
+          loadLocalStatuses(resolvedId);
+        }
+      } else {
+        if (Array.isArray(data.profiles)) {
+          setProfiles(data.profiles);
+        }
+        loadLocalStatuses(resolvedId);
       }
       if (data.activeProfileId && data.activeProfileId !== activeProfileId) {
         setActiveProfileId(data.activeProfileId);

@@ -567,8 +567,9 @@ async function ensureProfilesSchema(env) {
     }
   };
 
-  await safeExec("CREATE TABLE IF NOT EXISTS profiles (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP)");
+  await safeExec("CREATE TABLE IF NOT EXISTS profiles (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL, custom_statuses TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP)");
   await safeExec("CREATE INDEX IF NOT EXISTS idx_profiles_user ON profiles(user_id)");
+  await safeExec("ALTER TABLE profiles ADD COLUMN custom_statuses TEXT");
   await safeExec("ALTER TABLE tasks ADD COLUMN profile_id TEXT");
   await safeExec("ALTER TABLE notes ADD COLUMN profile_id TEXT");
   await safeExec("ALTER TABLE events ADD COLUMN profile_id TEXT");
@@ -662,9 +663,19 @@ async function decryptProfileRows(dataKey, rows) {
   if (!Array.isArray(rows)) return [];
   const out = [];
   for (const p of rows) {
+    let customStatuses = null;
+    if (p.custom_statuses) {
+      try {
+        const dec = await decryptField(dataKey, p.custom_statuses);
+        customStatuses = JSON.parse(dec);
+      } catch {
+        customStatuses = null;
+      }
+    }
     out.push({
       ...p,
-      name: await decryptField(dataKey, p.name)
+      name: await decryptField(dataKey, p.name),
+      customStatuses: Array.isArray(customStatuses) ? customStatuses : null
     });
   }
   return out;
@@ -1249,7 +1260,7 @@ export default {
           const existing = userProfiles.find((p) => p.id === targetProfileId);
           if (!existing) {
             const { results: currentProfiles } = await env.DB.prepare(
-              "SELECT id, name, created_at, updated_at FROM profiles WHERE user_id = ? ORDER BY created_at ASC"
+              "SELECT id, name, custom_statuses, created_at, updated_at FROM profiles WHERE user_id = ? ORDER BY created_at ASC"
             ).bind(userId).all();
             const fallbackProfileId = currentProfiles[0]?.id || null;
             const profilesOut = await decryptProfileRows(dataKey, currentProfiles);
@@ -1267,7 +1278,7 @@ export default {
           ]);
 
           const { results: remainingProfiles } = await env.DB.prepare(
-            "SELECT id, name, created_at, updated_at FROM profiles WHERE user_id = ? ORDER BY created_at ASC"
+            "SELECT id, name, custom_statuses, created_at, updated_at FROM profiles WHERE user_id = ? ORDER BY created_at ASC"
           ).bind(userId).all();
 
           const fallbackProfileId = remainingProfiles[0]?.id || null;
@@ -1275,9 +1286,43 @@ export default {
           return json({ success: true, profiles: remainingOut, activeProfileId: fallbackProfileId });
         }
 
+        if (request.method === 'POST' && path === '/profiles/update') {
+          const body = await request.json();
+          const targetProfileId = typeof body?.profileId === 'string' ? body.profileId : '';
+          if (!targetProfileId) return json({ error: 'profileId inválido' }, { status: 400 });
+
+          // check if profile belongs to user
+          const { results: userProfiles } = await env.DB.prepare(
+            "SELECT id FROM profiles WHERE user_id = ? AND id = ?"
+          ).bind(userId, targetProfileId).all();
+
+          if (!userProfiles || userProfiles.length === 0) {
+            return json({ error: 'Workspace no encontrado.' }, { status: 404 });
+          }
+
+          const customStatuses = body?.customStatuses;
+          if (customStatuses !== undefined) {
+            if (customStatuses !== null && !Array.isArray(customStatuses)) {
+              return json({ error: 'customStatuses debe ser un array o nulo.' }, { status: 400 });
+            }
+            const serialized = customStatuses ? JSON.stringify(customStatuses) : '';
+            const encStatuses = serialized ? await encryptField(dataKey, serialized) : null;
+            await env.DB.prepare(
+              "UPDATE profiles SET custom_statuses = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ? AND id = ?"
+            ).bind(encStatuses, userId, targetProfileId).run();
+          }
+
+          const { results: remainingProfiles } = await env.DB.prepare(
+            "SELECT id, name, custom_statuses, created_at, updated_at FROM profiles WHERE user_id = ? ORDER BY created_at ASC"
+          ).bind(userId).all();
+
+          const remainingOut = await decryptProfileRows(dataKey, remainingProfiles);
+          return json({ success: true, profiles: remainingOut });
+        }
+
         if (request.method === 'GET' && path === '/data') {
           const { results: profiles } = await env.DB.prepare(
-            "SELECT id, name, created_at, updated_at FROM profiles WHERE user_id = ? ORDER BY created_at ASC"
+            "SELECT id, name, custom_statuses, created_at, updated_at FROM profiles WHERE user_id = ? ORDER BY created_at ASC"
           ).bind(userId).all();
           const { results: tasks } = await env.DB.prepare(
             "SELECT * FROM tasks WHERE user_id = ? AND profile_id = ?"
