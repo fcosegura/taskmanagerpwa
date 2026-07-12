@@ -350,6 +350,26 @@ export async function deleteProfile(profileId) {
   return resp.json();
 }
 
+export async function updateProfileStatuses(profileId, customStatuses) {
+  const resp = await fetch('/api/profiles/update', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
+    body: JSON.stringify({ profileId, customStatuses }),
+  });
+  if (!resp.ok) {
+    let message = 'No se pudo actualizar los estados del workspace.';
+    try {
+      const data = await resp.json();
+      if (typeof data?.error === 'string') message = data.error;
+    } catch {
+      // ignore
+    }
+    throw new Error(message);
+  }
+  return resp.json();
+}
+
 export async function parseTaskWithAI(text) {
   const resp = await fetch('/api/ai/parse-task', {
     method: 'POST',
