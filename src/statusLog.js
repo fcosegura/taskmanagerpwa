@@ -1,16 +1,13 @@
-import { STATUS } from './constants.js';
-
-const VALID_STATUS = new Set(STATUS.map((s) => s.v));
 export const MAX_STATUS_LOG_ENTRIES = 100;
 
 export function isValidStatusLogEntry(entry) {
   if (!entry || typeof entry !== 'object') return false;
-  const { id, toStatus, comment, at } = entry;
+  const { id, toStatus, comment, at, fromStatus } = entry;
   if (typeof id !== 'string' || typeof toStatus !== 'string' || typeof comment !== 'string' || typeof at !== 'string') {
     return false;
   }
-  if (!VALID_STATUS.has(toStatus)) return false;
-  if (entry.fromStatus != null && entry.fromStatus !== '' && !VALID_STATUS.has(entry.fromStatus)) return false;
+  if (toStatus.trim().length === 0) return false;
+  if (fromStatus != null && fromStatus !== '' && typeof fromStatus !== 'string') return false;
   return comment.trim().length >= 1 && !Number.isNaN(Date.parse(at));
 }
 

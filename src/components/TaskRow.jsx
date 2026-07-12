@@ -19,8 +19,9 @@ export default function TaskRow({
   collapsed = false,
   onToggleCollapse,
   childTaskCount = 0,
+  statuses = STATUS,
 }) {
-  const s = STATUS.find((x) => x.v === task.status) || STATUS[0];
+  const s = statuses.find((x) => x.v === task.status) || statuses[0];
   const p = PRIORITY.find((x) => x.v === task.priority) || PRIORITY[1];
   const openPriority = (e) => {
     e.stopPropagation();

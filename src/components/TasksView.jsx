@@ -10,6 +10,7 @@ export default function TasksView({
   categoryFilter, setCategoryFilter, categories,
   statusCounts, categoryCounts,
   onOpenTaskPreview, onEditTask, onToggleDone, onOpenPriorityPicker, onQuickAdd, onQuickSuggest, onDropTaskOnTask,
+  statuses = STATUS,
 }) {
   const [quickText, setQuickText] = useState('');
   const [showFilters, setShowFilters] = useState(false);
@@ -44,7 +45,7 @@ export default function TasksView({
   };
 
   const cnt = { ...statusCounts };
-  STATUS.forEach((s) => { if (cnt[s.v] === undefined) cnt[s.v] = 0; });
+  statuses.forEach((s) => { if (cnt[s.v] === undefined) cnt[s.v] = 0; });
   const catCount = {};
   categories.forEach((cat) => { catCount[cat] = categoryCounts[cat] || 0; });
 
@@ -186,7 +187,7 @@ export default function TasksView({
               <span style={{ fontSize: 11, color: 'var(--color-text-secondary)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', minWidth: 65, textAlign: 'right' }}>Etapa</span>
               <div style={{ width: 1, height: 16, background: 'var(--color-border-secondary)' }} />
               <Chip label="Todas" count={total} active={filter === 'all'} onClick={() => setFilter('all')} />
-              {STATUS.map((s) => (
+              {statuses.map((s) => (
                 <Chip key={s.v} label={s.label} count={cnt[s.v]} active={filter === s.v} onClick={() => setFilter(filter === s.v ? 'all' : s.v)} colorVar={s.tv} />
               ))}
             </div>
@@ -238,6 +239,7 @@ export default function TasksView({
                 allTasks={allTasks}
                 onClick={() => onOpenTaskPreview?.(t)}
                 onEditClick={onEditTask}
+                statuses={statuses}
                 onToggleDone={onToggleDone}
                 onOpenPriorityPicker={onOpenPriorityPicker}
                 collapsible

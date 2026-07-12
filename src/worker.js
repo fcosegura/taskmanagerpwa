@@ -12,7 +12,6 @@ import { isPlannedSlotsArrayShape, normalizePlannedSlots } from './plannedSlots.
 import { buildDailyStatusFallbackReport } from './dailyStatusFallback.js';
 import { partitionDailyStatusActivities, statusChangesForDailyReport } from './dailyStatusActivities.js';
 
-const VALID_STATUS = new Set(['not_done', 'started', 'in_progress', 'paused', 'blocked', 'done']);
 const VALID_PRIORITY = new Set(['low', 'medium', 'high', 'critical']);
 const SESSION_COOKIE = '__Host-taskmanager_session';
 const LOCAL_SESSION_COOKIE = 'taskmanager_session';
@@ -208,7 +207,7 @@ function isValidTask(task) {
     typeof task.id === 'string' &&
     typeof taskName === 'string' &&
     (task.ticketNumber === undefined || typeof task.ticketNumber === 'string') &&
-    VALID_STATUS.has(task.status) &&
+    (typeof task.status === 'string' && task.status.trim().length > 0) &&
     VALID_PRIORITY.has(task.priority) &&
     (task.url === undefined || typeof task.url === 'string') &&
     (task.notes === undefined || typeof task.notes === 'string') &&

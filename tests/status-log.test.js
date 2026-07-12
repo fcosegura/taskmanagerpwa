@@ -17,7 +17,7 @@ test('appendStatusLogEntry adds valid entry', () => {
 test('normalizeStatusLog drops invalid entries', () => {
   const raw = [
     { id: 'a', fromStatus: 'not_done', toStatus: 'in_progress', comment: 'ok', at: '2026-05-20T10:00:00.000Z' },
-    { id: 'b', toStatus: 'bad', comment: 'x', at: '2026-05-20T10:00:00.000Z' },
+    { id: 'b', toStatus: 'in_progress', comment: '', at: '2026-05-20T10:00:00.000Z' },
   ];
   assert.equal(normalizeStatusLog(raw).length, 1);
 });
