@@ -58,7 +58,8 @@ function readVisibleFromStorage(storageKey, allowedValues) {
   if (!storageKey) return [...allowedValues];
   const parsed = parseStoredVisibleColumns(localStorage.getItem(storageKey), allowedValues);
   if (!parsed) return [...allowedValues];
-  return allowedValues.filter((v) => parsed.includes(v));
+  const allowedSet = new Set(allowedValues);
+  return parsed.filter((v) => allowedSet.has(v));
 }
 
 function KanbanTaskCard({
@@ -233,6 +234,8 @@ export default function KanbanView({
   const [hoverIndex, setHoverIndex] = useState(null);
   const [hoverTaskId, setHoverTaskId] = useState(null);
   const [hoverDragMode, setHoverDragMode] = useState(null);
+  const [draggedColumnStatus, setDraggedColumnStatus] = useState(null);
+  const [hoverColumnStatus, setHoverColumnStatus] = useState(null);
   const landingTimeoutRef = useRef(null);
 
   useEffect(() => () => {
@@ -273,23 +276,25 @@ export default function KanbanView({
     setVisibleStatuses((prev) => {
       const has = prev.includes(statusV);
       if (has && prev.length <= 1) return prev;
-      const nextSet = new Set(prev);
-      if (has) nextSet.delete(statusV);
-      else nextSet.add(statusV);
-      const ordered = statusValues.filter((v) => nextSet.has(v));
+      let next;
+      if (has) {
+        next = prev.filter((v) => v !== statusV);
+      } else {
+        next = [...prev, statusV];
+      }
       try {
-        localStorage.setItem(kanbanColumnsStorageKey, JSON.stringify(ordered));
+        localStorage.setItem(kanbanColumnsStorageKey, JSON.stringify(next));
       } catch {
         // ignore quota / private mode
       }
-      return ordered;
+      return next;
     });
   };
 
-  const visibleColumns = useMemo(
-    () => statuses.filter((s) => visibleStatuses.includes(s.v)),
-    [visibleStatuses, statuses],
-  );
+  const visibleColumns = useMemo(() => {
+    const statusMap = new Map(statuses.map((s) => [s.v, s]));
+    return visibleStatuses.map((v) => statusMap.get(v)).filter(Boolean);
+  }, [visibleStatuses, statuses]);
 
   const canLinkAsChild = (sourceTaskId, targetTaskId) => {
     if (!sourceTaskId || !targetTaskId || sourceTaskId === targetTaskId) return false;
@@ -428,6 +433,7 @@ export default function KanbanView({
             isActiveDrop &&
             dragSourceStatus !== status.v,
           );
+          const isColumnDragTarget = hoverColumnStatus === status.v && draggedColumnStatus;
           return (
           <div
             key={status.v}
@@ -435,12 +441,18 @@ export default function KanbanView({
               'kanban-column',
               isActiveDrop ? 'active-drop' : '',
               isSuctionDrop ? 'suction-drop' : '',
+              isColumnDragTarget ? 'column-drag-target' : '',
             ].filter(Boolean).join(' ')}
             onDragOver={(event) => {
-              event.preventDefault();
-              if (hoverStatus !== status.v) setHoverStatus(status.v);
-              const columnCount = groupedTasks[status.v]?.length || 0;
-              if (hoverIndex === null || hoverIndex > columnCount) setHoverIndex(columnCount);
+              if (draggedTaskId) {
+                event.preventDefault();
+                if (hoverStatus !== status.v) setHoverStatus(status.v);
+                const columnCount = groupedTasks[status.v]?.length || 0;
+                if (hoverIndex === null || hoverIndex > columnCount) setHoverIndex(columnCount);
+              } else if (draggedColumnStatus && draggedColumnStatus !== status.v) {
+                event.preventDefault();
+                if (hoverColumnStatus !== status.v) setHoverColumnStatus(status.v);
+              }
             }}
             onDragLeave={() => {
               if (hoverStatus === status.v) {
@@ -449,13 +461,73 @@ export default function KanbanView({
                 setHoverTaskId(null);
                 setHoverDragMode(null);
               }
+              if (hoverColumnStatus === status.v) {
+                setHoverColumnStatus(null);
+              }
             }}
             onDrop={(event) => {
               event.preventDefault();
-              handleDropOnColumn(status.v, groupedTasks[status.v]?.length || 0);
+              if (draggedTaskId) {
+                handleDropOnColumn(status.v, groupedTasks[status.v]?.length || 0);
+              } else if (draggedColumnStatus && draggedColumnStatus !== status.v) {
+                const fromIndex = visibleStatuses.indexOf(draggedColumnStatus);
+                const toIndex = visibleStatuses.indexOf(status.v);
+                if (fromIndex !== -1 && toIndex !== -1) {
+                  const next = [...visibleStatuses];
+                  next.splice(fromIndex, 1);
+                  next.splice(toIndex, 0, draggedColumnStatus);
+                  setVisibleStatuses(next);
+                  try {
+                    localStorage.setItem(kanbanColumnsStorageKey, JSON.stringify(next));
+                  } catch {
+                    // ignore
+                  }
+                }
+                setDraggedColumnStatus(null);
+                setHoverColumnStatus(null);
+              }
             }}
           >
-            <div className="kanban-column-header">
+            <div
+              className="kanban-column-header"
+              draggable
+              onDragStart={(event) => {
+                event.dataTransfer.effectAllowed = 'move';
+                setDraggedColumnStatus(status.v);
+              }}
+              onDragEnd={() => {
+                setDraggedColumnStatus(null);
+                setHoverColumnStatus(null);
+              }}
+              onDragOver={(event) => {
+                if (draggedColumnStatus && draggedColumnStatus !== status.v) {
+                  event.preventDefault();
+                  if (hoverColumnStatus !== status.v) {
+                    setHoverColumnStatus(status.v);
+                  }
+                }
+              }}
+              onDrop={(event) => {
+                if (draggedColumnStatus && draggedColumnStatus !== status.v) {
+                  event.preventDefault();
+                  const fromIndex = visibleStatuses.indexOf(draggedColumnStatus);
+                  const toIndex = visibleStatuses.indexOf(status.v);
+                  if (fromIndex !== -1 && toIndex !== -1) {
+                    const next = [...visibleStatuses];
+                    next.splice(fromIndex, 1);
+                    next.splice(toIndex, 0, draggedColumnStatus);
+                    setVisibleStatuses(next);
+                    try {
+                      localStorage.setItem(kanbanColumnsStorageKey, JSON.stringify(next));
+                    } catch {
+                      // ignore
+                    }
+                  }
+                  setDraggedColumnStatus(null);
+                  setHoverColumnStatus(null);
+                }
+              }}
+            >
               <span>{status.label}</span>
               <strong>{groupedTasks[status.v]?.length || 0}</strong>
             </div>
