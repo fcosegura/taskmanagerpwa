@@ -1026,6 +1026,18 @@ select:focus {
   font-size: 12px;
   font-weight: 800;
   color: var(--color-text-primary);
+  cursor: grab;
+  user-select: none;
+}
+
+.kanban-column-header:active {
+  cursor: grabbing;
+}
+
+.kanban-column.column-drag-target {
+  outline: 2px dashed var(--color-accent, #3b82f6);
+  outline-offset: -2px;
+  background: rgba(59, 130, 246, 0.05);
 }
 
 [data-theme="dark"] .kanban-column-header {
