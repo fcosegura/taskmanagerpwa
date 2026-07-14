@@ -705,14 +705,14 @@ function unscopedEntityId(profileId, storedId) {
   return storedId.startsWith(prefix) ? storedId.slice(prefix.length) : storedId;
 }
 
-function normalizePriority(priority) {
-  if (typeof priority !== 'string') return 'medium';
+function normalizePriority(priority, defaultPriority = 'high') {
+  if (typeof priority !== 'string') return defaultPriority;
   const cleaned = priority.toLowerCase().trim();
   if (['critical', 'critica', 'cr-itica', 'crítica'].includes(cleaned)) return 'critical';
   if (['high', 'alta', 'urgent', 'urgente'].includes(cleaned)) return 'high';
   if (['medium', 'media', 'normal'].includes(cleaned)) return 'medium';
   if (['low', 'baja'].includes(cleaned)) return 'low';
-  return 'medium';
+  return defaultPriority;
 }
 
 function extractTags(text) {
@@ -745,7 +745,7 @@ function parseTaskFallback(input) {
     /\b(urgente|urgent)\b/.test(lower) ? 'high' :
     (/\b(critical|critica|crítica)\b/.test(lower) ? 'critical' : null);
   const priorityMatch = lower.match(/\b(?:prioridad|priority)\s*[:=-]?\s*(low|medium|high|critical|baja|media|alta)\b/);
-  const priority = normalizePriority(priorityMatch?.[1] || explicitPriority || 'medium');
+  const priority = normalizePriority(priorityMatch?.[1] || explicitPriority, 'high');
   const title = stripNoise(truncated).replace(/[.,;:\- ]+$/g, '') || truncated || 'Nueva tarea';
   return {
     title: title.slice(0, 120),
@@ -763,7 +763,7 @@ function sanitizeParsedTask(parsed, fallbackText) {
       ? parsed.title.trim().slice(0, 120)
       : fb.title;
   const dueDate = typeof parsed.dueDate === 'string' && parsed.dueDate.trim() ? parsed.dueDate.trim() : null;
-  const priority = normalizePriority(parsed.priority || fb.priority);
+  const priority = normalizePriority(parsed.priority || fb.priority, 'high');
   const tags = Array.isArray(parsed.tags)
     ? [...new Set(parsed.tags.filter((t) => typeof t === 'string').map((t) => t.trim().toLowerCase()).filter(Boolean))].slice(0, 5)
     : fb.tags;
@@ -776,6 +776,7 @@ async function parseTaskWithAi(input, env) {
     'Extrae una tarea de texto libre y responde SOLO JSON valido.',
     'Formato exacto: {"title":"string","dueDate":"YYYY-MM-DDTHH:mm:ssZ|null","priority":"low|medium|high|critical","tags":["tag1"]}',
     'Si no hay fecha clara, usar null en dueDate.',
+    'Si el texto no indica explícitamente una prioridad, usa "high" por defecto.',
     `Texto: ${input}`
   ].join('\n');
   const result = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
@@ -849,7 +850,7 @@ function parseMainTasksFallback(input) {
         name,
         date: parseDateInCurrentWeek(input),
         time: '',
-        priority: 'medium',
+        priority: 'high',
         notes: '',
         category: ''
       }));
@@ -862,7 +863,7 @@ function parseMainTasksFallback(input) {
     name: parsed.title || 'Nueva tarea',
     date: parseDateInCurrentWeek(input),
     time: '',
-    priority: parsed.priority || 'medium',
+    priority: parsed.priority || 'high',
     notes: '',
     category: parsed.tags?.[0] || ''
   }];
@@ -880,7 +881,7 @@ function parseChildTasksFallback(input, mainTasks) {
       parentRef: parentCandidate?.ref || mainTasks[0]?.ref || 'main_1',
       date: '',
       time: '',
-      priority: 'medium',
+      priority: 'high',
       notes: '',
       category: ''
     }];
@@ -898,7 +899,7 @@ function parseChildTasksFallback(input, mainTasks) {
       parentRef: mainTasks[0]?.ref || 'main_1',
       date: '',
       time: '',
-      priority: 'medium',
+      priority: 'high',
       notes: '',
       category: ''
     }));
@@ -919,6 +920,7 @@ async function generateTasksFromTextWithAi(input, env) {
     '{"mainTasks":[{"ref":"main_1","name":"string","date":"YYYY-MM-DD|","time":"HH:MM|","priority":"low|medium|high|critical","notes":"string","category":"string"}],"childTasks":[{"name":"string","parentRef":"main_1","date":"YYYY-MM-DD|","time":"HH:MM|","priority":"low|medium|high|critical","notes":"string","category":"string"}]}',
     'Si no hay fecha/hora clara, devolver string vacio.',
     'Si menciona subtareas, devolverlas como childTasks con parentRef.',
+    'Si el texto no indica explícitamente una prioridad para las tareas, usa "high" por defecto.',
     'Maximo 8 mainTasks y 12 childTasks.',
     `Texto: ${input}`
   ].join('\n');
