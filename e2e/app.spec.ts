@@ -78,6 +78,10 @@ test.describe('navegación', () => {
 
     await page.getByRole('button', { name: 'Tareas' }).click();
     await expect(page.locator('.brand-title').filter({ hasText: 'Tareas' })).toBeVisible();
+
+    await page.getByRole('button', { name: 'Cronología' }).click();
+    await expect(page.locator('.brand-title').filter({ hasText: 'Cronología' })).toBeVisible();
+    await expect(page.locator('.timeline-container')).toBeVisible();
   });
 });
 
