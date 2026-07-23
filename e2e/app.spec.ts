@@ -66,20 +66,22 @@ test.describe('navegación', () => {
       timeout: 30_000,
     });
 
-    await page.getByRole('button', { name: 'Kanban' }).click();
+    const headerTabs = page.locator('.desktop-tabs');
+
+    await headerTabs.getByRole('button', { name: 'Kanban' }).click();
     await expect(page.locator('.brand-title').filter({ hasText: 'Kanban' })).toBeVisible();
 
-    await page.getByRole('button', { name: 'Calendario' }).click();
+    await headerTabs.getByRole('button', { name: 'Calendario' }).click();
     await expect(page.locator('.brand-title').filter({ hasText: 'Calendario' })).toBeVisible();
 
-    await page.getByRole('button', { name: 'Agenda diaria' }).click();
+    await headerTabs.getByRole('button', { name: 'Agenda diaria' }).click();
     await expect(page.locator('.brand-title').filter({ hasText: 'Agenda diaria' })).toBeVisible();
     await expect(page.locator('.daily-agenda-view')).toBeVisible();
 
-    await page.getByRole('button', { name: 'Tareas' }).click();
+    await headerTabs.getByRole('button', { name: 'Tareas' }).click();
     await expect(page.locator('.brand-title').filter({ hasText: 'Tareas' })).toBeVisible();
 
-    await page.getByRole('button', { name: 'Cronología' }).click();
+    await headerTabs.getByRole('button', { name: 'Cronología' }).click();
     await expect(page.locator('.brand-title').filter({ hasText: 'Cronología' })).toBeVisible();
     await expect(page.locator('.timeline-container')).toBeVisible();
   });
