@@ -20,6 +20,7 @@ import BottomNav from './components/BottomNav.jsx';
 import Login from './components/Login.jsx';
 import DailyAgendaView from './components/DailyAgendaView.jsx';
 import ExternalAppDrawer from './components/ExternalAppDrawer.jsx';
+import TimelineView from './components/TimelineView.jsx';
 import { indexEventsByDate } from './calendarEvents.js';
 import { indexTasksByDate } from './calendarTaskIndex.js';
 import { normalizePlannedSlots } from './plannedSlots.js';
@@ -1325,15 +1326,15 @@ export default function App() {
             )}
           </div>
           <div className="brand-copy">
-            <span className="brand-title">{view === 'kanban' ? 'Kanban' : view === 'calendar' ? 'Calendario' : view === 'board' ? 'Tablero' : view === 'agenda' ? 'Agenda diaria' : 'Tareas'}</span>
+            <span className="brand-title">{view === 'kanban' ? 'Kanban' : view === 'calendar' ? 'Calendario' : view === 'board' ? 'Tablero' : view === 'agenda' ? 'Agenda diaria' : view === 'timeline' ? 'Cronología' : 'Tareas'}</span>
             <span className="brand-subtitle hide-mobile">
-              {view === 'board' ? `Notas libres · ${activeProfileName}` : view === 'agenda' ? `Plan por horas · ${activeProfileName}` : `Workspace: ${activeProfileName}`}
+              {view === 'board' ? `Notas libres · ${activeProfileName}` : view === 'agenda' ? `Plan por horas · ${activeProfileName}` : view === 'timeline' ? `Historial de estados · ${activeProfileName}` : `Workspace: ${activeProfileName}`}
             </span>
           </div>
         </div>
 
         <div className="desktop-tabs hide-mobile">
-          {[['tasks', 'Tareas'], ['kanban', 'Kanban'], ['calendar', 'Calendario'], ['agenda', 'Agenda diaria'], ['board', 'Tablero']].map(([v, l]) => (
+          {[['tasks', 'Tareas'], ['kanban', 'Kanban'], ['calendar', 'Calendario'], ['agenda', 'Agenda diaria'], ['board', 'Tablero'], ['timeline', 'Cronología']].map(([v, l]) => (
             <button
               key={v}
               type="button"
@@ -1423,7 +1424,7 @@ export default function App() {
         <section className="overview-panel compact">
           <div>
             <p className="eyebrow">Resumen</p>
-            <h1>{view === 'kanban' ? 'Visualiza el flujo real' : view === 'calendar' ? 'Planifica la semana' : view === 'board' ? 'Ordena tus ideas' : view === 'agenda' ? 'Agenda y bloques de 30 min' : 'Prioriza lo importante'}</h1>
+            <h1>{view === 'kanban' ? 'Visualiza el flujo real' : view === 'calendar' ? 'Planifica la semana' : view === 'board' ? 'Ordena tus ideas' : view === 'agenda' ? 'Agenda y bloques de 30 min' : view === 'timeline' ? 'Sigue la evolución de tus tareas' : 'Prioriza lo importante'}</h1>
           </div>
           {view === 'tasks' && (
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
@@ -1515,7 +1516,13 @@ export default function App() {
                 onOpenTaskModal={(t) => { setTaskPreviewId(null); setModal({ ...t, _taskModalInitialAdvanced: false }); }}
               />
             )
-            : <BoardView notes={boardNotes} onAddNote={addBoardNote} onUpdateNote={updateBoardNote} onDeleteNote={deleteBoardNote} />
+            : view === 'timeline'
+              ? <TimelineView
+                  tasks={focusTasks}
+                  statuses={statuses}
+                  onOpenTaskPreview={(t) => setTaskPreviewId(t.id)}
+                />
+              : <BoardView notes={boardNotes} onAddNote={addBoardNote} onUpdateNote={updateBoardNote} onDeleteNote={deleteBoardNote} />
         }
       </main>
 

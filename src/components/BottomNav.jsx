@@ -5,6 +5,7 @@ export default function BottomNav({ currentView, setView, onOpenExternalApp }) {
     { id: 'calendar', label: 'Calendario' },
     { id: 'agenda', label: 'Agenda' },
     { id: 'board', label: 'Tablero' },
+    { id: 'timeline', label: 'Cronología' },
     { id: 'notebook', label: 'Notebook', external: true },
   ];
 
@@ -42,6 +43,15 @@ export default function BottomNav({ currentView, setView, onOpenExternalApp }) {
         <svg {...common}>
           <rect x="3" y="5" width="18" height="16" rx="3" />
           <path d="M8 3v4M16 3v4M3 10h18" />
+        </svg>
+      );
+    }
+    if (id === 'timeline') {
+      return (
+        <svg {...common}>
+          <circle cx="12" cy="12" r="10" />
+          <polyline points="12 6 12 12 15 15" />
+          <path d="M12 2a10 10 0 1 0 10 10" strokeDasharray="3" />
         </svg>
       );
     }
