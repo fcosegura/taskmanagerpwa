@@ -1,10 +1,27 @@
 /* ── Design tokens ── */
 :root {
   --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --border-radius-md: 10px;
-  --border-radius-lg: 18px;
-  --shadow-card: 0 18px 48px rgba(20, 33, 61, 0.1);
-  --shadow-soft: 0 10px 28px rgba(20, 33, 61, 0.07);
+  --border-radius-sm: 8px;
+  --border-radius-md: 12px;
+  --border-radius-lg: 20px;
+  --border-radius-xl: 26px;
+
+  /* 3D Glass shadows & highlights */
+  --shadow-card: 0 16px 38px -4px rgba(20, 33, 61, 0.1), 0 6px 16px -2px rgba(20, 33, 61, 0.05);
+  --shadow-soft: 0 10px 28px -2px rgba(20, 33, 61, 0.07);
+  --shadow-3d-sm: 0 4px 14px -2px rgba(15, 23, 42, 0.07), 0 2px 4px -1px rgba(15, 23, 42, 0.04), inset 0 1px 0 0 rgba(255, 255, 255, 0.85);
+  --shadow-3d-md: 0 12px 32px -4px rgba(15, 23, 42, 0.11), 0 4px 12px -2px rgba(15, 23, 42, 0.06), inset 0 1px 0 0 rgba(255, 255, 255, 0.9);
+  --shadow-3d-lg: 0 24px 56px -10px rgba(15, 23, 42, 0.18), 0 10px 24px -4px rgba(15, 23, 42, 0.09), inset 0 1px 0 0 #ffffff;
+  --shadow-3d-hover: 0 20px 42px -6px rgba(23, 107, 135, 0.18), 0 8px 18px -2px rgba(23, 107, 135, 0.09), inset 0 1px 0 0 #ffffff;
+  --shadow-3d-inset: inset 0 2px 5px 0 rgba(15, 23, 42, 0.07), inset 0 0 0 1px rgba(148, 163, 184, 0.22);
+  --shadow-glow: 0 0 24px rgba(23, 107, 135, 0.25);
+
+  /* Glassmorphism tokens */
+  --glass-surface: rgba(255, 255, 255, 0.72);
+  --glass-surface-hover: rgba(255, 255, 255, 0.88);
+  --glass-border: 1px solid rgba(255, 255, 255, 0.65);
+  --glass-border-subtle: 1px solid rgba(148, 163, 184, 0.18);
+  --glass-blur: blur(16px) saturate(180%);
 
   --color-background-primary: #ffffff;
   --color-background-secondary: #f5f7fa;
@@ -36,15 +53,15 @@
   --color-border-success: #96d9b4;
 
   --nav-height: 76px;
-  --surface-border: 1px solid rgba(119, 132, 158, 0.16);
+  --surface-border: 1px solid rgba(255, 255, 255, 0.45);
 
-  --calendar-selected-bg: #eef6ff;
+  --calendar-selected-bg: rgba(238, 246, 255, 0.85);
   --calendar-selected-border: #93c5fd;
-  --calendar-today-bg: #ecfdf5;
+  --calendar-today-bg: rgba(236, 253, 245, 0.85);
   --calendar-today-border: #4ade80;
-  --calendar-holiday-bg: #fff8f6;
-  --calendar-holiday-border: rgba(248, 113, 113, 0.28);
-  --calendar-default-border: rgba(148, 163, 184, 0.12);
+  --calendar-holiday-bg: rgba(255, 248, 246, 0.85);
+  --calendar-holiday-border: rgba(248, 113, 113, 0.35);
+  --calendar-default-border: rgba(148, 163, 184, 0.16);
   --calendar-today-pill-bg: #d1fae5;
   --calendar-end-marker: #dc2626;
   --calendar-end-marker-glow: rgba(220, 38, 38, 0.45);
@@ -52,7 +69,7 @@
 
   --board-canvas-bg: #f8fafc;
   --board-canvas-dot: #cbd5e1;
-  --board-note-bg: #fff1d6;
+  --board-note-bg: rgba(255, 241, 214, 0.88);
   --board-note-border: #f6c66f;
   --board-note-title: #92400e;
   --board-note-text: #374151;
@@ -61,8 +78,20 @@
 }
 
 [data-theme="dark"] {
-  --shadow-card: 0 20px 48px rgba(2, 6, 23, 0.5);
-  --shadow-soft: 0 12px 28px rgba(2, 6, 23, 0.45);
+  --shadow-card: 0 20px 48px rgba(2, 6, 23, 0.6);
+  --shadow-soft: 0 12px 28px rgba(2, 6, 23, 0.5);
+  --shadow-3d-sm: 0 6px 18px -2px rgba(2, 6, 23, 0.55), 0 2px 6px -1px rgba(0, 0, 0, 0.45), inset 0 1px 0 0 rgba(255, 255, 255, 0.14);
+  --shadow-3d-md: 0 14px 36px -4px rgba(2, 6, 23, 0.7), 0 6px 14px -2px rgba(0, 0, 0, 0.55), inset 0 1px 0 0 rgba(255, 255, 255, 0.16);
+  --shadow-3d-lg: 0 28px 60px -10px rgba(2, 6, 23, 0.85), 0 12px 24px -4px rgba(0, 0, 0, 0.65), inset 0 1px 0 0 rgba(255, 255, 255, 0.2);
+  --shadow-3d-hover: 0 22px 48px -6px rgba(56, 189, 248, 0.25), 0 8px 20px -2px rgba(2, 6, 23, 0.6), inset 0 1px 0 0 rgba(255, 255, 255, 0.28);
+  --shadow-3d-inset: inset 0 2px 6px 0 rgba(0, 0, 0, 0.5), inset 0 0 0 1px rgba(148, 163, 184, 0.25);
+  --shadow-glow: 0 0 28px rgba(56, 189, 248, 0.3);
+
+  --glass-surface: rgba(15, 23, 42, 0.72);
+  --glass-surface-hover: rgba(30, 41, 59, 0.84);
+  --glass-border: 1px solid rgba(255, 255, 255, 0.12);
+  --glass-border-subtle: 1px solid rgba(148, 163, 184, 0.14);
+  --glass-blur: blur(18px) saturate(190%);
 
   --color-background-primary: #0f172a;
   --color-background-secondary: #111827;
@@ -93,13 +122,13 @@
   --color-background-success: #052e16;
   --color-border-success: #15803d;
 
-  --surface-border: 1px solid rgba(148, 163, 184, 0.2);
+  --surface-border: 1px solid rgba(255, 255, 255, 0.12);
 
-  --calendar-selected-bg: #132a4a;
+  --calendar-selected-bg: rgba(19, 42, 74, 0.85);
   --calendar-selected-border: #3b82f6;
-  --calendar-today-bg: #0f3b2a;
+  --calendar-today-bg: rgba(15, 59, 42, 0.85);
   --calendar-today-border: #22c55e;
-  --calendar-holiday-bg: #2a1a23;
+  --calendar-holiday-bg: rgba(42, 26, 35, 0.85);
   --calendar-holiday-border: rgba(251, 113, 133, 0.38);
   --calendar-default-border: rgba(148, 163, 184, 0.22);
   --calendar-today-pill-bg: #14532d;
@@ -109,7 +138,7 @@
 
   --board-canvas-bg: #111827;
   --board-canvas-dot: rgba(56, 189, 248, 0.25);
-  --board-note-bg: #3f2b08;
+  --board-note-bg: rgba(63, 43, 8, 0.88);
   --board-note-border: #b45309;
   --board-note-title: #fcd34d;
   --board-note-text: #fde68a;
@@ -132,8 +161,11 @@ body {
   padding: 0;
   min-height: 100vh;
   background:
-    linear-gradient(135deg, rgba(23, 107, 135, 0.1), rgba(226, 247, 234, 0.55) 34%, rgba(255, 241, 214, 0.32) 100%),
-    #f7f8f5;
+    radial-gradient(at 0% 0%, rgba(23, 107, 135, 0.12) 0px, transparent 50%),
+    radial-gradient(at 100% 0%, rgba(47, 125, 91, 0.1) 0px, transparent 50%),
+    radial-gradient(at 50% 100%, rgba(245, 158, 11, 0.08) 0px, transparent 50%),
+    linear-gradient(135deg, rgba(23, 107, 135, 0.08), rgba(226, 247, 234, 0.45) 45%, rgba(255, 241, 214, 0.25) 100%),
+    #f8fafc;
   font-family: var(--font-sans);
   color: var(--color-text-primary);
   line-height: 1.5;
@@ -142,7 +174,10 @@ body {
 
 [data-theme="dark"] body {
   background:
-    linear-gradient(135deg, rgba(14, 116, 144, 0.24), rgba(15, 23, 42, 0.95) 36%, rgba(67, 20, 7, 0.32) 100%),
+    radial-gradient(at 0% 0%, rgba(56, 189, 248, 0.15) 0px, transparent 50%),
+    radial-gradient(at 100% 0%, rgba(16, 185, 129, 0.12) 0px, transparent 50%),
+    radial-gradient(at 50% 100%, rgba(245, 158, 11, 0.08) 0px, transparent 50%),
+    linear-gradient(135deg, rgba(14, 116, 144, 0.22), rgba(15, 23, 42, 0.96) 40%, rgba(67, 20, 7, 0.28) 100%),
     #020617;
 }
 

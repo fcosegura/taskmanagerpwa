@@ -1,140 +1,272 @@
-/* Focused UI cleanup overrides
-   Goal: keep the current personality, but make the app feel calmer, denser and more task-first. */
+/* ── Glassmorphism & 3D Tactile Depth Design System ──
+   Goal: Transform the UI into a modern, tactile, glassmorphic design system with 3D depth,
+   multi-layered shadows, specular highlights, and smooth, responsive transitions. */
 
 :root {
-  --shadow-card: 0 10px 28px rgba(20, 33, 61, 0.075);
-  --shadow-soft: 0 6px 18px rgba(20, 33, 61, 0.055);
-  --surface-border: 1px solid rgba(100, 116, 139, 0.18);
+  --shadow-card: var(--shadow-3d-md);
+  --shadow-soft: var(--shadow-3d-sm);
+  --surface-border: var(--glass-border);
 }
 
 [data-theme="dark"] {
-  --shadow-card: 0 14px 34px rgba(2, 6, 23, 0.34);
-  --shadow-soft: 0 8px 22px rgba(2, 6, 23, 0.28);
-  --surface-border: 1px solid rgba(148, 163, 184, 0.22);
+  --shadow-card: var(--shadow-3d-md);
+  --shadow-soft: var(--shadow-3d-sm);
+  --surface-border: var(--glass-border);
+}
+
+/* Base transitions and smooth scrolling */
+html {
+  scroll-behavior: smooth;
 }
 
 body {
-  background:
-    linear-gradient(180deg, rgba(23, 107, 135, 0.045), rgba(245, 247, 250, 0) 280px),
-    #f8fafc;
+  transition: background 0.3s ease, color 0.3s ease;
 }
 
-[data-theme="dark"] body {
-  background:
-    linear-gradient(180deg, rgba(56, 189, 248, 0.09), rgba(2, 6, 23, 0) 300px),
-    #020617;
-}
-
+/* ── Header Glassmorphism & Depth ── */
 .app-header {
-  min-height: 68px;
-  padding: calc(8px + env(safe-area-inset-top)) clamp(14px, 3vw, 28px) 8px;
-  background: rgba(255, 255, 255, 0.92);
-  backdrop-filter: blur(14px);
-  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.035);
+  min-height: 70px;
+  padding: calc(10px + env(safe-area-inset-top)) clamp(16px, 4vw, 32px) 10px;
+  background: var(--glass-surface) !important;
+  backdrop-filter: var(--glass-blur) !important;
+  -webkit-backdrop-filter: var(--glass-blur) !important;
+  border-bottom: var(--glass-border) !important;
+  box-shadow: 0 10px 30px -5px rgba(15, 23, 42, 0.08), inset 0 -1px 0 rgba(255, 255, 255, 0.3) !important;
+  transition: background 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
 }
 
 [data-theme="dark"] .app-header {
-  background: rgba(2, 6, 23, 0.9);
-  box-shadow: 0 1px 0 rgba(148, 163, 184, 0.14);
+  background: rgba(15, 23, 42, 0.75) !important;
+  box-shadow: 0 12px 36px -5px rgba(2, 6, 23, 0.65), inset 0 -1px 0 rgba(255, 255, 255, 0.12) !important;
 }
 
 .brand-mark,
 .login-mark {
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  box-shadow: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #176b87, #2f7d5b);
+  box-shadow: 0 8px 20px rgba(23, 107, 135, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s ease;
+}
+
+.brand-mark:hover,
+.login-mark:hover {
+  transform: translateY(-2px) rotate(-3deg) scale(1.05);
+  box-shadow: 0 12px 26px rgba(23, 107, 135, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.6);
 }
 
 .brand-title {
-  font-size: 16px;
-  letter-spacing: -0.01em;
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  background: linear-gradient(135deg, var(--color-text-primary), var(--color-accent));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
 .brand-subtitle,
 .eyebrow {
   font-size: 10px;
-  letter-spacing: 0.03em;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.85;
 }
 
 .app-main {
-  width: min(1120px, calc(100% - 24px));
-  padding-top: 16px;
+  width: min(1180px, calc(100% - 28px));
+  padding-top: 20px;
+  animation: glassFadeIn 0.35s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+/* ── Overview Panel & Metric Cards (3D Glass) ── */
 .overview-panel {
-  padding: 16px;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.82);
-  box-shadow: var(--shadow-soft);
-}
-
-[data-theme="dark"] .overview-panel {
-  background: rgba(15, 23, 42, 0.82);
+  padding: 20px 24px;
+  border-radius: var(--border-radius-lg);
+  background: var(--glass-surface) !important;
+  backdrop-filter: var(--glass-blur) !important;
+  -webkit-backdrop-filter: var(--glass-blur) !important;
+  border: var(--glass-border) !important;
+  box-shadow: var(--shadow-3d-md) !important;
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s ease;
 }
 
 .overview-panel h1 {
-  font-size: clamp(22px, 2.4vw, 30px);
+  font-size: clamp(22px, 2.5vw, 32px);
   letter-spacing: -0.03em;
+  font-weight: 800;
 }
 
 .metric-strip {
-  gap: 8px;
+  gap: 10px;
 }
 
 .metric-strip .metric-card {
-  min-width: 82px;
-  padding: 8px 10px;
-  border-radius: 12px;
-  box-shadow: none;
+  min-width: 90px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.6) !important;
+  backdrop-filter: blur(10px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.7) !important;
+  box-shadow: var(--shadow-3d-sm) !important;
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s ease, border-color 0.25s ease;
+}
+
+[data-theme="dark"] .metric-strip .metric-card {
+  background: rgba(15, 23, 42, 0.65) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+}
+
+.metric-strip .metric-card:hover {
+  transform: translateY(-3px) scale(1.02);
+  box-shadow: var(--shadow-3d-hover) !important;
+  border-color: rgba(23, 107, 135, 0.4) !important;
 }
 
 .metric-strip strong {
-  font-size: 18px;
+  font-size: 20px;
+  font-weight: 850;
 }
 
 .metric-strip span {
   font-size: 11px;
+  font-weight: 650;
+  opacity: 0.8;
 }
 
+/* ── Desktop Floating Glass Tabs ── */
 .desktop-tabs {
-  padding: 3px;
-  background: rgba(241, 245, 249, 0.88);
-  box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.08);
+  padding: 4px;
+  border-radius: 999px;
+  background: rgba(226, 232, 240, 0.55) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.06), inset 0 0 0 1px rgba(255, 255, 255, 0.4) !important;
+}
+
+[data-theme="dark"] .desktop-tabs {
+  background: rgba(15, 23, 42, 0.65) !important;
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.4), inset 0 0 0 1px rgba(255, 255, 255, 0.1) !important;
 }
 
 .desktop-tabs button {
-  min-width: 88px;
-  padding: 8px 14px;
-  font-size: 12px;
+  min-width: 90px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 700;
+  border-radius: 999px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-secondary);
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  cursor: pointer;
+}
+
+.desktop-tabs button:hover {
+  color: var(--color-text-primary);
+  transform: translateY(-1px);
 }
 
 .desktop-tabs button.active {
-  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+  color: var(--color-text-primary);
+  background: var(--color-background-primary) !important;
+  box-shadow: 0 6px 18px rgba(23, 107, 135, 0.2), inset 0 1px 0 #ffffff !important;
+  transform: translateY(-1px) scale(1.02);
 }
 
-.ghost-button,
-.primary-button {
-  padding: 8px 13px;
-  font-size: 12px;
+[data-theme="dark"] .desktop-tabs button.active {
+  background: #1e293b !important;
+  box-shadow: 0 6px 18px rgba(2, 6, 23, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
 }
 
+/* ── 3D Raised Tactile Buttons ── */
 .primary-button {
-  background: var(--color-accent);
-  box-shadow: 0 8px 18px rgba(23, 107, 135, 0.18);
+  padding: 10px 18px;
+  font-size: 13px;
+  font-weight: 700;
+  border-radius: var(--border-radius-md);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: linear-gradient(135deg, #176b87, #0f4c61) !important;
+  color: #ffffff !important;
+  box-shadow: 0 8px 20px -2px rgba(23, 107, 135, 0.35), inset 0 1px 0 0 rgba(255, 255, 255, 0.35) !important;
+  cursor: pointer;
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.primary-button:hover {
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 12px 28px -2px rgba(23, 107, 135, 0.48), inset 0 1px 0 0 rgba(255, 255, 255, 0.5) !important;
+}
+
+.primary-button:active {
+  transform: translateY(1px) scale(0.98);
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.35) !important;
 }
 
 [data-theme="dark"] .primary-button {
-  background: #0369a1;
-  box-shadow: 0 10px 22px rgba(2, 6, 23, 0.38);
+  background: linear-gradient(135deg, #0284c7, #0369a1) !important;
+  box-shadow: 0 8px 22px -2px rgba(2, 132, 199, 0.4), inset 0 1px 0 0 rgba(255, 255, 255, 0.3) !important;
+}
+
+[data-theme="dark"] .primary-button:hover {
+  box-shadow: 0 12px 30px -2px rgba(56, 189, 248, 0.5), inset 0 1px 0 0 rgba(255, 255, 255, 0.45) !important;
+}
+
+.ghost-button {
+  padding: 9px 16px;
+  font-size: 13px;
+  font-weight: 650;
+  border-radius: var(--border-radius-md);
+  border: var(--glass-border) !important;
+  background: var(--glass-surface) !important;
+  backdrop-filter: blur(8px) !important;
+  color: var(--color-text-primary);
+  box-shadow: var(--shadow-3d-sm) !important;
+  cursor: pointer;
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.ghost-button:hover {
+  transform: translateY(-2px);
+  background: var(--glass-surface-hover) !important;
+  box-shadow: var(--shadow-3d-hover) !important;
+  border-color: rgba(23, 107, 135, 0.3) !important;
+}
+
+.ghost-button:active {
+  transform: translateY(1px) scale(0.98);
+  box-shadow: var(--shadow-3d-inset) !important;
 }
 
 .icon-button {
-  width: 36px;
-  height: 36px;
-  font-size: 17px;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  border: var(--glass-border) !important;
+  background: var(--glass-surface) !important;
+  backdrop-filter: blur(8px) !important;
+  color: var(--color-text-primary);
+  box-shadow: var(--shadow-3d-sm) !important;
+  display: grid;
+  place-items: center;
+  font-size: 18px;
+  cursor: pointer;
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
 
+.icon-button:hover {
+  transform: translateY(-2px) scale(1.05);
+  box-shadow: var(--shadow-3d-hover) !important;
+  border-color: rgba(23, 107, 135, 0.35) !important;
+}
+
+.icon-button:active {
+  transform: translateY(1px) scale(0.95);
+  box-shadow: var(--shadow-3d-inset) !important;
+}
+
+/* ── Container Shells (Toolbar, Filters, Task List, Views) ── */
 .toolbar-panel,
 .filters-panel,
 .tasks-list,
@@ -142,203 +274,262 @@ body {
 .board-shell,
 .kanban-shell,
 .daily-agenda-shell {
-  border-color: rgba(100, 116, 139, 0.16);
-  box-shadow: var(--shadow-soft);
+  border-radius: var(--border-radius-lg) !important;
+  background: var(--glass-surface) !important;
+  backdrop-filter: var(--glass-blur) !important;
+  -webkit-backdrop-filter: var(--glass-blur) !important;
+  border: var(--glass-border) !important;
+  box-shadow: var(--shadow-3d-md) !important;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+.toolbar-panel {
+  padding: 14px 18px !important;
+}
+
+/* ── 3D Inset Inputs & Controls ── */
+.toolbar-panel input,
+.search-box input,
+.quick-add input,
+.quick-add textarea,
+select,
+input[type="text"],
+input[type="date"] {
+  border-radius: var(--border-radius-md) !important;
+  border: 1px solid rgba(148, 163, 184, 0.28) !important;
+  background: rgba(255, 255, 255, 0.82) !important;
+  box-shadow: var(--shadow-3d-inset) !important;
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+[data-theme="dark"] .toolbar-panel input,
+[data-theme="dark"] .search-box input,
+[data-theme="dark"] .quick-add input,
+[data-theme="dark"] .quick-add textarea,
+[data-theme="dark"] select,
+[data-theme="dark"] input[type="text"],
+[data-theme="dark"] input[type="date"] {
+  background: rgba(15, 23, 42, 0.75) !important;
+  border-color: rgba(148, 163, 184, 0.22) !important;
+}
+
+.toolbar-panel input:focus,
+.search-box input:focus,
+.quick-add input:focus,
+.quick-add textarea:focus,
+select:focus {
+  outline: none !important;
+  border-color: var(--color-accent) !important;
+  box-shadow: 0 0 0 3px rgba(23, 107, 135, 0.25), inset 0 1px 2px rgba(0, 0, 0, 0.05) !important;
+  transform: translateY(-1px);
+}
+
+/* ── 3D Interactive Cards (Task Card, Row, Kanban Card, Board Note, Event Card) ── */
 .task-card,
 .task-row,
 .kanban-card,
+.kanban-task-card,
 .board-note,
 .event-card {
-  box-shadow: none;
+  border-radius: 16px !important;
+  background: var(--glass-surface) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  border: var(--glass-border) !important;
+  box-shadow: var(--shadow-3d-sm) !important;
+  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.28s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.28s ease !important;
 }
 
 .task-card:hover,
 .task-row:hover,
 .kanban-card:hover,
-.board-note:hover,
+.kanban-task-card:hover,
 .event-card:hover {
-  transform: none;
-  border-color: rgba(23, 107, 135, 0.28);
+  transform: translateY(-3px) scale(1.008) !important;
+  box-shadow: var(--shadow-3d-hover) !important;
+  border-color: rgba(23, 107, 135, 0.45) !important;
 }
 
-.task-card,
-.task-row {
-  border-radius: 14px;
+[data-theme="dark"] .task-card:hover,
+[data-theme="dark"] .task-row:hover,
+[data-theme="dark"] .kanban-card:hover,
+[data-theme="dark"] .kanban-task-card:hover,
+[data-theme="dark"] .event-card:hover {
+  border-color: rgba(56, 189, 248, 0.45) !important;
 }
 
-.toolbar-panel input,
-.search-box input,
-.quick-add input,
-.quick-add textarea {
-  min-height: 40px;
+.task-card:active,
+.task-row:active,
+.kanban-card:active,
+.kanban-task-card:active {
+  transform: translateY(0) scale(0.99) !important;
+  box-shadow: var(--shadow-3d-sm) !important;
 }
 
-.toast-message,
-.sw-update-banner {
-  box-shadow: none;
+.task-list {
+  gap: 10px !important;
+}
+
+.task-title {
+  font-size: 15px !important;
+  font-weight: 650;
+  line-height: 1.35 !important;
+  letter-spacing: -0.01em;
+}
+
+.category-pill,
+.filter-chip {
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  transition: transform 0.2s ease;
+}
+
+.filter-chip:hover {
+  transform: translateY(-1px) scale(1.04);
+}
+
+.priority-rail {
+  width: 5px !important;
+  border-radius: 999px;
+  box-shadow: 0 0 8px currentColor;
+}
+
+/* ── Kanban Columns & Board Notes ── */
+.kanban-column {
+  border-radius: 18px !important;
+  background: rgba(248, 250, 252, 0.65) !important;
+  backdrop-filter: blur(10px) !important;
+  border: var(--glass-border) !important;
+  box-shadow: var(--shadow-3d-sm) !important;
+}
+
+[data-theme="dark"] .kanban-column {
+  background: rgba(17, 24, 39, 0.65) !important;
+}
+
+.board-note {
+  border-radius: 14px !important;
+  box-shadow: var(--shadow-3d-sm) !important;
+  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.28s ease !important;
+}
+
+.board-note:focus-within,
+.board-note:hover {
+  transform: translateY(-4px) rotate(-1deg) scale(1.02) !important;
+  box-shadow: var(--shadow-3d-hover) !important;
+}
+
+/* ── Calendar Cells ── */
+.calendar-cell {
+  border-radius: 12px;
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.22s ease !important;
+}
+
+.calendar-cell:hover {
+  transform: translateY(-2px) scale(1.02) !important;
+  box-shadow: var(--shadow-3d-sm) !important;
+  z-index: 5;
+}
+
+/* ── Modals & Dialogs (Glassmorphic Pop-up) ── */
+.modal-overlay,
+.dialog-overlay {
+  background: rgba(15, 23, 42, 0.45) !important;
+  backdrop-filter: blur(10px) saturate(160%) !important;
+  -webkit-backdrop-filter: blur(10px) saturate(160%) !important;
+  animation: glassFadeIn 0.25s ease;
 }
 
 .modal-card,
 .dialog-card,
 .task-modal,
-.event-modal {
-  box-shadow: var(--shadow-card);
+.event-modal,
+.liquid-glass-modal {
+  border-radius: var(--border-radius-xl) !important;
+  background: var(--glass-surface) !important;
+  backdrop-filter: blur(24px) saturate(200%) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(200%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.6) !important;
+  box-shadow: var(--shadow-3d-lg) !important;
+  animation: glassModalPop 0.28s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
 
-/* Second pass: task-first polish. These selectors intentionally beat older !important rules. */
-.task-card {
-  border-radius: 14px !important;
-  box-shadow: none !important;
+[data-theme="dark"] .modal-card,
+[data-theme="dark"] .dialog-card,
+[data-theme="dark"] .task-modal,
+[data-theme="dark"] .event-modal,
+[data-theme="dark"] .liquid-glass-modal {
+  background: rgba(15, 23, 42, 0.85) !important;
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
 }
 
-[data-theme="dark"] .task-card,
-[data-theme="dark"] .task-list .task-card {
-  box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.1) !important;
-}
-
-.task-list {
-  gap: 8px !important;
-}
-
-.task-title {
-  font-size: 14px !important;
-  line-height: 1.32 !important;
-  letter-spacing: -0.01em;
-}
-
-.task-date,
-.task-meta,
-.category-pill,
-.filter-chip,
-.visible-counter {
-  font-size: 11px !important;
-}
-
-.category-pill,
-.filter-chip {
-  font-weight: 650 !important;
-}
-
-.priority-rail {
-  width: 4px !important;
-  border-radius: 999px;
-}
-
-.search-box input {
-  height: 42px !important;
-  border-radius: 12px !important;
-}
-
-.toolbar-panel {
-  padding: 12px !important;
-  border-radius: 16px !important;
-}
-
-.filter-button,
-.visible-counter {
-  min-height: 38px !important;
-  border-radius: 12px !important;
-}
-
-.quick-add {
-  box-shadow: 0 12px 34px rgba(15, 23, 42, 0.12) !important;
-}
-
-[data-theme="dark"] .quick-add {
-  box-shadow: 0 14px 36px rgba(2, 6, 23, 0.42) !important;
-}
-
-.calendar-cell:hover {
-  transform: none !important;
-  box-shadow: none !important;
-}
-
-.calendar-panel,
-.day-panel,
-.kanban-column,
-.board-toolbar,
-.board-canvas {
-  box-shadow: none !important;
-}
-
-.kanban-grid {
-  gap: 10px !important;
-}
-
-.kanban-column {
-  border-radius: 16px !important;
-}
-
-.kanban-task-card {
-  box-shadow: none !important;
-}
-
-.kanban-task-card-title {
-  line-height: 1.28;
-}
-
-.board-note {
-  box-shadow: none !important;
-}
-
-.board-note:focus-within,
-.board-note:hover {
-  transform: rotate(0deg) !important;
-}
-
+/* ── Mobile Floating Navigation Bar ── */
 nav.show-mobile {
-  left: 10px;
-  right: 10px;
-  bottom: 8px;
-  border-radius: 18px;
-  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.14);
+  left: 14px;
+  right: 14px;
+  bottom: 12px;
+  border-radius: 24px;
+  background: var(--glass-surface) !important;
+  backdrop-filter: var(--glass-blur) !important;
+  -webkit-backdrop-filter: var(--glass-blur) !important;
+  border: var(--glass-border) !important;
+  box-shadow: 0 14px 38px rgba(15, 23, 42, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.5) !important;
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 [data-theme="dark"] nav.show-mobile {
-  box-shadow: 0 12px 30px rgba(2, 6, 23, 0.42);
+  background: rgba(15, 23, 42, 0.82) !important;
+  box-shadow: 0 16px 42px rgba(2, 6, 23, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.15) !important;
 }
 
-.liquid-glass-modal {
-  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.16) !important;
-  backdrop-filter: blur(14px) saturate(130%);
-  -webkit-backdrop-filter: blur(14px) saturate(130%);
+/* ── Animations ── */
+@keyframes glassModalPop {
+  0% {
+    opacity: 0;
+    transform: scale(0.93) translateY(14px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
 }
 
-.liquid-glass-modal::before {
-  height: 38px;
-  opacity: 0.75;
+@keyframes glassFadeIn {
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
+/* ── Media Queries ── */
 @media (max-width: 760px) {
   .app-header {
-    min-height: 62px;
-    gap: 10px;
+    min-height: 64px;
+    gap: 12px;
   }
 
   .app-main {
-    width: min(100% - 18px, 1120px);
-    padding-top: 12px;
+    width: min(100% - 20px, 1180px);
+    padding-top: 14px;
   }
 
   .overview-panel {
-    padding: 14px;
+    padding: 16px;
   }
 
   .metric-strip .metric-card {
-    min-width: 74px;
+    min-width: 78px;
+    padding: 8px 10px;
   }
 
   .task-card {
-    padding: 12px !important;
-  }
-
-  .task-meta {
-    max-width: 44% !important;
-  }
-
-  .quick-add {
-    border-radius: 16px !important;
+    padding: 14px !important;
   }
 }
