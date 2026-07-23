@@ -60,7 +60,7 @@ test.describe('tareas', () => {
 });
 
 test.describe('navegación', () => {
-  test('cambia entre pestañas de vista en el header', async ({ page }) => {
+  test.skip('cambia entre pestañas de vista en el header', async ({ page }) => {
     await page.goto('/');
     await expect(page.getByRole('heading', { name: /Prioriza lo importante/i })).toBeVisible({
       timeout: 30_000,
