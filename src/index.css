@@ -376,6 +376,7 @@ select:focus {
 
 .header-actions {
   justify-self: end;
+  max-width: max-content;
   gap: 9px;
 }
 
