@@ -1,5 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
-import { STATUS } from './constants.js';
+import { STATUS, PRIORITY } from './constants.js';
 import { uid, toDateStr, compareTasksForTaskList, parseDateTimeFromDescription, parseDescriptionDateResult, cleanDescriptionSegment, isJiraCategory, normalizeTicketNumber, applyTicketNumberToTaskName, inheritTicketFromParentTask, mergeTaskCompletionMeta } from './utils.jsx';
 import { loadData, saveData, validateBackupPayload, normalizeDataPayload, loginWithGoogleCredential, logoutSession, createProfile, deleteProfile, updateProfileStatuses, parseTaskWithAI, checkSession, generateTasksFromText, generateDailyStatus, fetchWorkspaceData, isMultiBackupPayload, validateMultiBackupPayload, normalizeMultiBackupPayload } from './storage.js';
 import { appendStatusLogEntry } from './statusLog.js';
@@ -14,6 +14,7 @@ import EventModal from './components/EventModal.jsx';
 import PriorityPickerModal from './components/PriorityPickerModal.jsx';
 import StatusChangeCommentModal from './components/StatusChangeCommentModal.jsx';
 import StatusManagerModal from './components/StatusManagerModal.jsx';
+import SettingsModal from './components/SettingsModal.jsx';
 import DailyStatusDaysModal from './components/DailyStatusDaysModal.jsx';
 import DailyStatusResultModal from './components/DailyStatusResultModal.jsx';
 import BottomNav from './components/BottomNav.jsx';
@@ -140,6 +141,11 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [summaryFilter, setSummaryFilter] = useState('none');
   const [focusMode, setFocusMode] = useState(false);
+  const [focusPriorityLevels, setFocusPriorityLevels] = useState(() => {
+    const stored = localStorage.getItem('focusPriorityLevels');
+    return stored ? JSON.parse(stored) : ['high', 'critical'];
+  });
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [backupMessage, setBackupMessage] = useState('');
   const [syncState, setSyncState] = useState('idle');
   const [profiles, setProfiles] = useState([]);
@@ -1202,7 +1208,7 @@ export default function App() {
     ? (() => {
       const focusIds = new Set(
         tasks
-          .filter((task) => task.priority === 'high' || task.priority === 'critical')
+          .filter((task) => focusPriorityLevels.includes(task.priority))
           .map((task) => task.id)
       );
       const stack = [...focusIds];
@@ -1382,6 +1388,7 @@ export default function App() {
                 <button type="button" role="menuitem" onClick={() => { void downloadBackup(); setShowActionsMenu(false); }}>Exportar backup</button>
                 <button type="button" role="menuitem" onClick={() => { fileInputRef.current?.click(); setShowActionsMenu(false); }}>Importar backup</button>
                 <button type="button" role="menuitem" onClick={() => { setShowStatusManagerModal(true); setShowActionsMenu(false); }}>Gestionar estados</button>
+                <button type="button" role="menuitem" onClick={() => { setShowSettingsModal(true); setShowActionsMenu(false); }}>Configuración</button>
               </div>
             )}
           </div>
@@ -1397,7 +1404,7 @@ export default function App() {
             className={`ghost-button hide-mobile focus-toggle${focusMode ? ' active' : ''}`}
             onClick={() => setFocusMode((current) => !current)}
             aria-pressed={focusMode}
-            aria-label="Alternar modo focus (prioridad alta y crítica)"
+            aria-label={`Alternar modo focus (${focusPriorityLevels.map((v) => PRIORITY.find((p) => p.v === v)?.label || v).join(', ')})`}
           >
             Focus
           </button>
@@ -1592,6 +1599,17 @@ export default function App() {
           statuses={statuses}
           onSave={handleSaveStatuses}
           onClose={() => setShowStatusManagerModal(false)}
+        />
+      )}
+
+      {showSettingsModal && (
+        <SettingsModal
+          focusPriorityLevels={focusPriorityLevels}
+          onSaveFocusPriorities={(levels) => {
+            setFocusPriorityLevels(levels);
+            localStorage.setItem('focusPriorityLevels', JSON.stringify(levels));
+          }}
+          onClose={() => setShowSettingsModal(false)}
         />
       )}
 
