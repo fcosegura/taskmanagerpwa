@@ -96,9 +96,7 @@ export default function SettingsModal({ focusPriorityLevels, onSaveFocusPrioriti
                         const next = active
                           ? focusPriorityLevels.filter((v) => v !== item.v)
                           : [...focusPriorityLevels, item.v];
-                        if (next.length > 0) {
-                          onSaveFocusPriorities(next);
-                        }
+                        onSaveFocusPriorities(next);
                       }}
                       style={{
                         display: 'flex',
