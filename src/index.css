@@ -619,6 +619,7 @@ select:focus {
 }
 
 .metric-strip strong {
+  color: var(--color-text-primary);
   font-size: 20px;
   line-height: 1;
 }
