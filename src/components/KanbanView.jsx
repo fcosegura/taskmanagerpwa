@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { STATUS, PRIORITY } from '../constants.js';
 import { fmtDate, isCompletedAtWithinKanbanRange } from '../utils.jsx';
 import { isChildTask, shouldShowTaskInKanbanDoneColumn } from '../kanbanTaskVisibility.js';
-import { getHiddenKanbanTaskCount, getVisibleKanbanTasks } from '../kanbanTaskLimit.js';
+import { getHiddenKanbanTaskCount, getVisibleKanbanTasks, sortKanbanTasksByRecency } from '../kanbanTaskLimit.js';
 import CopyTicketButton from './CopyTicketButton.jsx';
 
 
@@ -321,7 +321,7 @@ export default function KanbanView({
 
   const groupedTasks = useMemo(() => (
     statuses.reduce((accumulator, status) => {
-      accumulator[status.v] = roleFilteredTasks.filter((task) => {
+      const tasksInStatus = roleFilteredTasks.filter((task) => {
         if (task.status !== status.v) return false;
         if (status.v === 'done' && task.hideInKanbanDone) return false;
         if (status.v === 'done') {
@@ -331,6 +331,7 @@ export default function KanbanView({
         }
         return true;
       });
+      accumulator[status.v] = sortKanbanTasksByRecency(tasksInStatus, status.v);
       return accumulator;
     }, {})
   ), [roleFilteredTasks, allTasks, doneRange, statuses]);
@@ -441,7 +442,6 @@ export default function KanbanView({
           const isExpanded = expandedStatuses.has(status.v);
           const visibleTasks = getVisibleKanbanTasks(columnTasks, isExpanded);
           const hiddenTaskCount = getHiddenKanbanTaskCount(columnTasks, isExpanded);
-          const hasCollapsedTasks = hiddenTaskCount > 0;
           const isActiveDrop = hoverStatus === status.v;
           const isSuctionDrop = Boolean(
             draggedTaskId &&
@@ -548,9 +548,7 @@ export default function KanbanView({
               <strong>{columnTasks.length}</strong>
             </div>
             <div className={`kanban-column-body${isSuctionDrop ? ' suction-pull' : ''}`}>
-              {visibleTasks.map((task, visibleIndex) => {
-                const index = hiddenTaskCount + visibleIndex;
-                return (
+              {visibleTasks.map((task, index) => (
                 <div key={task.id}>
                   {hoverStatus === status.v && hoverIndex === index && (
                     <div className={`kanban-drop-indicator${isSuctionDrop ? ' suction-slot' : ''}`} />
@@ -596,12 +594,11 @@ export default function KanbanView({
                     />
                   </div>
                 </div>
-                );
-              })}
+              ))}
               {hoverStatus === status.v && hoverIndex === columnTasks.length && (
                 <div className={`kanban-drop-indicator${isSuctionDrop ? ' suction-slot' : ''}`} />
               )}
-              {hasCollapsedTasks && (
+              {hiddenTaskCount > 0 && (
                 <button
                   type="button"
                   className="kanban-column-toggle-tasks"
