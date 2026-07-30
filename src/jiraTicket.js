@@ -15,6 +15,21 @@ export function extractJiraTicketFromUrl(url) {
   return match?.[1] ? normalizeTicketNumber(match[1]).toUpperCase() : '';
 }
 
+export function extractJiraProjectKeyFromUrl(url) {
+  const ticketNumber = extractJiraTicketFromUrl(url);
+  if (!ticketNumber) return '';
+  return ticketNumber.split('-')[0] || '';
+}
+
+export function getJiraTaskDefaultsFromUrl(url) {
+  const projectKey = extractJiraProjectKeyFromUrl(url);
+  if (projectKey !== 'MAPP') return null;
+  return {
+    category: 'Jira Task',
+    priority: 'high',
+  };
+}
+
 export function applyTicketNumberToTaskName(name, ticketNumber) {
   const cleanName = typeof name === 'string' ? name.trim() : '';
   const cleanTicket = normalizeTicketNumber(ticketNumber);

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { STATUS, PRIORITY } from '../constants.js';
-import { fmtDate, parseDateTimeFromDescription, parseDescriptionDateResult, cleanDescriptionSegment, isJiraCategory, normalizeTicketNumber, applyTicketNumberToTaskName, extractJiraTicketFromUrl } from '../utils.jsx';
+import { fmtDate, parseDateTimeFromDescription, parseDescriptionDateResult, cleanDescriptionSegment } from '../utils.jsx';
+import { isJiraCategory, normalizeTicketNumber, applyTicketNumberToTaskName, extractJiraTicketFromUrl, getJiraTaskDefaultsFromUrl } from '../jiraTicket.js';
 import { parseTaskWithAI } from '../storage.js';
 
 export default function TaskModal({ task, categories, allTasks = [], onSave, onDelete, onClose, statuses = STATUS }) {
@@ -46,11 +47,27 @@ export default function TaskModal({ task, categories, allTasks = [], onSave, onD
     setForm((prev) => ({ ...prev, name: cleaned || form.name.trim(), date: preview.date, time: preview.time || prev.time }));
   };
 
+  const withAutoJiraDefaults = (nextForm, categoryOverride = newCategory) => {
+    const category = categoryOverride.trim() || nextForm.category || '';
+    const jiraDefaults = getJiraTaskDefaultsFromUrl(nextForm.url || '');
+    if (!jiraDefaults) return nextForm;
+
+    const nextPriority = nextForm.priority || 'medium';
+    return {
+      ...nextForm,
+      category: category || jiraDefaults.category,
+      priority: nextPriority === 'medium' ? jiraDefaults.priority : nextPriority,
+    };
+  };
+
   const withAutoJiraTicket = (nextForm, categoryOverride = newCategory) => {
     const category = categoryOverride.trim() || nextForm.category || '';
-    if (!isJiraCategory(category) || normalizeTicketNumber(nextForm.ticketNumber || '')) return nextForm;
+    if (!isJiraCategory(category) || normalizeTicketNumber(nextForm.ticketNumber || '')) {
+      return withAutoJiraDefaults(nextForm, categoryOverride);
+    }
     const ticketFromUrl = extractJiraTicketFromUrl(nextForm.url || '');
-    return ticketFromUrl ? { ...nextForm, ticketNumber: ticketFromUrl } : nextForm;
+    const nextFormWithTicket = ticketFromUrl ? { ...nextForm, ticketNumber: ticketFromUrl } : nextForm;
+    return withAutoJiraDefaults(nextFormWithTicket, categoryOverride);
   };
 
   const handleChange = (field, value) => {
@@ -120,6 +137,10 @@ export default function TaskModal({ task, categories, allTasks = [], onSave, onD
     const category = newCategory.trim() || form.category || '';
     const parsed = parseDateTimeFromDescription(form.name);
     const ticketNumber = normalizeTicketNumber(form.ticketNumber || '') || (isJiraCategory(category) ? extractJiraTicketFromUrl(form.url || '') : '');
+    const jiraDefaults = getJiraTaskDefaultsFromUrl(form.url || '');
+    const priority = jiraDefaults && (form.priority || 'medium') === 'medium'
+      ? jiraDefaults.priority
+      : (form.priority || 'medium');
     const baseName = typeof form.name === 'string' ? form.name.trim() : '';
     const finalName = isJiraCategory(category) && ticketNumber
       ? applyTicketNumberToTaskName(baseName, ticketNumber)
@@ -129,6 +150,7 @@ export default function TaskModal({ task, categories, allTasks = [], onSave, onD
       name: finalName,
       category,
       ticketNumber,
+      priority,
       date: form.date || parsed?.date || '',
       time: form.time || parsed?.time || ''
     };

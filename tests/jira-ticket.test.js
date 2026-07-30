@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   applyTicketNumberToTaskName,
   extractJiraTicketFromUrl,
+  getJiraTaskDefaultsFromUrl,
   inheritTicketFromParentTask,
   isJiraCategory,
 } from '../src/jiraTicket.js';
@@ -45,4 +46,12 @@ test('extractJiraTicketFromUrl copies ticket from Jira browse URL', () => {
     'MAPP-17394'
   );
   assert.equal(extractJiraTicketFromUrl('https://example.com/issues/MAPP-17394'), '');
+});
+
+test('getJiraTaskDefaultsFromUrl returns Jira Task defaults for MAPP tickets', () => {
+  assert.deepEqual(
+    getJiraTaskDefaultsFromUrl('https://betssongroup.atlassian.net/browse/MAPP-17394'),
+    { category: 'Jira Task', priority: 'high' }
+  );
+  assert.equal(getJiraTaskDefaultsFromUrl('https://betssongroup.atlassian.net/browse/OTHER-1'), null);
 });
