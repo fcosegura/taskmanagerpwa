@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { STATUS, PRIORITY } from '../constants.js';
 import { fmtDate, isCompletedAtWithinKanbanRange } from '../utils.jsx';
 import { isChildTask, shouldShowTaskInKanbanDoneColumn } from '../kanbanTaskVisibility.js';
+import { getHiddenKanbanTaskCount, getVisibleKanbanTasks, sortKanbanTasksByRecency } from '../kanbanTaskLimit.js';
 import CopyTicketButton from './CopyTicketButton.jsx';
 
 
@@ -225,6 +226,7 @@ export default function KanbanView({
 
   const [doneRange, setDoneRange] = useState(() => readDoneRangeFromStorage(kanbanDoneRangeStorageKey));
   const [taskRoleFilter, setTaskRoleFilter] = useState('all');
+  const [expandedStatuses, setExpandedStatuses] = useState(() => new Set());
   const [showColumnsMenu, setShowColumnsMenu] = useState(false);
   const columnsMenuRef = useRef(null);
   const [draggedTaskId, setDraggedTaskId] = useState(null);
@@ -319,7 +321,7 @@ export default function KanbanView({
 
   const groupedTasks = useMemo(() => (
     statuses.reduce((accumulator, status) => {
-      accumulator[status.v] = roleFilteredTasks.filter((task) => {
+      const tasksInStatus = roleFilteredTasks.filter((task) => {
         if (task.status !== status.v) return false;
         if (status.v === 'done' && task.hideInKanbanDone) return false;
         if (status.v === 'done') {
@@ -329,6 +331,7 @@ export default function KanbanView({
         }
         return true;
       });
+      accumulator[status.v] = sortKanbanTasksByRecency(tasksInStatus, status.v);
       return accumulator;
     }, {})
   ), [roleFilteredTasks, allTasks, doneRange, statuses]);
@@ -340,6 +343,15 @@ export default function KanbanView({
     onMoveTaskStatus?.(draggedTaskId, status, targetIndex);
     if (isCrossColumn) triggerLandingAnimation(movedTaskId);
     resetDragState();
+  };
+
+  const toggleColumnTasks = (status) => {
+    setExpandedStatuses((previous) => {
+      const next = new Set(previous);
+      if (next.has(status)) next.delete(status);
+      else next.add(status);
+      return next;
+    });
   };
 
   return (
@@ -426,6 +438,10 @@ export default function KanbanView({
       </div>
       <div className="kanban-grid">
         {visibleColumns.map((status) => {
+          const columnTasks = groupedTasks[status.v] || [];
+          const isExpanded = expandedStatuses.has(status.v);
+          const visibleTasks = getVisibleKanbanTasks(columnTasks, isExpanded);
+          const hiddenTaskCount = getHiddenKanbanTaskCount(columnTasks, isExpanded);
           const isActiveDrop = hoverStatus === status.v;
           const isSuctionDrop = Boolean(
             draggedTaskId &&
@@ -447,7 +463,7 @@ export default function KanbanView({
               if (draggedTaskId) {
                 event.preventDefault();
                 if (hoverStatus !== status.v) setHoverStatus(status.v);
-                const columnCount = groupedTasks[status.v]?.length || 0;
+                const columnCount = columnTasks.length;
                 if (hoverIndex === null || hoverIndex > columnCount) setHoverIndex(columnCount);
               } else if (draggedColumnStatus && draggedColumnStatus !== status.v) {
                 event.preventDefault();
@@ -468,7 +484,7 @@ export default function KanbanView({
             onDrop={(event) => {
               event.preventDefault();
               if (draggedTaskId) {
-                handleDropOnColumn(status.v, groupedTasks[status.v]?.length || 0);
+                handleDropOnColumn(status.v, columnTasks.length);
               } else if (draggedColumnStatus && draggedColumnStatus !== status.v) {
                 const fromIndex = visibleStatuses.indexOf(draggedColumnStatus);
                 const toIndex = visibleStatuses.indexOf(status.v);
@@ -529,10 +545,10 @@ export default function KanbanView({
               }}
             >
               <span>{status.label}</span>
-              <strong>{groupedTasks[status.v]?.length || 0}</strong>
+              <strong>{columnTasks.length}</strong>
             </div>
             <div className={`kanban-column-body${isSuctionDrop ? ' suction-pull' : ''}`}>
-              {(groupedTasks[status.v] || []).map((task, index) => (
+              {visibleTasks.map((task, index) => (
                 <div key={task.id}>
                   {hoverStatus === status.v && hoverIndex === index && (
                     <div className={`kanban-drop-indicator${isSuctionDrop ? ' suction-slot' : ''}`} />
@@ -579,10 +595,30 @@ export default function KanbanView({
                   </div>
                 </div>
               ))}
-              {hoverStatus === status.v && hoverIndex === (groupedTasks[status.v] || []).length && (
+              {hoverStatus === status.v && hoverIndex === columnTasks.length && (
                 <div className={`kanban-drop-indicator${isSuctionDrop ? ' suction-slot' : ''}`} />
               )}
-              {(groupedTasks[status.v] || []).length === 0 && (
+              {hiddenTaskCount > 0 && (
+                <button
+                  type="button"
+                  className="kanban-column-toggle-tasks"
+                  onClick={() => toggleColumnTasks(status.v)}
+                  aria-expanded={false}
+                >
+                  Mostrar todo ({hiddenTaskCount} más)
+                </button>
+              )}
+              {isExpanded && columnTasks.length > 5 && (
+                <button
+                  type="button"
+                  className="kanban-column-toggle-tasks"
+                  onClick={() => toggleColumnTasks(status.v)}
+                  aria-expanded
+                >
+                  Colapsar
+                </button>
+              )}
+              {columnTasks.length === 0 && (
                 <div className="kanban-empty">Arrastra tareas aquí</div>
               )}
             </div>
