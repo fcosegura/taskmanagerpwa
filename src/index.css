@@ -1098,6 +1098,30 @@ select:focus {
   min-height: 140px;
 }
 
+.kanban-column-toggle-tasks {
+  align-self: center;
+  border: 0;
+  padding: 5px 8px;
+  background: transparent;
+  color: var(--color-accent, #2563eb);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.kanban-column-toggle-tasks:hover {
+  color: var(--color-text-primary);
+}
+
+.kanban-column-toggle-tasks:focus-visible {
+  outline: 2px solid var(--color-accent, #2563eb);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
 .kanban-drop-indicator {
   height: 8px;
   border-radius: 999px;
