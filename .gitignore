@@ -31,3 +31,8 @@ dist-ssr
 /test-results/
 /playwright-report/
 /.cache/playwright/
+
+# Ignore kilo directory
+./kilo
+/kilo
+
