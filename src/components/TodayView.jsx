@@ -1,17 +1,15 @@
 import { useMemo } from 'react';
-import { toDateStr } from '../utils.jsx';
-import { PRIORITY } from '../constants.js';
 
 export default function TodayView({
-  tasks = [],
-  events = [],
+  todayTasks = [],
+  overdueTasks = [],
+  todayEvents = [],
+  completedTodayCount = 0,
   onSelectTask,
   onToggleComplete,
   onOpenCreateTask,
   onNavigateToView
 }) {
-  const todayStr = useMemo(() => toDateStr(new Date()), []);
-
   const todayDateFormatted = useMemo(() => {
     const now = new Date();
     return now.toLocaleDateString('es-ES', {
@@ -21,56 +19,17 @@ export default function TodayView({
     });
   }, []);
 
-  const { todayTasks, overdueTasks, completedToday, nextRecommendedTask } = useMemo(() => {
-    const todayList = [];
-    const overdueList = [];
-    let completedCount = 0;
-
-    tasks.forEach((task) => {
-      const isDone = task.status === 'done';
-      if (isDone) {
-        if (task.completedAt && task.completedAt.startsWith(todayStr)) {
-          completedCount++;
-        }
-        return;
-      }
-
-      const taskDate = task.date || task.dueDate;
-      if (taskDate) {
-        if (taskDate === todayStr) {
-          todayList.push(task);
-        } else if (taskDate < todayStr) {
-          overdueList.push(task);
-        }
-      } else if (task.priority === PRIORITY.HIGH || task.priority === PRIORITY.URGENT || task.priority === 'high' || task.priority === 'critical') {
-        todayList.push(task);
-      }
-    });
-
-    // Sort today's tasks by priority and time
-    todayList.sort((a, b) => {
-      const pMap = { critical: 4, urgent: 4, high: 3, medium: 2, low: 1 };
+  const sortedTodayTasks = useMemo(() => {
+    const pMap = { critical: 4, urgent: 4, high: 3, medium: 2, low: 1 };
+    return [...todayTasks].sort((a, b) => {
       const pA = pMap[a.priority] || 0;
       const pB = pMap[b.priority] || 0;
       if (pA !== pB) return pB - pA;
-      const timeA = a.time || a.dueTime || '23:59';
-      const timeB = b.time || b.dueTime || '23:59';
-      return timeA.localeCompare(timeB);
+      return (a.time || '23:59').localeCompare(b.time || '23:59');
     });
+  }, [todayTasks]);
 
-    const nextTask = todayList[0] || overdueList[0] || null;
-
-    return {
-      todayTasks: todayList,
-      overdueTasks: overdueList,
-      completedToday: completedCount,
-      nextRecommendedTask: nextTask
-    };
-  }, [tasks, todayStr]);
-
-  const todayEvents = useMemo(() => {
-    return (events[todayStr] || []).sort((a, b) => (a.time || '00:00').localeCompare(b.time || '00:00'));
-  }, [events, todayStr]);
+  const nextRecommendedTask = sortedTodayTasks[0] || overdueTasks[0] || null;
 
   return (
     <div className="today-view-container fade-in">
@@ -96,7 +55,7 @@ export default function TodayView({
             <span className="today-stat-label">Atrasadas</span>
           </div>
           <div className="today-stat-pill success">
-            <span className="today-stat-value">{completedToday}</span>
+            <span className="today-stat-value">{completedTodayCount}</span>
             <span className="today-stat-label">Hechas Hoy</span>
           </div>
         </div>
@@ -118,8 +77,8 @@ export default function TodayView({
                 {nextRecommendedTask.category && (
                   <span className="category-pill">{nextRecommendedTask.category}</span>
                 )}
-                {nextRecommendedTask.dueTime && (
-                  <span className="time-pill">⏰ {nextRecommendedTask.dueTime}</span>
+                {nextRecommendedTask.time && (
+                  <span className="time-pill">⏰ {nextRecommendedTask.time}</span>
                 )}
               </div>
             </div>
@@ -172,7 +131,7 @@ export default function TodayView({
             </div>
           ) : (
             <div className="today-tasks-list">
-              {todayTasks.map((task) => (
+              {sortedTodayTasks.map((task) => (
                 <div key={task.id} className="today-task-card material-elevated">
                   <button
                     type="button"
@@ -190,7 +149,7 @@ export default function TodayView({
                     <span className="task-title">{task.name}</span>
                     <div className="task-card-sub">
                       {task.category && <span className="category-pill">{task.category}</span>}
-                      {task.dueTime && <span className="time-pill">⏰ {task.dueTime}</span>}
+                      {task.time && <span className="time-pill">⏰ {task.time}</span>}
                     </div>
                   </div>
                 </div>
@@ -215,9 +174,10 @@ export default function TodayView({
                       onClick={() => onSelectTask && onSelectTask(task)}
                       role="button"
                       tabIndex={0}
+                      onKeyDown={(e) => e.key === 'Enter' && onSelectTask && onSelectTask(task)}
                     >
                       <span className="task-title">{task.name}</span>
-                      <span className="overdue-tag">Venció {task.date || task.dueDate}</span>
+                      <span className="overdue-tag">Venció {task.date}</span>
                     </div>
                   </div>
                 ))}
@@ -246,15 +206,18 @@ export default function TodayView({
             </div>
           ) : (
             <div className="today-events-list">
-              {todayEvents.map((evt, idx) => (
-                <div key={evt.id || idx} className="today-event-card material-elevated">
-                  <span className="event-time-badge">{evt.time || 'Todo el día'}</span>
-                  <div className="event-info">
-                    <span className="event-title">{evt.title || evt.name}</span>
-                    {evt.description && <span className="event-desc">{evt.description}</span>}
+              {todayEvents.map((evt, idx) => {
+                const timeBadge = evt.allDay ? 'Todo el día' : (evt.startTime || evt.time || 'Todo el día');
+                return (
+                  <div key={evt.id || idx} className="today-event-card material-elevated">
+                    <span className="event-time-badge">{timeBadge}</span>
+                    <div className="event-info">
+                      <span className="event-title">{evt.title || evt.name}</span>
+                      {evt.description && <span className="event-desc">{evt.description}</span>}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </section>

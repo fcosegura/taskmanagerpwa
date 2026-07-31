@@ -1282,7 +1282,12 @@ export default function App() {
   const totalVisible = bySummary.length;
   const completedCount = focusTasks.filter((t) => t.status === 'done').length;
   const blockedCount = focusTasks.filter((t) => t.status === 'blocked').length;
-  const todayCount = (tByDate[todayStr] || []).filter((t) => t.status !== 'done').length;
+  const todayTasks = (tByDate[todayStr] || []).filter((t) => t.status !== 'done');
+  const overdueTasks = focusTasks.filter((t) => t.date && t.date < todayStr && t.status !== 'done');
+  const todayEvents = eByDate[todayStr] || [];
+  const completedTodayCount = focusTasks.filter((t) => t.status === 'done' && t.completedAt && t.completedAt.startsWith(todayStr)).length;
+
+  const todayCount = todayTasks.length;
   const activeMetric = summaryFilter === 'today'
     ? 'today'
     : filter === 'blocked'
@@ -1575,11 +1580,13 @@ export default function App() {
 
         {view === 'today'
           ? <TodayView
-              tasks={focusTasks}
-              events={events}
+              todayTasks={todayTasks}
+              overdueTasks={overdueTasks}
+              todayEvents={todayEvents}
+              completedTodayCount={completedTodayCount}
               onSelectTask={(t) => handleOpenTaskSheet(t)}
               onToggleComplete={toggleDone}
-              onOpenCreateTask={() => open()}
+              onOpenCreateTask={() => open({ date: todayStr })}
               onNavigateToView={navigateToView}
             />
           : view === 'tasks'
