@@ -1267,6 +1267,23 @@ export default function App() {
         ? 'done'
         : 'active';
 
+  const contextBgClass = useMemo(() => {
+    switch (view) {
+      case 'tasks':
+      case 'kanban':
+        return 'bg-context-tasks';
+      case 'calendar':
+      case 'daily':
+        return 'bg-context-agenda';
+      case 'board':
+        return 'bg-context-notes';
+      case 'timeline':
+        return 'bg-context-focus';
+      default:
+        return 'bg-context-tasks';
+    }
+  }, [view]);
+
   if (authenticated === null) {
     return null;
   }
@@ -1276,7 +1293,7 @@ export default function App() {
   }
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${contextBgClass}`}>
       {swUpdateAvailable && (
         <div className="sw-update-banner" role="status">
           <span>Hay una nueva versión de la aplicación.</span>
