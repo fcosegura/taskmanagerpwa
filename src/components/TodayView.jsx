@@ -29,7 +29,22 @@ export default function TodayView({
     });
   }, [todayTasks]);
 
+  const sortedTodayEvents = useMemo(() => {
+    return [...todayEvents].sort((a, b) => {
+      const timeA = a.startTime || a.time || '00:00';
+      const timeB = b.startTime || b.time || '00:00';
+      return timeA.localeCompare(timeB);
+    });
+  }, [todayEvents]);
+
   const nextRecommendedTask = sortedTodayTasks[0] || overdueTasks[0] || null;
+
+  const handleTaskKeyDown = (e, task) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      if (onSelectTask) onSelectTask(task);
+    }
+  };
 
   return (
     <div className="today-view-container fade-in">
@@ -144,7 +159,7 @@ export default function TodayView({
                     onClick={() => onSelectTask && onSelectTask(task)}
                     role="button"
                     tabIndex={0}
-                    onKeyDown={(e) => e.key === 'Enter' && onSelectTask && onSelectTask(task)}
+                    onKeyDown={(e) => handleTaskKeyDown(e, task)}
                   >
                     <span className="task-title">{task.name}</span>
                     <div className="task-card-sub">
@@ -174,7 +189,7 @@ export default function TodayView({
                       onClick={() => onSelectTask && onSelectTask(task)}
                       role="button"
                       tabIndex={0}
-                      onKeyDown={(e) => e.key === 'Enter' && onSelectTask && onSelectTask(task)}
+                      onKeyDown={(e) => handleTaskKeyDown(e, task)}
                     >
                       <span className="task-title">{task.name}</span>
                       <span className="overdue-tag">Venció {task.date}</span>
@@ -199,20 +214,21 @@ export default function TodayView({
             </button>
           </div>
 
-          {todayEvents.length === 0 ? (
+          {sortedTodayEvents.length === 0 ? (
             <div className="empty-state-card">
               <span className="empty-icon">📅</span>
               <p>Sin eventos ni reuniones en la agenda de hoy.</p>
             </div>
           ) : (
             <div className="today-events-list">
-              {todayEvents.map((evt, idx) => {
+              {sortedTodayEvents.map((evt, idx) => {
                 const timeBadge = evt.allDay ? 'Todo el día' : (evt.startTime || evt.time || 'Todo el día');
+                const eventTitle = evt.title || evt.name || 'Evento';
                 return (
                   <div key={evt.id || idx} className="today-event-card material-elevated">
                     <span className="event-time-badge">{timeBadge}</span>
                     <div className="event-info">
-                      <span className="event-title">{evt.title || evt.name}</span>
+                      <span className="event-title">{eventTitle}</span>
                       {evt.description && <span className="event-desc">{evt.description}</span>}
                     </div>
                   </div>
