@@ -4,8 +4,7 @@ import { fmtDate, isCompletedAtWithinKanbanRange } from '../utils.jsx';
 import { isChildTask, shouldShowTaskInKanbanDoneColumn } from '../kanbanTaskVisibility.js';
 import { getHiddenKanbanTaskCount, getVisibleKanbanTasks, sortKanbanTasksByRecency } from '../kanbanTaskLimit.js';
 import CopyTicketButton from './CopyTicketButton.jsx';
-
-
+import { CategoryPill } from './shared/index.jsx';
 
 const KANBAN_DONE_RANGE_OPTIONS = [
   { key: 'week', label: 'Semana actual' },
@@ -18,8 +17,8 @@ const DONE_RANGE_ALLOWED = new Set(KANBAN_DONE_RANGE_OPTIONS.map((o) => o.key));
 
 const KANBAN_TASK_ROLE_OPTIONS = [
   { key: 'all', label: 'Todas' },
-  { key: 'parent', label: 'Epic only' },
-  { key: 'child', label: 'Sub tasks only' },
+  { key: 'parent', label: 'Epic / Principal' },
+  { key: 'child', label: 'Sub-tareas' },
 ];
 
 const TASK_ROLE_ALLOWED = new Set(KANBAN_TASK_ROLE_OPTIONS.map((o) => o.key));
@@ -83,22 +82,18 @@ function KanbanTaskCard({
   const hasParentTask = parentTasks.length > 0;
   const hasChildTasks = childTasks.length > 0;
   const isLinkDropTarget = isDragOver && dragMode === 'link';
-  const cardSurface = isLinkDropTarget ? 'rgba(37,99,235,0.06)' : 'var(--color-background-primary)';
-  const dependencyBorderStyle = (() => {
-    if (isLinkDropTarget) {
-      return { border: '2px solid #2563eb' };
-    }
-    if (hasParentTask) {
-      return { border: '2px solid #f59e0b' };
-    }
-    return { border: '2px solid #9333ea' };
-  })();
+
+  const subtasks = task.subtasks || [];
+  const completedSubtasks = subtasks.filter((st) => st.completed).length;
+
   const cardClassName = [
     'kanban-task-card',
+    'material-elevated',
     isChild ? 'kanban-task-card--child' : '',
     isDragging ? 'kanban-task-card--dragging' : '',
     isLanding ? 'kanban-task-card--landing' : '',
   ].filter(Boolean).join(' ');
+
   return (
     <div
       draggable
@@ -107,10 +102,9 @@ function KanbanTaskCard({
       onDragEnd={onDragEnd}
       onClick={() => (onOpenTaskPreview ?? onEditTask)?.(task)}
       style={{
-        ...dependencyBorderStyle,
         borderRadius: isChild ? 10 : 12,
-        background: dependencyBorderStyle.background || cardSurface,
         cursor: 'grab',
+        border: isLinkDropTarget ? '2px solid var(--color-accent)' : undefined,
       }}
     >
       <div className="kanban-task-card-handle">
@@ -122,36 +116,39 @@ function KanbanTaskCard({
           <span>Arrastrar</span>
         </div>
       </div>
+
       {isDragOver && (
         <div style={{ fontSize: 10, fontWeight: 700, color: dragMode === 'link' ? 'var(--color-accent)' : 'var(--color-text-secondary)' }}>
-          {dragMode === 'link' ? 'Soltar para crear dependencia' : 'Soltar para mover/reordenar'}
+          {dragMode === 'link' ? 'Soltar para crear dependencia' : 'Soltar para mover'}
         </div>
       )}
+
       <div className="kanban-task-card-title">
         {task.name}
       </div>
+
       {task.date && (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-          <div style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>
-            {task.date ? `${fmtDate(task.date)}${task.time ? ` · ${task.time}` : ''}` : 'Sin fecha'}
-          </div>
+        <div style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>
+          {fmtDate(task.date)}{task.time ? ` · ${task.time}` : ''}
         </div>
       )}
+
       {(childTasks.length > 0 || parentTasks.length > 0) && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           {hasChildTasks && (
             <div style={{ fontSize: 10, color: 'var(--color-text-secondary)' }}>
-              Esta tarea depende de: {childTasks.map((childTask) => childTask.name).join(', ')}
+              Depende de: {childTasks.map((ct) => ct.name).join(', ')}
             </div>
           )}
           {hasParentTask && (
             <div style={{ fontSize: 10, color: 'var(--color-text-secondary)' }}>
-              Esta tarea es parte de: {parentTasks.map((parentTask) => parentTask.name).join(', ')}
+              Parte de: {parentTasks.map((pt) => pt.name).join(', ')}
             </div>
           )}
         </div>
       )}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
         {onOpenPriorityPicker ? (
           <button
             type="button"
@@ -163,8 +160,8 @@ function KanbanTaskCard({
             style={{
               alignSelf: 'flex-start',
               borderRadius: 999,
-              padding: '4px 8px',
-              fontSize: 11,
+              padding: '3px 8px',
+              fontSize: 10,
               fontWeight: 700,
               color: `var(${priority.tv})`,
               background: `var(${priority.bv})`,
@@ -179,8 +176,8 @@ function KanbanTaskCard({
             style={{
               alignSelf: 'flex-start',
               borderRadius: 999,
-              padding: '4px 8px',
-              fontSize: 11,
+              padding: '3px 8px',
+              fontSize: 10,
               fontWeight: 700,
               color: `var(${priority.tv})`,
               background: `var(${priority.bv})`,
@@ -189,6 +186,14 @@ function KanbanTaskCard({
             {priority.label}
           </div>
         )}
+
+        {subtasks.length > 0 && (
+          <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--color-text-secondary)', background: 'var(--material-base-bg)', padding: '2px 6px', borderRadius: 999 }}>
+            ✓ {completedSubtasks}/{subtasks.length}
+          </span>
+        )}
+
+        {task.category && <CategoryPill name={task.category} />}
         <CopyTicketButton ticketNumber={task.ticketNumber} />
       </div>
     </div>
@@ -199,6 +204,7 @@ export default function KanbanView({
   tasks,
   allTasks = [],
   onEditTask,
+  onOpenCreateTask,
   onOpenTaskPreview,
   onOpenPriorityPicker,
   onMoveTaskStatus,
@@ -373,6 +379,7 @@ export default function KanbanView({
             ))}
           </select>
         </label>
+
         <label className="kanban-done-range">
           <span className="kanban-done-range-label">Completadas</span>
           <select
@@ -395,6 +402,7 @@ export default function KanbanView({
             ))}
           </select>
         </label>
+
         {onDailyStatus && (
           <button
             type="button"
@@ -405,6 +413,7 @@ export default function KanbanView({
             {dailyStatusLoading ? 'Generando...' : 'Daily Status'}
           </button>
         )}
+
         <div className="actions-menu-wrap" ref={columnsMenuRef}>
           <button
             type="button"
@@ -436,6 +445,7 @@ export default function KanbanView({
           )}
         </div>
       </div>
+
       <div className="kanban-grid">
         {visibleColumns.map((status) => {
           const columnTasks = groupedTasks[status.v] || [];
@@ -450,82 +460,44 @@ export default function KanbanView({
             dragSourceStatus !== status.v,
           );
           const isColumnDragTarget = hoverColumnStatus === status.v && draggedColumnStatus;
+
           return (
-          <div
-            key={status.v}
-            className={[
-              'kanban-column',
-              isActiveDrop ? 'active-drop' : '',
-              isSuctionDrop ? 'suction-drop' : '',
-              isColumnDragTarget ? 'column-drag-target' : '',
-            ].filter(Boolean).join(' ')}
-            onDragOver={(event) => {
-              if (draggedTaskId) {
-                event.preventDefault();
-                if (hoverStatus !== status.v) setHoverStatus(status.v);
-                const columnCount = columnTasks.length;
-                if (hoverIndex === null || hoverIndex > columnCount) setHoverIndex(columnCount);
-              } else if (draggedColumnStatus && draggedColumnStatus !== status.v) {
-                event.preventDefault();
-                if (hoverColumnStatus !== status.v) setHoverColumnStatus(status.v);
-              }
-            }}
-            onDragLeave={() => {
-              if (hoverStatus === status.v) {
-                setHoverStatus(null);
-                setHoverIndex(null);
-                setHoverTaskId(null);
-                setHoverDragMode(null);
-              }
-              if (hoverColumnStatus === status.v) {
-                setHoverColumnStatus(null);
-              }
-            }}
-            onDrop={(event) => {
-              event.preventDefault();
-              if (draggedTaskId) {
-                handleDropOnColumn(status.v, columnTasks.length);
-              } else if (draggedColumnStatus && draggedColumnStatus !== status.v) {
-                const fromIndex = visibleStatuses.indexOf(draggedColumnStatus);
-                const toIndex = visibleStatuses.indexOf(status.v);
-                if (fromIndex !== -1 && toIndex !== -1) {
-                  const next = [...visibleStatuses];
-                  next.splice(fromIndex, 1);
-                  next.splice(toIndex, 0, draggedColumnStatus);
-                  setVisibleStatuses(next);
-                  try {
-                    localStorage.setItem(kanbanColumnsStorageKey, JSON.stringify(next));
-                  } catch {
-                    // ignore
-                  }
-                }
-                setDraggedColumnStatus(null);
-                setHoverColumnStatus(null);
-              }
-            }}
-          >
             <div
-              className="kanban-column-header"
-              draggable
-              onDragStart={(event) => {
-                event.dataTransfer.effectAllowed = 'move';
-                setDraggedColumnStatus(status.v);
-              }}
-              onDragEnd={() => {
-                setDraggedColumnStatus(null);
-                setHoverColumnStatus(null);
-              }}
+              key={status.v}
+              className={[
+                'kanban-column',
+                'material-base',
+                isActiveDrop ? 'active-drop' : '',
+                isSuctionDrop ? 'suction-drop' : '',
+                isColumnDragTarget ? 'column-drag-target' : '',
+              ].filter(Boolean).join(' ')}
               onDragOver={(event) => {
-                if (draggedColumnStatus && draggedColumnStatus !== status.v) {
+                if (draggedTaskId) {
                   event.preventDefault();
-                  if (hoverColumnStatus !== status.v) {
-                    setHoverColumnStatus(status.v);
-                  }
+                  if (hoverStatus !== status.v) setHoverStatus(status.v);
+                  const columnCount = columnTasks.length;
+                  if (hoverIndex === null || hoverIndex > columnCount) setHoverIndex(columnCount);
+                } else if (draggedColumnStatus && draggedColumnStatus !== status.v) {
+                  event.preventDefault();
+                  if (hoverColumnStatus !== status.v) setHoverColumnStatus(status.v);
+                }
+              }}
+              onDragLeave={() => {
+                if (hoverStatus === status.v) {
+                  setHoverStatus(null);
+                  setHoverIndex(null);
+                  setHoverTaskId(null);
+                  setHoverDragMode(null);
+                }
+                if (hoverColumnStatus === status.v) {
+                  setHoverColumnStatus(null);
                 }
               }}
               onDrop={(event) => {
-                if (draggedColumnStatus && draggedColumnStatus !== status.v) {
-                  event.preventDefault();
+                event.preventDefault();
+                if (draggedTaskId) {
+                  handleDropOnColumn(status.v, columnTasks.length);
+                } else if (draggedColumnStatus && draggedColumnStatus !== status.v) {
                   const fromIndex = visibleStatuses.indexOf(draggedColumnStatus);
                   const toIndex = visibleStatuses.indexOf(status.v);
                   if (fromIndex !== -1 && toIndex !== -1) {
@@ -544,85 +516,143 @@ export default function KanbanView({
                 }
               }}
             >
-              <span>{status.label}</span>
-              <strong>{columnTasks.length}</strong>
-            </div>
-            <div className={`kanban-column-body${isSuctionDrop ? ' suction-pull' : ''}`}>
-              {visibleTasks.map((task, index) => (
-                <div key={task.id}>
-                  {hoverStatus === status.v && hoverIndex === index && (
-                    <div className={`kanban-drop-indicator${isSuctionDrop ? ' suction-slot' : ''}`} />
-                  )}
-                  <div
-                    onDragOver={(event) => {
-                      event.preventDefault();
-                      event.stopPropagation();
-                      if (hoverStatus !== status.v) setHoverStatus(status.v);
-                      if (hoverIndex !== index) setHoverIndex(index);
-                      setHoverTaskId(task.id);
-                      setHoverDragMode(canLinkAsChild(draggedTaskId, task.id) ? 'link' : 'move');
-                    }}
-                    onDrop={(event) => {
-                      event.preventDefault();
-                      event.stopPropagation();
-                      const linkedAsChild = onDropTaskOnTask?.(draggedTaskId, task.id);
-                      if (linkedAsChild) {
-                        resetDragState();
-                        return;
+              <div
+                className="kanban-column-header"
+                draggable
+                onDragStart={(event) => {
+                  event.dataTransfer.effectAllowed = 'move';
+                  setDraggedColumnStatus(status.v);
+                }}
+                onDragEnd={() => {
+                  setDraggedColumnStatus(null);
+                  setHoverColumnStatus(null);
+                }}
+                onDragOver={(event) => {
+                  if (draggedColumnStatus && draggedColumnStatus !== status.v) {
+                    event.preventDefault();
+                    if (hoverColumnStatus !== status.v) {
+                      setHoverColumnStatus(status.v);
+                    }
+                  }
+                }}
+                onDrop={(event) => {
+                  if (draggedColumnStatus && draggedColumnStatus !== status.v) {
+                    event.preventDefault();
+                    const fromIndex = visibleStatuses.indexOf(draggedColumnStatus);
+                    const toIndex = visibleStatuses.indexOf(status.v);
+                    if (fromIndex !== -1 && toIndex !== -1) {
+                      const next = [...visibleStatuses];
+                      next.splice(fromIndex, 1);
+                      next.splice(toIndex, 0, draggedColumnStatus);
+                      setVisibleStatuses(next);
+                      try {
+                        localStorage.setItem(kanbanColumnsStorageKey, JSON.stringify(next));
+                      } catch {
+                        // ignore
                       }
-                      handleDropOnColumn(status.v, index);
-                    }}
-                  >
-                    <KanbanTaskCard
-                      task={task}
-                      allTasks={allTasks}
-                      onEditTask={onEditTask}
-                      onOpenTaskPreview={onOpenTaskPreview}
-                      onOpenPriorityPicker={onOpenPriorityPicker}
-                      onDragStart={(event, taskId) => {
-                        event.dataTransfer.effectAllowed = 'move';
-                        const sourceTask = allTasks.find((item) => item.id === taskId);
-                        setDraggedTaskId(taskId);
-                        setDragSourceStatus(sourceTask?.status ?? null);
-                      }}
-                      onDragEnd={resetDragState}
-                      isDragOver={hoverTaskId === task.id}
-                      dragMode={hoverDragMode}
-                      isChild={isChildTask(allTasks, task.id)}
-                      isDragging={draggedTaskId === task.id}
-                      isLanding={landingTaskId === task.id}
-                    />
-                  </div>
+                    }
+                    setDraggedColumnStatus(null);
+                    setHoverColumnStatus(null);
+                  }
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span>{status.label}</span>
+                  <strong className="kanban-badge">{columnTasks.length}</strong>
                 </div>
-              ))}
-              {hoverStatus === status.v && hoverIndex === columnTasks.length && (
-                <div className={`kanban-drop-indicator${isSuctionDrop ? ' suction-slot' : ''}`} />
-              )}
-              {hiddenTaskCount > 0 && (
-                <button
-                  type="button"
-                  className="kanban-column-toggle-tasks"
-                  onClick={() => toggleColumnTasks(status.v)}
-                  aria-expanded={false}
-                >
-                  Mostrar todo ({hiddenTaskCount} más)
-                </button>
-              )}
-              {isExpanded && columnTasks.length > 5 && (
-                <button
-                  type="button"
-                  className="kanban-column-toggle-tasks"
-                  onClick={() => toggleColumnTasks(status.v)}
-                  aria-expanded
-                >
-                  Colapsar
-                </button>
-              )}
-              {columnTasks.length === 0 && (
-                <div className="kanban-empty">Arrastra tareas aquí</div>
-              )}
+
+                {onOpenCreateTask && (
+                  <button
+                    type="button"
+                    className="kanban-column-add-btn"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onOpenCreateTask({ status: status.v });
+                    }}
+                    aria-label={`Añadir tarea en ${status.label}`}
+                    title={`Añadir tarea en ${status.label}`}
+                  >
+                    +
+                  </button>
+                )}
+              </div>
+
+              <div className={`kanban-column-body${isSuctionDrop ? ' suction-pull' : ''}`}>
+                {visibleTasks.map((task, index) => (
+                  <div key={task.id}>
+                    {hoverStatus === status.v && hoverIndex === index && (
+                      <div className={`kanban-drop-indicator${isSuctionDrop ? ' suction-slot' : ''}`} />
+                    )}
+                    <div
+                      onDragOver={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        if (hoverStatus !== status.v) setHoverStatus(status.v);
+                        if (hoverIndex !== index) setHoverIndex(index);
+                        setHoverTaskId(task.id);
+                        setHoverDragMode(canLinkAsChild(draggedTaskId, task.id) ? 'link' : 'move');
+                      }}
+                      onDrop={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        const linkedAsChild = onDropTaskOnTask?.(draggedTaskId, task.id);
+                        if (linkedAsChild) {
+                          resetDragState();
+                          return;
+                        }
+                        handleDropOnColumn(status.v, index);
+                      }}
+                    >
+                      <KanbanTaskCard
+                        task={task}
+                        allTasks={allTasks}
+                        onEditTask={onEditTask}
+                        onOpenTaskPreview={onOpenTaskPreview}
+                        onOpenPriorityPicker={onOpenPriorityPicker}
+                        onDragStart={(event, taskId) => {
+                          event.dataTransfer.effectAllowed = 'move';
+                          const sourceTask = allTasks.find((item) => item.id === taskId);
+                          setDraggedTaskId(taskId);
+                          setDragSourceStatus(sourceTask?.status ?? null);
+                        }}
+                        onDragEnd={resetDragState}
+                        isDragOver={hoverTaskId === task.id}
+                        dragMode={hoverDragMode}
+                        isChild={isChildTask(allTasks, task.id)}
+                        isDragging={draggedTaskId === task.id}
+                        isLanding={landingTaskId === task.id}
+                      />
+                    </div>
+                  </div>
+                ))}
+                {hoverStatus === status.v && hoverIndex === columnTasks.length && (
+                  <div className={`kanban-drop-indicator${isSuctionDrop ? ' suction-slot' : ''}`} />
+                )}
+                {hiddenTaskCount > 0 && (
+                  <button
+                    type="button"
+                    className="kanban-column-toggle-tasks"
+                    onClick={() => toggleColumnTasks(status.v)}
+                    aria-expanded={false}
+                  >
+                    Mostrar todo ({hiddenTaskCount} más)
+                  </button>
+                )}
+                {isExpanded && columnTasks.length > 5 && (
+                  <button
+                    type="button"
+                    className="kanban-column-toggle-tasks"
+                    onClick={() => toggleColumnTasks(status.v)}
+                    aria-expanded
+                  >
+                    Colapsar
+                  </button>
+                )}
+                {columnTasks.length === 0 && (
+                  <div className="kanban-empty">Arrastra tareas aquí</div>
+                )}
+              </div>
             </div>
-          </div>
           );
         })}
       </div>

@@ -2764,3 +2764,46 @@ nav.show-mobile button.active {
     }
   }
 }
+
+/* ── Phase 3: Kanban Column Add Button, Badges & Inline Subtasks ── */
+.kanban-column-add-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: var(--material-base-border);
+  background: var(--material-elevated-bg);
+  color: var(--color-text-primary);
+  font-size: 16px;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  line-height: 1;
+  transition: all 0.15s ease;
+  margin-left: auto;
+}
+
+.kanban-column-add-btn:hover {
+  background: var(--color-accent);
+  color: #ffffff;
+  border-color: var(--color-accent);
+}
+
+.kanban-badge {
+  font-size: 11px;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--material-base-bg);
+  color: var(--color-text-secondary);
+  border: var(--material-base-border);
+}
+
+.subtask-progress-pill {
+  transition: background 0.15s ease;
+}
+
+.subtask-progress-pill:hover {
+  background: var(--material-elevated-bg) !important;
+  color: var(--color-text-primary) !important;
+}

@@ -3,20 +3,24 @@ import { useEffect, useRef, useState } from 'react';
 function BoardNoteCard({ note, onDelete, onUpdate, onDragHandlePointerDown, isDragging, noteWidth }) {
   return (
     <div
-      className="board-note"
+      className="board-note material-elevated"
       style={{
         position: 'absolute', left: note.x ?? 0, top: note.y ?? 0,
         zIndex: isDragging ? 50 : 10,
         cursor: 'default',
-        background: 'var(--board-note-bg)', border: '1px solid var(--board-note-border)',
-        borderRadius: 16, padding: 12, minHeight: 180, width: noteWidth,
-        display: 'flex', flexDirection: 'column', gap: 8,
-        boxShadow: isDragging ? '0 25px 50px -12px rgba(0,0,0,0.25)' : '0 12px 24px rgba(15,23,42,0.08)',
-        transition: isDragging ? 'none' : 'box-shadow 0.2s',
+        borderRadius: 'var(--border-radius-lg)',
+        padding: 14,
+        minHeight: 180,
+        width: noteWidth,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 8,
+        boxShadow: isDragging ? '0 20px 40px rgba(0,0,0,0.3)' : 'var(--shadow-card)',
+        transition: isDragging ? 'none' : 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
         touchAction: 'none'
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
         <button
           type="button"
           onPointerDown={onDragHandlePointerDown}
@@ -27,7 +31,7 @@ function BoardNoteCard({ note, onDelete, onUpdate, onDragHandlePointerDown, isDr
             background: 'transparent',
             color: 'var(--color-text-secondary)',
             cursor: isDragging ? 'grabbing' : 'grab',
-            fontSize: 14,
+            fontSize: 13,
             lineHeight: 1,
             padding: 0,
             display: 'inline-flex',
@@ -36,28 +40,60 @@ function BoardNoteCard({ note, onDelete, onUpdate, onDragHandlePointerDown, isDr
           }}
         >
           <span style={{ fontSize: 13 }}>⋮⋮</span>
-          <span style={{ fontSize: 11, fontWeight: 600 }}>Mover</span>
+          <span style={{ fontSize: 11, fontWeight: 700 }}>Mover</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onDelete(note.id); }}
+          aria-label="Eliminar nota"
+          style={{
+            border: 'none',
+            background: 'transparent',
+            color: 'var(--color-text-secondary)',
+            cursor: 'pointer',
+            fontSize: 16,
+            lineHeight: 1,
+            padding: '2px 4px'
+          }}
+        >
+          ✕
         </button>
       </div>
-      <button
-        type="button"
-        onClick={(e) => { e.stopPropagation(); onDelete(note.id); }}
-        aria-label="Eliminar nota"
-        style={{ position: 'absolute', top: 8, right: 8, border: 'none', background: 'transparent', color: 'var(--color-text-secondary)', cursor: 'pointer', fontSize: 18, lineHeight: 1, zIndex: 5 }}
-      >×</button>
+
       <input
         value={note.title}
         onChange={(e) => onUpdate(note.id, { title: e.target.value })}
-        placeholder="Título"
-        style={{ width: '100%', border: 'none', background: 'transparent', fontSize: 13, fontWeight: 700, color: 'var(--board-note-title)', outline: 'none' }}
+        placeholder="Título de la nota..."
+        style={{
+          width: '100%',
+          border: 'none',
+          background: 'transparent',
+          fontSize: 'var(--font-size-sm)',
+          fontWeight: 800,
+          color: 'var(--color-text-primary)',
+          outline: 'none'
+        }}
       />
       <textarea
         value={note.text}
         onChange={(e) => onUpdate(note.id, { text: e.target.value })}
-        placeholder="Escribe aquí..."
-        style={{ flex: 1, width: '100%', minHeight: 120, resize: 'none', border: 'none', background: 'transparent', fontSize: 13, color: 'var(--board-note-text)', lineHeight: 1.4, outline: 'none', whiteSpace: 'pre-wrap' }}
+        placeholder="Escribe tus ideas aquí..."
+        style={{
+          flex: 1,
+          width: '100%',
+          minHeight: 110,
+          resize: 'none',
+          border: 'none',
+          background: 'transparent',
+          fontSize: 'var(--font-size-xs)',
+          color: 'var(--color-text-secondary)',
+          lineHeight: 1.4,
+          outline: 'none',
+          whiteSpace: 'pre-wrap'
+        }}
       />
-      <div style={{ fontSize: 10, color: '#6b7280', textAlign: 'right' }}>
+      <div style={{ fontSize: 10, color: 'var(--color-text-secondary)', textAlign: 'right', fontWeight: 600 }}>
         {new Date(note.createdAt || note.created_at).toLocaleDateString()}
       </div>
     </div>
@@ -70,7 +106,7 @@ export default function BoardView({ notes, onAddNote, onUpdateNote, onDeleteNote
   const [draggedId, setDraggedId] = useState(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [boardWidth, setBoardWidth] = useState(0);
-  const noteWidth = Math.max(150, Math.min(180, boardWidth > 0 ? boardWidth - 16 : 180));
+  const noteWidth = Math.max(150, Math.min(220, boardWidth > 0 ? boardWidth - 24 : 200));
 
   useEffect(() => {
     if (!boardRef.current) return undefined;
@@ -136,39 +172,42 @@ export default function BoardView({ notes, onAddNote, onUpdateNote, onDeleteNote
 
   return (
     <div className="board-view" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div className="board-toolbar" style={{ display: 'flex', flexDirection: 'column', gap: 10, background: 'var(--color-background-primary)', borderRadius: 'var(--border-radius-lg)', padding: '16px 20px', boxShadow: 'var(--shadow-soft)' }}>
+      <div className="board-toolbar material-base" style={{ display: 'flex', flexDirection: 'column', gap: 10, borderRadius: 'var(--border-radius-xl)', padding: '20px 24px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
           <div>
-            <div style={{ fontSize: 16, fontWeight: 700 }}>Tablero</div>
-            <div style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>Notas estilo post-it.</div>
+            <div style={{ fontSize: 'var(--font-size-lg)', fontWeight: 850 }}>Tablero de Notas</div>
+            <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-secondary)' }}>Notas visuales e ideas libres.</div>
           </div>
           <button
             type="button"
+            className="primary-button"
             onClick={handleAddNote}
-            style={{ width: 40, height: 40, borderRadius: 999, border: 'none', background: 'var(--board-add-button-bg)', color: 'var(--board-add-button-text)', fontSize: 24, fontWeight: 700, cursor: 'pointer', boxShadow: '0 10px 20px rgba(245,158,11,0.24)' }}
-          >+</button>
+            style={{ borderRadius: '999px', padding: '8px 16px', fontSize: 13, fontWeight: 700 }}
+          >
+            + Nueva Nota
+          </button>
         </div>
-        <div className="hide-mobile" style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>Las notas son libres. Añade post-its, muévelos donde quieras y organiza tus ideas.</div>
       </div>
 
       <div
-        className="board-canvas"
+        className="board-canvas material-base"
         ref={boardRef}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
         style={{
-          position: 'relative', minHeight: 'calc(100vh - 280px)', width: '100%',
-          backgroundColor: 'var(--board-canvas-bg)',
-          backgroundImage: 'radial-gradient(var(--board-canvas-dot) 1.5px, transparent 1.5px)',
+          position: 'relative',
+          minHeight: 'calc(100vh - 280px)',
+          width: '100%',
+          backgroundImage: 'radial-gradient(var(--color-border-tertiary) 1.5px, transparent 1.5px)',
           backgroundSize: '24px 24px',
-          borderRadius: 'var(--border-radius-lg)', overflow: 'hidden',
-          border: '1px solid var(--color-border-tertiary)', boxShadow: 'var(--shadow-soft)',
+          borderRadius: 'var(--border-radius-xl)',
+          overflow: 'hidden',
         }}
       >
         {notes.length === 0 ? (
-          <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', color: 'var(--color-text-secondary)', textAlign: 'center', padding: 20 }}>
-            Pulsa + para crear tu primer post-it.
+          <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', color: 'var(--color-text-secondary)', textAlign: 'center', padding: 20, fontSize: 'var(--font-size-sm)' }}>
+            Pulsa + Nueva Nota para crear tu primer post-it.
           </div>
         ) : notes.map((note, index) => {
           const displayNote = {

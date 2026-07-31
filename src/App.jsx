@@ -1606,6 +1606,7 @@ export default function App() {
                 kanbanDoneRangeStorageKey={`taskmanager_kanban_done_range_${activeProfileId || 'default'}`}
                 onOpenTaskPreview={(t) => setTaskPreviewId(t.id)}
                 onEditTask={(task) => handleOpenTaskSheet(task)}
+                onOpenCreateTask={(initial) => open(initial)}
                 onOpenPriorityPicker={(t) => setPriorityPickerTask(t)}
                 onMoveTaskStatus={moveTaskToStatus}
                 onDropTaskOnTask={linkStandaloneTaskAsChild}
