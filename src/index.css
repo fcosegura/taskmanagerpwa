@@ -405,7 +405,14 @@ textarea,
 select {
   font: inherit;
   color: var(--color-text-primary);
+  background-color: var(--color-background-secondary);
 }
+
+select option {
+  background-color: var(--color-background-secondary);
+  color: var(--color-text-primary);
+}
+
 
 input:focus,
 textarea:focus,
