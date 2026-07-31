@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useRef, useMemo } from 'react';
+import { useModalDialog } from '../hooks/useModalDialog.js';
 
 export default function CommandMenu({
   isOpen,
@@ -14,12 +15,11 @@ export default function CommandMenu({
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef(null);
 
-  useEffect(() => {
-    if (isOpen) {
-      const timer = setTimeout(() => inputRef.current?.focus(), 50);
-      return () => clearTimeout(timer);
-    }
-  }, [isOpen]);
+  const dialogRef = useModalDialog({
+    isOpen,
+    onClose,
+    initialFocusRef: inputRef
+  });
 
   const navigationActions = useMemo(() => [
     { id: 'nav-today', label: 'Ir a Hoy', icon: '🏠', action: () => onNavigateToView('today') },
@@ -104,13 +104,15 @@ export default function CommandMenu({
       onClick={onClose}
       role="dialog"
       aria-modal="true"
-      aria-label="Command Menu"
+      aria-labelledby="command-menu-heading"
     >
       <div
+        ref={dialogRef}
         className="command-menu-card material-modal"
         onClick={(e) => e.stopPropagation()}
         onKeyDown={handleKeyDown}
       >
+        <span id="command-menu-heading" className="sr-only" style={{ display: 'none' }}>Menú de Comandos</span>
         <div className="command-menu-header">
           <span className="search-icon">🔍</span>
           <input
@@ -141,6 +143,13 @@ export default function CommandMenu({
                   className={`command-item ${isSelected ? 'selected' : ''}`}
                   onClick={() => executeItem(item)}
                   onMouseEnter={() => setSelectedIndex(index)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      executeItem(item);
+                    }
+                  }}
                   role="button"
                   tabIndex={0}
                 >

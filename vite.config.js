@@ -13,5 +13,17 @@ export default defineConfig(({ mode }) => {
     define: {
       'import.meta.env.VITE_GOOGLE_CLIENT_ID': JSON.stringify(googleClientId),
     },
+    build: {
+      chunkSizeWarningLimit: 1000,
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (id.includes('node_modules/react')) {
+              return 'vendor-react';
+            }
+          },
+        },
+      },
+    },
   };
 });

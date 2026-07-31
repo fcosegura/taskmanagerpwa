@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { STATUS, PRIORITY } from '../constants.js';
 import { isJiraCategory, extractJiraTicketFromUrl, getJiraTaskDefaultsFromUrl } from '../jiraTicket.js';
+import { useModalDialog } from '../hooks/useModalDialog.js';
 
 export default function TaskSheetDrawer({
   isOpen,
@@ -11,6 +12,13 @@ export default function TaskSheetDrawer({
   onClose,
   statuses = STATUS
 }) {
+  const titleInputRef = useRef(null);
+  const dialogRef = useModalDialog({
+    isOpen,
+    onClose,
+    initialFocusRef: titleInputRef
+  });
+
   const [form, setForm] = useState(() => ({
     name: task?.name || '',
     category: task?.category || '',
@@ -84,10 +92,20 @@ export default function TaskSheetDrawer({
   };
 
   return (
-    <div className="sheet-drawer-overlay dialog-overlay" onClick={onClose} role="dialog" aria-modal="true">
-      <div className="sheet-drawer-card material-modal" onClick={(e) => e.stopPropagation()}>
+    <div
+      className="sheet-drawer-overlay dialog-overlay"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="task-sheet-drawer-heading"
+    >
+      <div
+        ref={dialogRef}
+        className="sheet-drawer-card material-modal"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="sheet-drawer-header">
-          <h2>{task?.id ? 'Editar Tarea' : 'Nueva Tarea'}</h2>
+          <h2 id="task-sheet-drawer-heading">{task?.id ? 'Editar Tarea' : 'Nueva Tarea'}</h2>
           <button type="button" className="icon-button close-btn" onClick={onClose} aria-label="Cerrar">
             ✕
           </button>
@@ -98,6 +116,7 @@ export default function TaskSheetDrawer({
           <div className="form-group">
             <label htmlFor="task-name-input">Nombre de la tarea</label>
             <input
+              ref={titleInputRef}
               id="task-name-input"
               type="text"
               className="sheet-input-title"
@@ -105,7 +124,6 @@ export default function TaskSheetDrawer({
               value={form.name}
               onChange={(e) => handleChange('name', e.target.value)}
               required
-              autoFocus
             />
           </div>
 

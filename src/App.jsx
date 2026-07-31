@@ -1,13 +1,10 @@
-import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, lazy, Suspense } from 'react';
 import { STATUS } from './constants.js';
 import { uid, toDateStr, compareTasksForTaskList, parseDateTimeFromDescription, parseDescriptionDateResult, cleanDescriptionSegment, isJiraCategory, normalizeTicketNumber, applyTicketNumberToTaskName, inheritTicketFromParentTask, mergeTaskCompletionMeta } from './utils.jsx';
 import { loadData, saveData, validateBackupPayload, normalizeDataPayload, loginWithGoogleCredential, logoutSession, createProfile, deleteProfile, updateProfileStatuses, parseTaskWithAI, checkSession, generateTasksFromText, generateDailyStatus, fetchWorkspaceData, isMultiBackupPayload, validateMultiBackupPayload, normalizeMultiBackupPayload } from './storage.js';
 import { appendStatusLogEntry } from './statusLog.js';
 import { collectDailyStatusActivities } from './dailyStatusActivities.js';
-import TasksView from './components/TasksView.jsx';
-import CalendarView from './components/CalendarView.jsx';
 import BoardView from './components/BoardView.jsx';
-import KanbanView from './components/KanbanView.jsx';
 import TaskModal from './components/TaskModal.jsx';
 import TaskPreviewModal from './components/TaskPreviewModal.jsx';
 import EventModal from './components/EventModal.jsx';
@@ -19,15 +16,19 @@ import DailyStatusDaysModal from './components/DailyStatusDaysModal.jsx';
 import DailyStatusResultModal from './components/DailyStatusResultModal.jsx';
 import BottomNav from './components/BottomNav.jsx';
 import Login from './components/Login.jsx';
-import DailyAgendaView from './components/DailyAgendaView.jsx';
 import ExternalAppDrawer from './components/ExternalAppDrawer.jsx';
-import TimelineView from './components/TimelineView.jsx';
-import TodayView from './components/TodayView.jsx';
-import CommandMenu from './components/CommandMenu.jsx';
-import TaskSheetDrawer from './components/TaskSheetDrawer.jsx';
 import { indexEventsByDate } from './calendarEvents.js';
 import { indexTasksByDate } from './calendarTaskIndex.js';
 import { normalizePlannedSlots } from './plannedSlots.js';
+
+const TodayView = lazy(() => import('./components/TodayView.jsx'));
+const TasksView = lazy(() => import('./components/TasksView.jsx'));
+const KanbanView = lazy(() => import('./components/KanbanView.jsx'));
+const CalendarView = lazy(() => import('./components/CalendarView.jsx'));
+const DailyAgendaView = lazy(() => import('./components/DailyAgendaView.jsx'));
+const TimelineView = lazy(() => import('./components/TimelineView.jsx'));
+const CommandMenu = lazy(() => import('./components/CommandMenu.jsx'));
+const TaskSheetDrawer = lazy(() => import('./components/TaskSheetDrawer.jsx'));
 
 function serializePayload(payload) {
   try {
@@ -1578,6 +1579,7 @@ export default function App() {
           </section>
         )}
 
+        <Suspense fallback={<div style={{ padding: 24, textAlign: 'center', opacity: 0.7 }}>Cargando vista...</div>}>
         {view === 'today'
           ? <TodayView
               todayTasks={todayTasks}
@@ -1649,6 +1651,7 @@ export default function App() {
                 />
               : <BoardView notes={boardNotes} onAddNote={addBoardNote} onUpdateNote={updateBoardNote} onDeleteNote={deleteBoardNote} />
         }
+        </Suspense>
       </main>
 
       {previewTaskResolved && (
@@ -1780,27 +1783,29 @@ export default function App() {
         </div>
       )}
 
-      <CommandMenu
-        isOpen={showCommandMenu}
-        onClose={() => setShowCommandMenu(false)}
-        tasks={focusTasks}
-        onNavigateToView={navigateToView}
-        onOpenCreateTask={() => open()}
-        onToggleTheme={toggleTheme}
-        onOpenWorkspaceMenu={() => setShowProfileMenu(true)}
-        onSelectTask={(t) => handleOpenTaskSheet(t)}
-      />
+      <Suspense fallback={null}>
+        <CommandMenu
+          isOpen={showCommandMenu}
+          onClose={() => setShowCommandMenu(false)}
+          tasks={focusTasks}
+          onNavigateToView={navigateToView}
+          onOpenCreateTask={() => open()}
+          onToggleTheme={toggleTheme}
+          onOpenWorkspaceMenu={() => setShowProfileMenu(true)}
+          onSelectTask={(t) => handleOpenTaskSheet(t)}
+        />
 
-      <TaskSheetDrawer
-        key={taskSheetDrawerTask?.id || 'new-sheet'}
-        isOpen={isTaskSheetOpen}
-        task={taskSheetDrawerTask}
-        categories={categories}
-        onSave={upsert}
-        onDelete={taskSheetDrawerTask?.id ? (id) => del(id) : null}
-        onClose={() => { setIsTaskSheetOpen(false); setTaskSheetDrawerTask(null); }}
-        statuses={statuses}
-      />
+        <TaskSheetDrawer
+          key={taskSheetDrawerTask ? (taskSheetDrawerTask.id || `new-sheet-${taskSheetDrawerTask.date || ''}`) : 'closed-sheet'}
+          isOpen={isTaskSheetOpen}
+          task={taskSheetDrawerTask}
+          categories={categories}
+          onSave={upsert}
+          onDelete={taskSheetDrawerTask?.id ? (id) => del(id) : null}
+          onClose={() => { setIsTaskSheetOpen(false); setTaskSheetDrawerTask(null); }}
+          statuses={statuses}
+        />
+      </Suspense>
 
       <ExternalAppDrawer isOpen={externalAppOpen} onClose={closeExternalApp} />
       <BottomNav currentView={view} setView={navigateToView} onOpenCreateTask={() => open()} onOpenExternalApp={openExternalApp} />
