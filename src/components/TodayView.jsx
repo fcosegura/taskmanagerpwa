@@ -35,24 +35,27 @@ export default function TodayView({
         return;
       }
 
-      if (task.dueDate) {
-        if (task.dueDate === todayStr) {
+      const taskDate = task.date || task.dueDate;
+      if (taskDate) {
+        if (taskDate === todayStr) {
           todayList.push(task);
-        } else if (task.dueDate < todayStr) {
+        } else if (taskDate < todayStr) {
           overdueList.push(task);
         }
-      } else if (task.priority === PRIORITY.HIGH || task.priority === PRIORITY.URGENT) {
+      } else if (task.priority === PRIORITY.HIGH || task.priority === PRIORITY.URGENT || task.priority === 'high' || task.priority === 'critical') {
         todayList.push(task);
       }
     });
 
     // Sort today's tasks by priority and time
     todayList.sort((a, b) => {
-      const pMap = { urgent: 4, high: 3, medium: 2, low: 1 };
+      const pMap = { critical: 4, urgent: 4, high: 3, medium: 2, low: 1 };
       const pA = pMap[a.priority] || 0;
       const pB = pMap[b.priority] || 0;
       if (pA !== pB) return pB - pA;
-      return (a.dueTime || '23:59').localeCompare(b.dueTime || '23:59');
+      const timeA = a.time || a.dueTime || '23:59';
+      const timeB = b.time || b.dueTime || '23:59';
+      return timeA.localeCompare(timeB);
     });
 
     const nextTask = todayList[0] || overdueList[0] || null;
@@ -214,7 +217,7 @@ export default function TodayView({
                       tabIndex={0}
                     >
                       <span className="task-title">{task.name}</span>
-                      <span className="overdue-tag">Venció {task.dueDate}</span>
+                      <span className="overdue-tag">Venció {task.date || task.dueDate}</span>
                     </div>
                   </div>
                 ))}

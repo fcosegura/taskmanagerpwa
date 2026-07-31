@@ -16,8 +16,11 @@ export default function TaskSheetDrawer({
     category: task?.category || '',
     status: task?.status || 'not_done',
     priority: task?.priority || 'medium',
-    dueDate: task?.dueDate || task?.date || '',
-    dueTime: task?.dueTime || task?.time || '',
+    date: task?.date || task?.dueDate || '',
+    time: task?.time || task?.dueTime || '',
+    endDate: task?.endDate || '',
+    completedAt: task?.completedAt || '',
+    hideInKanbanDone: task?.hideInKanbanDone ?? false,
     notes: task?.notes || '',
     url: task?.url || '',
     ticketNumber: task?.ticketNumber || '',
@@ -73,7 +76,10 @@ export default function TaskSheetDrawer({
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!form.name.trim()) return;
-    onSave(form);
+    const payload = task?.id
+      ? { ...task, ...form, id: task.id }
+      : { ...form };
+    onSave(payload);
     onClose();
   };
 
@@ -114,7 +120,7 @@ export default function TaskSheetDrawer({
               >
                 {statuses.map((s) => (
                   <option key={s.v} value={s.v}>
-                    {s.l}
+                    {s.label || s.l}
                   </option>
                 ))}
               </select>
@@ -127,10 +133,11 @@ export default function TaskSheetDrawer({
                 value={form.priority}
                 onChange={(e) => handleChange('priority', e.target.value)}
               >
-                <option value={PRIORITY.URGENT}>Urgente</option>
-                <option value={PRIORITY.HIGH}>Alta</option>
-                <option value={PRIORITY.MEDIUM}>Media</option>
-                <option value={PRIORITY.LOW}>Baja</option>
+                {PRIORITY.map(({ v, label }) => (
+                  <option key={v} value={v}>
+                    {label}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
@@ -142,8 +149,8 @@ export default function TaskSheetDrawer({
               <input
                 id="task-duedate-input"
                 type="date"
-                value={form.dueDate}
-                onChange={(e) => handleChange('dueDate', e.target.value)}
+                value={form.date}
+                onChange={(e) => handleChange('date', e.target.value)}
               />
             </div>
 
@@ -152,8 +159,8 @@ export default function TaskSheetDrawer({
               <input
                 id="task-duetime-input"
                 type="time"
-                value={form.dueTime}
-                onChange={(e) => handleChange('dueTime', e.target.value)}
+                value={form.time}
+                onChange={(e) => handleChange('time', e.target.value)}
               />
             </div>
           </div>

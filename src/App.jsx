@@ -930,7 +930,7 @@ export default function App() {
   };
   const open = (init = {}) => {
     setTaskPreviewId(null);
-    setTaskSheetDrawerTask({ name: '', url: '', notes: '', status: 'not_done', priority: 'medium', dueDate: '', dueTime: '', subtasks: [], dependencyTaskIds: [], category: '', ticketNumber: '', completedAt: '', hideInKanbanDone: false, ...init });
+    setTaskSheetDrawerTask({ name: '', url: '', notes: '', status: 'not_done', priority: 'medium', date: '', time: '', subtasks: [], dependencyTaskIds: [], category: '', ticketNumber: '', completedAt: '', hideInKanbanDone: false, ...init });
     setIsTaskSheetOpen(true);
   };
 
