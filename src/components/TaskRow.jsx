@@ -271,6 +271,7 @@ export default function TaskRow({
 
           <button
             type="button"
+            className="task-checkbox-animated"
             onClick={(e) => { e.stopPropagation(); onToggleDone?.(task.id); }}
             aria-label={task.status === 'done' ? 'Marcar como no completada' : 'Marcar como completada'}
             style={{

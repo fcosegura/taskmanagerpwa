@@ -2807,3 +2807,58 @@ nav.show-mobile button.active {
   background: var(--material-elevated-bg) !important;
   color: var(--color-text-primary) !important;
 }
+
+/* ── Phase 4: Micro-Interactions, Animations & Completion Feedback ── */
+
+@keyframes taskCheckPulse {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.25);
+    box-shadow: 0 0 12px var(--color-accent);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.task-checkbox-animated {
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.task-checkbox-animated:active {
+  animation: taskCheckPulse 0.3s ease;
+}
+
+.task-card,
+.kanban-task-card,
+.today-task-card,
+.board-note {
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.task-card:hover,
+.today-task-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--material-elevated-shadow);
+}
+
+.kanban-task-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--material-elevated-shadow);
+}
+
+/* Reduced motion adjustments */
+@media (prefers-reduced-motion: reduce) {
+  .task-card,
+  .kanban-task-card,
+  .today-task-card,
+  .board-note,
+  .sheet-drawer-card,
+  .command-menu-card {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+  }
+}

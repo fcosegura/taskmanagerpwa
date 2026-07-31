@@ -173,7 +173,7 @@ export default function TodayView({
                 <div key={task.id} className="today-task-card material-elevated">
                   <button
                     type="button"
-                    className="task-checkbox"
+                    className="task-checkbox task-checkbox-animated"
                     onClick={() => onToggleComplete && onToggleComplete(task.id)}
                     aria-label={`Completar ${task.name}`}
                   />
@@ -203,7 +203,7 @@ export default function TodayView({
                   <div key={task.id} className="today-task-card material-elevated overdue">
                     <button
                       type="button"
-                      className="task-checkbox"
+                      className="task-checkbox task-checkbox-animated"
                       onClick={() => onToggleComplete && onToggleComplete(task.id)}
                       aria-label={`Completar ${task.name}`}
                     />
