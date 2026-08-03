@@ -63,7 +63,7 @@ export function Modal({
 }) {
   if (!isOpen) return null;
   return (
-    <div className="dialog-overlay" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby={titleId}>
+    <div className="dialog-overlay" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby={titleId || undefined}>
       <div className={`material-modal ${className}`.trim()} onClick={(e) => e.stopPropagation()}>
         {title && <h2 id={titleId}>{title}</h2>}
         {children}
@@ -82,7 +82,7 @@ export function Sheet({
 }) {
   if (!isOpen) return null;
   return (
-    <div className="sheet-drawer-overlay dialog-overlay" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby={titleId}>
+    <div className="sheet-drawer-overlay dialog-overlay" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby={titleId || undefined}>
       <div className={`sheet-drawer-card material-modal ${className}`.trim()} onClick={(e) => e.stopPropagation()}>
         {title && (
           <div className="sheet-drawer-header">

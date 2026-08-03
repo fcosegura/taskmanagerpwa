@@ -153,10 +153,10 @@ export default function TodayView({
                     onClick={() => onSelectTask && onSelectTask(task)}
                   >
                     <span className="task-title">{task.name}</span>
-                    <div className="task-card-sub">
+                    <span className="task-card-sub">
                       {task.category && <span className="category-pill">{task.category}</span>}
                       {task.time && <span className="time-pill"><span aria-hidden="true">⏰ </span>{task.time}</span>}
-                    </div>
+                    </span>
                   </button>
                 </div>
               ))}

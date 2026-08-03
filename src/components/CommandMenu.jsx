@@ -146,12 +146,12 @@ export default function CommandMenu({
                   onMouseEnter={() => setSelectedIndex(index)}
                 >
                   <span className="command-icon" aria-hidden="true">{item.icon || (item.type === 'task' ? '📌' : '⚡')}</span>
-                  <div className="command-item-content">
+                  <span className="command-item-content">
                     <span className="command-item-title">{item.label}</span>
                     {item.type === 'task' && item.task.category && (
                       <span className="command-item-sub">{item.task.category}</span>
                     )}
-                  </div>
+                  </span>
                   {isSelected && <span className="command-item-enter">↵ Ejecutar</span>}
                 </button>
               );
