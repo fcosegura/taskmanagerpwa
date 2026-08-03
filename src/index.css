@@ -2360,8 +2360,10 @@ nav.show-mobile button.active {
 
 .sheet-drawer-header h2 {
   margin: 0;
-  font-size: var(--font-size-lg);
+  font-size: 1.3125rem;
   font-weight: 800;
+  color: var(--color-text-primary);
+  letter-spacing: -0.01em;
 }
 
 .sheet-drawer-body {
@@ -2370,41 +2372,85 @@ nav.show-mobile button.active {
   padding: 24px;
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 16px;
+}
+
+.sheet-drawer-body input:not([type="checkbox"]):not([type="radio"]),
+.sheet-drawer-body select,
+.sheet-drawer-body textarea {
+  height: 42px;
+  padding: 0 14px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--color-text-primary);
+  background: var(--color-background-secondary);
+  border: 1px solid var(--color-border-tertiary);
+  border-radius: 10px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+}
+
+.sheet-drawer-body textarea {
+  height: auto;
+  padding: 10px 14px;
+  min-height: 84px;
+  resize: vertical;
+}
+
+.sheet-drawer-body input::placeholder,
+.sheet-drawer-body textarea::placeholder {
+  color: var(--color-text-secondary);
+  opacity: 0.65;
+  font-weight: 400;
+}
+
+.sheet-drawer-body input:focus,
+.sheet-drawer-body select:focus,
+.sheet-drawer-body textarea:focus {
+  outline: none;
+  border-color: var(--color-accent) !important;
+  background-color: var(--color-background-primary) !important;
+  box-shadow: 0 0 0 3px rgba(23, 107, 135, 0.15) !important;
 }
 
 .sheet-input-title {
-  font-size: var(--font-size-lg) !important;
-  font-weight: 700 !important;
-  padding: 12px 16px !important;
+  height: 44px !important;
+  font-size: 1.1rem !important;
+  font-weight: 650 !important;
+  padding: 0 14px !important;
+  border-radius: 10px !important;
 }
 
 .form-group {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 5px;
 }
 
 .form-group label {
-  font-size: var(--font-size-xs);
-  font-weight: 700;
+  font-size: 0.75rem;
+  font-weight: 650;
   color: var(--color-text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.01em;
+  text-transform: none;
 }
 
 .form-row {
   display: flex;
-  gap: 14px;
+  gap: 12px;
 }
 
 .flex-1 {
   flex: 1;
 }
 
+.form-group-spaced {
+  margin-top: 4px;
+}
+
 .subtasks-group {
-  border-top: var(--material-base-border);
-  padding-top: 14px;
+  border-top: var(--glass-border-subtle, 1px solid rgba(148, 163, 184, 0.2));
+  padding-top: 18px;
+  margin-top: 6px;
 }
 
 .subtasks-list {
@@ -2419,8 +2465,10 @@ nav.show-mobile button.active {
   align-items: center;
   gap: 10px;
   padding: 8px 12px;
-  background: var(--material-base-bg);
-  border-radius: var(--border-radius-sm);
+  background: var(--color-background-secondary);
+  border: 1px solid var(--color-border-tertiary);
+  border-radius: 8px;
+  font-size: 0.875rem;
 }
 
 .subtask-item .completed {
@@ -2434,6 +2482,12 @@ nav.show-mobile button.active {
   background: transparent;
   color: var(--color-text-secondary);
   cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 4px;
+}
+
+.subtask-delete:hover {
+  color: var(--color-text-danger);
 }
 
 .add-subtask-row {
@@ -2452,6 +2506,15 @@ nav.show-mobile button.active {
   padding: 16px 24px;
   border-top: var(--material-base-border);
   background: var(--material-base-bg);
+}
+
+.sheet-drawer-footer .primary-button,
+.sheet-drawer-footer .ghost-button {
+  height: 40px;
+  padding: 0 18px;
+  font-size: 0.875rem;
+  border-radius: 10px;
+  font-weight: 600;
 }
 
 .sheet-drawer-footer .right-actions {

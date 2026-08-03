@@ -230,7 +230,7 @@ export default function TaskSheetDrawer({
           </div>
 
           {/* Description & Notes */}
-          <div className="form-group">
+          <div className="form-group form-group-spaced">
             <label htmlFor="task-notes-input">Notas & Descripción</label>
             <textarea
               id="task-notes-input"
