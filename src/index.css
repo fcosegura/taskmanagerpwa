@@ -2600,6 +2600,8 @@ nav.show-mobile button.active {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .next-focus-badge span {
@@ -2615,29 +2617,47 @@ nav.show-mobile button.active {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+  min-width: 0;
+  width: 100%;
+}
+
+.next-focus-main {
+  flex: 1;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .next-focus-title {
   margin: 0 0 4px;
   font-size: var(--font-size-lg);
   font-weight: 750;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .next-focus-desc {
   margin: 0 0 8px;
   font-size: var(--font-size-sm);
   color: var(--color-text-secondary);
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .next-focus-meta {
   display: flex;
   gap: 8px;
   align-items: center;
+  flex-wrap: wrap;
 }
 
 .next-focus-actions {
   display: flex;
   gap: 10px;
+  flex-shrink: 0;
 }
 
 .today-grid {
@@ -2836,6 +2856,17 @@ button.task-card-body {
   .today-header-banner {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .next-focus-content {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 14px;
+  }
+
+  .next-focus-actions {
+    width: 100%;
+    justify-content: flex-end;
   }
 
   .sheet-drawer-overlay {

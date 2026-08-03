@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { test, describe } from 'node:test';
+import { getDisplayDescription } from '../src/todayViewHelpers.js';
 
 describe('TodayView task and event classification', () => {
   const todayStr = '2026-07-31';
@@ -52,4 +53,34 @@ describe('TodayView task and event classification', () => {
     assert.deepStrictEqual(renderedTitles, ['Evento todo el día', 'Revisión código', 'Reunión de equipo']);
     assert.deepStrictEqual(renderedBadges, ['Todo el día', '09:00', '10:00']);
   });
+
+  describe('getDisplayDescription helper', () => {
+    test('filters out technical tokens / encrypted hashes without mutating task', () => {
+      const task = {
+        id: 't-tech',
+        name: '[iOS-Betsson] Logged-in users',
+        description: 'v1.6lgnaqHZCbZRczVpXxf0Pg7+I3ktB9j0HvHUUCJzuPyVgc0FGlqjP/iH0AsGQKEYGWdzl8XHkh2I/WI7JpIFAR1A8qHImPORl/1uekxLwfaEj1b6DRuoajgXZmFLcufi6ZxfQbNOK9Crtg=='
+      };
+
+      const result = getDisplayDescription(task);
+      assert.strictEqual(result, '');
+      // Ensure immutability of task object
+      assert.strictEqual(task.description.startsWith('v1.'), true);
+    });
+
+    test('preserves valid human descriptions from notes or description', () => {
+      const taskWithNotes = { id: 't1', notes: 'Revisar métricas del servidor' };
+      const taskWithDesc = { id: 't2', description: 'Documentar endpoints de API' };
+
+      assert.strictEqual(getDisplayDescription(taskWithNotes), 'Revisar métricas del servidor');
+      assert.strictEqual(getDisplayDescription(taskWithDesc), 'Documentar endpoints de API');
+    });
+
+    test('returns empty string when task has no description or notes', () => {
+      assert.strictEqual(getDisplayDescription(null), '');
+      assert.strictEqual(getDisplayDescription({ id: 't3' }), '');
+      assert.strictEqual(getDisplayDescription({ id: 't4', notes: '   ' }), '');
+    });
+  });
 });
+

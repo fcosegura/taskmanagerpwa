@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { getDisplayDescription } from '../todayViewHelpers.js';
 
 export default function TodayView({
   todayTasks = [],
@@ -38,6 +39,7 @@ export default function TodayView({
   }, [todayEvents]);
 
   const nextRecommendedTask = sortedTodayTasks[0] || overdueTasks[0] || null;
+  const displayDescription = useMemo(() => getDisplayDescription(nextRecommendedTask), [nextRecommendedTask]);
 
   return (
     <div className="today-view-container fade-in">
@@ -78,9 +80,9 @@ export default function TodayView({
           <div className="next-focus-content">
             <div className="next-focus-main">
               <h3 className="next-focus-title">{nextRecommendedTask.name}</h3>
-              {nextRecommendedTask.description && (
-                <p className="next-focus-desc">{nextRecommendedTask.description}</p>
-              )}
+              {displayDescription ? (
+                <p className="next-focus-desc">{displayDescription}</p>
+              ) : null}
               <div className="next-focus-meta">
                 {nextRecommendedTask.category && (
                   <span className="category-pill">{nextRecommendedTask.category}</span>
