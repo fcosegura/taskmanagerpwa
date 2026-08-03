@@ -1,4 +1,6 @@
 import { useMemo } from 'react';
+import { STATUS } from '../constants.js';
+import { getDisplayDescription } from '../todayViewHelpers.js';
 
 export default function TodayView({
   todayTasks = [],
@@ -8,8 +10,31 @@ export default function TodayView({
   onSelectTask,
   onToggleComplete,
   onOpenCreateTask,
-  onNavigateToView
+  onNavigateToView,
+  statuses = STATUS
 }) {
+  const statusMap = useMemo(() => {
+    return (statuses || STATUS).reduce((acc, s) => {
+      acc[s.v] = s;
+      return acc;
+    }, {});
+  }, [statuses]);
+
+  const getStatusInfo = (statusKey) => {
+    if (!statusKey) return null;
+    if (statusMap[statusKey]) return statusMap[statusKey];
+    const formattedLabel = statusKey
+      .replace(/_/g, ' ')
+      .replace(/\b\w/g, (char) => char.toUpperCase());
+    return {
+      v: statusKey,
+      label: formattedLabel,
+      tv: '--color-text-info',
+      bv: '--color-background-info',
+      bov: '--color-border-info'
+    };
+  };
+
   const todayDateFormatted = useMemo(() => {
     const now = new Date();
     return now.toLocaleDateString('es-ES', {
@@ -38,13 +63,7 @@ export default function TodayView({
   }, [todayEvents]);
 
   const nextRecommendedTask = sortedTodayTasks[0] || overdueTasks[0] || null;
-
-  const handleTaskKeyDown = (e, task) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      if (onSelectTask) onSelectTask(task);
-    }
-  };
+  const displayDescription = useMemo(() => getDisplayDescription(nextRecommendedTask), [nextRecommendedTask]);
 
   return (
     <div className="today-view-container fade-in">
@@ -55,7 +74,7 @@ export default function TodayView({
           <h1 className="today-date-title">{todayDateFormatted}</h1>
           <p className="today-subtitle">
             {todayTasks.length === 0 && overdueTasks.length === 0
-              ? '✨ No tienes tareas pendientes para hoy. ¡Excelente trabajo!'
+              ? <><span aria-hidden="true">✨ </span>No tienes tareas pendientes para hoy. ¡Excelente trabajo!</>
               : `Tienes ${todayTasks.length} tarea${todayTasks.length === 1 ? '' : 's'} programada${todayTasks.length === 1 ? '' : 's'} hoy${overdueTasks.length > 0 ? ` y ${overdueTasks.length} atrasada${overdueTasks.length === 1 ? '' : 's'}` : ''}.`}
           </p>
         </div>
@@ -80,20 +99,20 @@ export default function TodayView({
       {nextRecommendedTask && (
         <div className="today-next-focus material-floating">
           <div className="next-focus-badge">
-            <span>🎯 Siguiente Foco Recomendado</span>
+            <span><span aria-hidden="true">🎯 </span>Siguiente Foco Recomendado</span>
           </div>
           <div className="next-focus-content">
             <div className="next-focus-main">
               <h3 className="next-focus-title">{nextRecommendedTask.name}</h3>
-              {nextRecommendedTask.description && (
-                <p className="next-focus-desc">{nextRecommendedTask.description}</p>
-              )}
+              {displayDescription ? (
+                <p className="next-focus-desc">{displayDescription}</p>
+              ) : null}
               <div className="next-focus-meta">
                 {nextRecommendedTask.category && (
                   <span className="category-pill">{nextRecommendedTask.category}</span>
                 )}
                 {nextRecommendedTask.time && (
-                  <span className="time-pill">⏰ {nextRecommendedTask.time}</span>
+                  <span className="time-pill"><span aria-hidden="true">⏰ </span>{nextRecommendedTask.time}</span>
                 )}
               </div>
             </div>
@@ -103,7 +122,7 @@ export default function TodayView({
                 className="primary-button"
                 onClick={() => onToggleComplete && onToggleComplete(nextRecommendedTask.id)}
               >
-                ✓ Completar
+                <span aria-hidden="true">✓ </span>Completar
               </button>
               <button
                 type="button"
@@ -134,7 +153,7 @@ export default function TodayView({
 
           {todayTasks.length === 0 ? (
             <div className="empty-state-card">
-              <span className="empty-icon">🎉</span>
+              <span className="empty-icon" aria-hidden="true">🎉</span>
               <p>No hay tareas pendientes para el día de hoy.</p>
               <button
                 type="button"
@@ -146,56 +165,84 @@ export default function TodayView({
             </div>
           ) : (
             <div className="today-tasks-list">
-              {sortedTodayTasks.map((task) => (
-                <div key={task.id} className="today-task-card material-elevated">
-                  <button
-                    type="button"
-                    className="task-checkbox task-checkbox-animated"
-                    onClick={() => onToggleComplete && onToggleComplete(task.id)}
-                    aria-label={`Completar ${task.name}`}
-                  />
-                  <div
-                    className="task-card-body"
-                    onClick={() => onSelectTask && onSelectTask(task)}
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(e) => handleTaskKeyDown(e, task)}
-                  >
-                    <span className="task-title">{task.name}</span>
-                    <div className="task-card-sub">
-                      {task.category && <span className="category-pill">{task.category}</span>}
-                      {task.time && <span className="time-pill">⏰ {task.time}</span>}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {overdueTasks.length > 0 && (
-            <div className="overdue-subblock">
-              <h3>⚠️ Tareas Atrasadas ({overdueTasks.length})</h3>
-              <div className="today-tasks-list">
-                {overdueTasks.map((task) => (
-                  <div key={task.id} className="today-task-card material-elevated overdue">
+              {sortedTodayTasks.map((task) => {
+                const sInfo = getStatusInfo(task.status);
+                return (
+                  <div key={task.id} className="today-task-card material-elevated">
                     <button
                       type="button"
                       className="task-checkbox task-checkbox-animated"
                       onClick={() => onToggleComplete && onToggleComplete(task.id)}
                       aria-label={`Completar ${task.name}`}
                     />
-                    <div
+                    <button
+                      type="button"
                       className="task-card-body"
                       onClick={() => onSelectTask && onSelectTask(task)}
-                      role="button"
-                      tabIndex={0}
-                      onKeyDown={(e) => handleTaskKeyDown(e, task)}
                     >
                       <span className="task-title">{task.name}</span>
-                      <span className="overdue-tag">Venció {task.date}</span>
-                    </div>
+                      <span className="task-card-sub">
+                        {sInfo && (
+                          <span
+                            className={`status-pill status-${task.status}`}
+                            style={{
+                              color: sInfo.tv ? `var(${sInfo.tv})` : undefined,
+                              backgroundColor: sInfo.bv ? `var(${sInfo.bv})` : undefined,
+                              borderColor: sInfo.bov ? `var(${sInfo.bov})` : undefined
+                            }}
+                          >
+                            {sInfo.label || sInfo.l || task.status}
+                          </span>
+                        )}
+                        {task.category && <span className="category-pill">{task.category}</span>}
+                        {task.time && <span className="time-pill"><span aria-hidden="true">⏰ </span>{task.time}</span>}
+                      </span>
+                    </button>
                   </div>
-                ))}
+                );
+              })}
+            </div>
+          )}
+
+          {overdueTasks.length > 0 && (
+            <div className="overdue-subblock">
+              <h3><span aria-hidden="true">⚠️ </span>Tareas Atrasadas ({overdueTasks.length})</h3>
+              <div className="today-tasks-list">
+                {overdueTasks.map((task) => {
+                  const sInfo = getStatusInfo(task.status);
+                  return (
+                    <div key={task.id} className="today-task-card material-elevated overdue">
+                      <button
+                        type="button"
+                        className="task-checkbox task-checkbox-animated"
+                        onClick={() => onToggleComplete && onToggleComplete(task.id)}
+                        aria-label={`Completar ${task.name}`}
+                      />
+                      <button
+                        type="button"
+                        className="task-card-body"
+                        onClick={() => onSelectTask && onSelectTask(task)}
+                      >
+                        <span className="task-title">{task.name}</span>
+                        <span className="task-card-sub">
+                          {sInfo && (
+                            <span
+                              className={`status-pill status-${task.status}`}
+                              style={{
+                                color: sInfo.tv ? `var(${sInfo.tv})` : undefined,
+                                backgroundColor: sInfo.bv ? `var(${sInfo.bv})` : undefined,
+                                borderColor: sInfo.bov ? `var(${sInfo.bov})` : undefined
+                              }}
+                            >
+                              {sInfo.label || sInfo.l || task.status}
+                            </span>
+                          )}
+                          <span className="overdue-tag">Venció {task.date}</span>
+                        </span>
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -216,7 +263,7 @@ export default function TodayView({
 
           {sortedTodayEvents.length === 0 ? (
             <div className="empty-state-card">
-              <span className="empty-icon">📅</span>
+              <span className="empty-icon" aria-hidden="true">📅</span>
               <p>Sin eventos ni reuniones en la agenda de hoy.</p>
             </div>
           ) : (

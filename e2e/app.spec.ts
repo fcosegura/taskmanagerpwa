@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { installApiMocks } from './api-mock';
+import { installApiMocks, installUnauthorizedMocks, E2E_TASK_NAME, SECOND_TASK_NAME } from './api-mock';
 
 test.beforeEach(async ({ page }) => {
   await installApiMocks(page);
@@ -181,3 +181,88 @@ test.describe('Fase 3 — Flujos E2E de Tareas, Command Menu y Accesibilidad', (
   });
 });
 
+test.describe('workspaces y sincronización', () => {
+  test('cambia de workspace y carga los datos del workspace seleccionado', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.getByRole('heading', { name: /Prioriza lo importante/i })).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText(E2E_TASK_NAME)).toBeVisible();
+
+    await page.getByRole('button', { name: /Cambiar workspace/i }).click();
+    await page.getByRole('menuitemradio', { name: 'Secundario' }).click();
+    await expect(page.getByText(SECOND_TASK_NAME)).toBeVisible();
+    await expect(page.getByText(E2E_TASK_NAME)).not.toBeVisible();
+  });
+});
+
+test.describe('backup e importación', () => {
+  test('exporta un backup multi-workspace', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.getByRole('heading', { name: /Prioriza lo importante/i })).toBeVisible({ timeout: 30_000 });
+
+    await page.getByRole('button', { name: 'Acciones' }).click();
+
+    const [download] = await Promise.all([
+      page.waitForEvent('download'),
+      page.getByRole('menuitem', { name: 'Exportar backup' }).click(),
+    ]);
+
+    expect(download.suggestedFilename()).toMatch(/^taskmanager-backup-.*\.json$/);
+  });
+
+  test('importa un backup multi-workspace y muestra los datos importados', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.getByRole('heading', { name: /Prioriza lo importante/i })).toBeVisible({ timeout: 30_000 });
+
+    const backup = {
+      version: 2,
+      exportedAt: new Date().toISOString(),
+      workspaces: [
+        {
+          id: 'ws-importado',
+          name: 'Importado',
+          tasks: [
+            {
+              id: 'imported-task',
+              name: 'Tarea importada E2E',
+              status: 'not_done',
+              priority: 'medium',
+              subtasks: [],
+              category: '',
+              date: '',
+              time: '',
+              url: '',
+              notes: '',
+              ticketNumber: '',
+            },
+          ],
+          boardNotes: [],
+          events: [],
+        },
+      ],
+    };
+
+    await page.getByRole('button', { name: 'Acciones' }).click();
+    await page.getByRole('menuitem', { name: 'Importar backup' }).click();
+
+    await page.locator('input[type="file"]').setInputFiles({
+      name: 'backup.json',
+      mimeType: 'application/json',
+      buffer: Buffer.from(JSON.stringify(backup)),
+    });
+
+    await expect(page.getByText('Importados 1 workspace correctamente')).toBeVisible();
+
+    // El import no cambia automáticamente al workspace importado; lo seleccionamos manualmente.
+    await page.getByRole('button', { name: /Cambiar workspace/i }).click();
+    await page.getByRole('menuitemradio', { name: 'Importado' }).click();
+    await expect(page.getByText('Tarea importada E2E')).toBeVisible();
+  });
+});
+
+test.describe('autenticación', () => {
+  test('muestra el login cuando la sesión ha expirado', async ({ page }) => {
+    await installUnauthorizedMocks(page);
+    await page.goto('/');
+    await expect(page.getByText('Sincroniza tus tareas', { exact: false })).toBeVisible({ timeout: 30_000 });
+  });
+});

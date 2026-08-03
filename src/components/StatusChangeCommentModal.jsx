@@ -52,10 +52,11 @@ export default function StatusChangeCommentModal({
           {statusLabel(fromStatus)} → <strong style={{ color: 'var(--color-text-primary)' }}>{statusLabel(toStatus)}</strong>
         </div>
         <form onSubmit={handleSubmit}>
-          <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 6 }}>
+          <label htmlFor="status-comment-input" style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 6 }}>
             Comentario (obligatorio)
           </label>
           <textarea
+            id="status-comment-input"
             name="comment"
             required
             minLength={1}
