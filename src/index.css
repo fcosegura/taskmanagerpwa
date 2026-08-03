@@ -2623,6 +2623,19 @@ nav.show-mobile button.active {
   letter-spacing: 0.04em;
 }
 
+.next-focus-reason-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  font-size: var(--font-size-xs, 12px);
+  font-weight: 700;
+  border-radius: 12px;
+  background: var(--color-background-info, rgba(37, 99, 235, 0.1));
+  color: var(--color-text-info, #2563eb);
+  border: 1px solid var(--color-border-info, rgba(37, 99, 235, 0.2));
+  white-space: nowrap;
+}
+
 .next-focus-content {
   display: flex;
   align-items: center;
@@ -2669,7 +2682,24 @@ nav.show-mobile button.active {
   display: flex;
   gap: 10px;
   flex-shrink: 0;
+  align-items: center;
+  flex-wrap: wrap;
 }
+
+.next-focus-status-select {
+  height: 36px;
+  padding: 0 8px;
+  border-radius: var(--border-radius-md, 6px);
+  border: 1px solid var(--color-border-secondary, #e2e8f0);
+  background: var(--color-background-primary, #ffffff);
+  color: var(--color-text-primary, #0f172a);
+  font-size: var(--font-size-sm, 13px);
+  font-weight: 600;
+  cursor: pointer;
+  max-width: 160px;
+  text-overflow: ellipsis;
+}
+
 
 .today-grid {
   display: grid;

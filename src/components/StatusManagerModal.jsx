@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { STATUS_KINDS, normalizeStatuses, normalizeStatusDefinition } from '../constants.js';
 
 const STYLING_THEMES = [
   { value: 'neutral', label: 'Neutro', tv: '--color-text-primary', bv: '--color-background-secondary', bov: '--color-border-secondary' },
@@ -10,20 +11,32 @@ const STYLING_THEMES = [
 
 const DEFAULT_KEYS = new Set(['not_done', 'in_progress', 'paused', 'blocked', 'done']);
 
+const THEME_TO_KIND_SUGGESTION = {
+  neutral: 'backlog',
+  info: 'active',
+  warning: 'waiting',
+  danger: 'blocked',
+  success: 'done',
+};
+
 function getThemeName(status) {
+  if (status.theme && STYLING_THEMES.some((t) => t.value === status.theme)) {
+    return status.theme;
+  }
   const theme = STYLING_THEMES.find((t) => t.tv === status.tv);
   return theme ? theme.value : 'neutral';
 }
 
 function getThemeProps(themeValue) {
   const theme = STYLING_THEMES.find((t) => t.value === themeValue);
-  return theme ? { tv: theme.tv, bv: theme.bv, bov: theme.bov } : STYLING_THEMES[0];
+  return theme ? { tv: theme.tv, bv: theme.bv, bov: theme.bov, theme: themeValue } : { ...STYLING_THEMES[0], theme: 'neutral' };
 }
 
 export default function StatusManagerModal({ statuses, onSave, onClose }) {
-  const [localStatuses, setLocalStatuses] = useState(() => JSON.parse(JSON.stringify(statuses)));
+  const [localStatuses, setLocalStatuses] = useState(() => normalizeStatuses(statuses));
   const [newLabel, setNewLabel] = useState('');
   const [newTheme, setNewTheme] = useState('neutral');
+  const [newKind, setNewKind] = useState('backlog');
   const [errorMsg, setErrorMsg] = useState('');
 
   const handleAdd = (e) => {
@@ -45,21 +58,35 @@ export default function StatusManagerModal({ statuses, onSave, onClose }) {
     }
 
     const themeProps = getThemeProps(newTheme);
-    const newStatus = {
+    const kindMeta = STATUS_KINDS.find((k) => k.value === newKind) || STATUS_KINDS[0];
+    const newStatus = normalizeStatusDefinition({
       v,
       label,
-      ...themeProps
-    };
+      ...themeProps,
+      kind: newKind,
+      isTerminal: kindMeta.isTerminal,
+      canBeFocused: kindMeta.canBeFocused,
+      sortWeight: kindMeta.sortWeight,
+    });
 
     setLocalStatuses([...localStatuses, newStatus]);
     setNewLabel('');
     setNewTheme('neutral');
+    setNewKind('backlog');
     setErrorMsg('');
+  };
+
+  const handleNewThemeChange = (themeValue) => {
+    setNewTheme(themeValue);
+    const suggestedKind = THEME_TO_KIND_SUGGESTION[themeValue];
+    if (suggestedKind) {
+      setNewKind(suggestedKind);
+    }
   };
 
   const handleUpdateLabel = (index, val) => {
     const updated = [...localStatuses];
-    updated[index].label = val;
+    updated[index] = { ...updated[index], label: val };
     setLocalStatuses(updated);
   };
 
@@ -70,6 +97,22 @@ export default function StatusManagerModal({ statuses, onSave, onClose }) {
       ...updated[index],
       ...themeProps
     };
+    setLocalStatuses(updated);
+  };
+
+  const handleUpdateKind = (index, kindValue) => {
+    const statusToUpdate = localStatuses[index];
+    if (DEFAULT_KEYS.has(statusToUpdate.v)) return; // Protection: standard status kind cannot be changed
+
+    const updated = [...localStatuses];
+    const kindMeta = STATUS_KINDS.find((k) => k.value === kindValue) || STATUS_KINDS[0];
+    updated[index] = normalizeStatusDefinition({
+      ...updated[index],
+      kind: kindValue,
+      isTerminal: kindMeta.isTerminal,
+      canBeFocused: kindMeta.canBeFocused,
+      sortWeight: kindMeta.sortWeight,
+    });
     setLocalStatuses(updated);
   };
 
@@ -99,7 +142,7 @@ export default function StatusManagerModal({ statuses, onSave, onClose }) {
         aria-labelledby="status-manager-title"
         onClick={(e) => e.stopPropagation()}
         style={{
-          width: 'min(520px, 100%)',
+          width: 'min(580px, 100%)',
           maxWidth: 'calc(100% - 32px)',
           borderRadius: 'var(--border-radius-lg)',
           padding: 24,
@@ -135,7 +178,8 @@ export default function StatusManagerModal({ statuses, onSave, onClose }) {
                     padding: 8,
                     borderRadius: 'var(--border-radius-md)',
                     border: '1px solid var(--color-border-tertiary)',
-                    background: 'var(--color-background-secondary)'
+                    background: 'var(--color-background-secondary)',
+                    flexWrap: 'wrap'
                   }}
                 >
                   {/* Color preview chip */}
@@ -157,7 +201,8 @@ export default function StatusManagerModal({ statuses, onSave, onClose }) {
                     onChange={(e) => handleUpdateLabel(index, e.target.value)}
                     placeholder="Nombre del estado"
                     style={{
-                      flex: 1,
+                      flex: '1 1 140px',
+                      minWidth: 120,
                       height: 36,
                       borderRadius: 6,
                       border: '0.5px solid var(--color-border-secondary)',
@@ -172,6 +217,7 @@ export default function StatusManagerModal({ statuses, onSave, onClose }) {
                   <select
                     value={currentThemeName}
                     onChange={(e) => handleUpdateTheme(index, e.target.value)}
+                    aria-label={`Tema de ${status.label}`}
                     style={{
                       height: 36,
                       borderRadius: 6,
@@ -180,12 +226,38 @@ export default function StatusManagerModal({ statuses, onSave, onClose }) {
                       fontSize: 13,
                       background: 'var(--color-background-primary)',
                       color: 'var(--color-text-primary)',
-                      minWidth: 100
+                      minWidth: 90
                     }}
                   >
                     {STYLING_THEMES.map((theme) => (
                       <option key={theme.value} value={theme.value}>
                         {theme.label}
+                      </option>
+                    ))}
+                  </select>
+
+                  {/* Kind (Category) Select */}
+                  <select
+                    value={status.kind || 'backlog'}
+                    onChange={(e) => handleUpdateKind(index, e.target.value)}
+                    disabled={isDefault}
+                    aria-label={`Categoría semántica de ${status.label}`}
+                    style={{
+                      height: 36,
+                      borderRadius: 6,
+                      border: '0.5px solid var(--color-border-secondary)',
+                      padding: '0 8px',
+                      fontSize: 13,
+                      background: 'var(--color-background-primary)',
+                      color: 'var(--color-text-primary)',
+                      minWidth: 100,
+                      opacity: isDefault ? 0.7 : 1,
+                      cursor: isDefault ? 'not-allowed' : 'pointer'
+                    }}
+                  >
+                    {STATUS_KINDS.map((kindOption) => (
+                      <option key={kindOption.value} value={kindOption.value}>
+                        {kindOption.label}
                       </option>
                     ))}
                   </select>
@@ -245,7 +317,8 @@ export default function StatusManagerModal({ statuses, onSave, onClose }) {
             marginBottom: 16,
             display: 'flex',
             gap: 8,
-            alignItems: 'center'
+            alignItems: 'center',
+            flexWrap: 'wrap'
           }}
         >
           <input
@@ -255,7 +328,8 @@ export default function StatusManagerModal({ statuses, onSave, onClose }) {
             placeholder="Nuevo estado..."
             required
             style={{
-              flex: 1,
+              flex: '1 1 140px',
+              minWidth: 120,
               height: 38,
               borderRadius: 'var(--border-radius-md)',
               border: '0.5px solid var(--color-border-secondary)',
@@ -268,7 +342,30 @@ export default function StatusManagerModal({ statuses, onSave, onClose }) {
 
           <select
             value={newTheme}
-            onChange={(e) => setNewTheme(e.target.value)}
+            onChange={(e) => handleNewThemeChange(e.target.value)}
+            aria-label="Tema visual del nuevo estado"
+            style={{
+              height: 38,
+              borderRadius: 'var(--border-radius-md)',
+              border: '0.5px solid var(--color-border-secondary)',
+              padding: '0 8px',
+              fontSize: 13,
+              background: 'var(--color-background-primary)',
+              color: 'var(--color-text-primary)',
+              minWidth: 90
+            }}
+          >
+            {STYLING_THEMES.map((theme) => (
+              <option key={theme.value} value={theme.value}>
+                {theme.label}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={newKind}
+            onChange={(e) => setNewKind(e.target.value)}
+            aria-label="Categoría semántica del nuevo estado"
             style={{
               height: 38,
               borderRadius: 'var(--border-radius-md)',
@@ -280,9 +377,9 @@ export default function StatusManagerModal({ statuses, onSave, onClose }) {
               minWidth: 100
             }}
           >
-            {STYLING_THEMES.map((theme) => (
-              <option key={theme.value} value={theme.value}>
-                {theme.label}
+            {STATUS_KINDS.map((kindOption) => (
+              <option key={kindOption.value} value={kindOption.value}>
+                {kindOption.label}
               </option>
             ))}
           </select>
@@ -343,3 +440,4 @@ export default function StatusManagerModal({ statuses, onSave, onClose }) {
     </div>
   );
 }
+

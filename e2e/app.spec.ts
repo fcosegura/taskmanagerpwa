@@ -266,3 +266,34 @@ test.describe('autenticación', () => {
     await expect(page.getByText('Sincroniza tus tareas', { exact: false })).toBeVisible({ timeout: 30_000 });
   });
 });
+
+test.describe('Siguiente Foco Recomendado y Cambio Rápido de Estado', () => {
+  test('muestra la razón de recomendación y permite cambiar rápidamente el estado', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.getByRole('heading', { name: /Prioriza lo importante/i })).toBeVisible({ timeout: 30_000 });
+
+    // Navegar a la vista Hoy
+    await page.getByRole('button', { name: 'Hoy', exact: true }).first().click();
+    await expect(page.locator('.today-next-focus')).toBeVisible({ timeout: 10_000 });
+
+    // Verificar que aparece el badge de razón
+    await expect(page.locator('.next-focus-reason-pill')).toBeVisible();
+
+    // Verificar el selector de cambio rápido de estado
+    const select = page.locator('.next-focus-status-select');
+    await expect(select).toBeVisible();
+
+    // Cambiar estado a 'En progreso'
+    await select.selectOption('in_progress');
+
+    // Verificar si se abrió el modal de comentario (si está configurado) o actualización directa
+    const commentModal = page.getByText('Comentario de cambio de estado');
+    if (await commentModal.isVisible()) {
+      await page.getByPlaceholder('¿Qué cambió y por qué?').fill('Poniendo en progreso');
+      await page.keyboard.press('Enter');
+    }
+
+    await expect(select).toHaveValue('in_progress');
+  });
+});
+

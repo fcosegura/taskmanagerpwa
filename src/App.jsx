@@ -1,5 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, lazy, Suspense } from 'react';
-import { STATUS } from './constants.js';
+import { STATUS, normalizeStatuses } from './constants.js';
 import { uid, toDateStr, compareTasksForTaskList, parseDateTimeFromDescription, parseDescriptionDateResult, cleanDescriptionSegment, isJiraCategory, normalizeTicketNumber, applyTicketNumberToTaskName, inheritTicketFromParentTask, mergeTaskCompletionMeta } from './utils.jsx';
 import { loadData, saveData, validateBackupPayload, normalizeDataPayload, loginWithGoogleCredential, logoutSession, createProfile, deleteProfile, updateProfileStatuses, parseTaskWithAI, checkSession, generateTasksFromText, generateDailyStatus, fetchWorkspaceData, isMultiBackupPayload, validateMultiBackupPayload, normalizeMultiBackupPayload } from './storage.js';
 import { appendStatusLogEntry } from './statusLog.js';
@@ -51,12 +51,12 @@ export default function App() {
       const stored = localStorage.getItem(key) || localStorage.getItem('taskmanager_custom_statuses');
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) return normalizeStatuses(parsed);
       }
     } catch {
       // ignore
     }
-    return STATUS;
+    return normalizeStatuses(STATUS);
   });
   const [showStatusManagerModal, setShowStatusManagerModal] = useState(false);
 
@@ -279,21 +279,21 @@ export default function App() {
           try {
             const parsed = JSON.parse(stored);
             if (Array.isArray(parsed) && parsed.length > 0) {
-              setStatuses(parsed);
+              setStatuses(normalizeStatuses(parsed));
               return;
             }
           } catch {
             // ignore
           }
         }
-        setStatuses(STATUS);
+        setStatuses(normalizeStatuses(STATUS));
       };
 
       if (Array.isArray(data.profiles) && data.profiles.length > 0) {
         setProfiles(data.profiles);
         const activeProfile = data.profiles.find((p) => p.id === resolvedId);
         if (activeProfile && Array.isArray(activeProfile.customStatuses)) {
-          setStatuses(activeProfile.customStatuses);
+          setStatuses(normalizeStatuses(activeProfile.customStatuses));
           localStorage.setItem(`taskmanager_custom_statuses_${activeProfile.id}`, JSON.stringify(activeProfile.customStatuses));
         } else {
           loadLocalStatuses(resolvedId);
@@ -1584,6 +1584,7 @@ export default function App() {
           ? <TodayView
               todayTasks={todayTasks}
               overdueTasks={overdueTasks}
+              allTasks={tasks}
               todayEvents={todayEvents}
               completedTodayCount={completedTodayCount}
               onSelectTask={(t) => handleOpenTaskSheet(t)}
@@ -1591,6 +1592,17 @@ export default function App() {
               onOpenCreateTask={() => open({ date: todayStr })}
               onNavigateToView={navigateToView}
               statuses={statuses}
+              onChangeStatus={(taskId, nextStatus) => {
+                const task = tasks.find((item) => item.id === taskId);
+                if (!task || task.status === nextStatus) return;
+
+                requestStatusChange({
+                  taskId,
+                  fromStatus: task.status,
+                  toStatus: nextStatus,
+                  source: 'today',
+                });
+              }}
             />
           : view === 'tasks'
           ? <TasksView
