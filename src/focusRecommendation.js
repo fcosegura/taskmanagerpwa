@@ -141,7 +141,7 @@ export function recommendNextFocusTask({
           timeBonus = 5;
         }
       }
-    } else if (!isToday && task.time && !isOverdue) {
+    } else if (!isToday && task.date && task.time && !isOverdue) {
       timeBonus = 2;
     }
 

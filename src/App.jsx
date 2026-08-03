@@ -722,7 +722,7 @@ export default function App() {
 
     // Sin sesión activa o sin lista de workspaces, conservamos el formato legacy con el workspace actual.
     if (!authenticated || !Array.isArray(profiles) || profiles.length === 0) {
-      const payload = { tasks, boardNotes, events };
+      const payload = { tasks, boardNotes, events, customStatuses: statuses };
       if (!validateBackupPayload(payload)) {
         setBackupMessage('Error: los datos internos están corruptos y no se puede exportar el backup.');
         setTimeout(() => setBackupMessage(''), 5000);
@@ -736,7 +736,7 @@ export default function App() {
 
     setBackupMessage('Exportando todos los workspaces...');
     try {
-      const activePayload = { tasks, boardNotes, events };
+      const activePayload = { tasks, boardNotes, events, customStatuses: statuses };
       const workspacesData = await Promise.all(
         profiles.map(async (profile) => {
           const data = profile.id === activeProfileId
@@ -780,6 +780,12 @@ export default function App() {
     setTasks(normalized.tasks);
     setBoardNotes(normalized.boardNotes);
     setEvents(normalized.events);
+    if (normalized.customStatuses) {
+      setLocalStatuses(normalized.customStatuses);
+      if (activeProfileId) {
+        updateProfileStatuses(activeProfileId, normalized.customStatuses).catch(console.error);
+      }
+    }
     setFilter('all'); setCategoryFilter('all'); setModal(null); setTaskPreviewId(null); setEventModal(null);
     setSummaryFilter('none');
     setBackupMessage('Importación completada correctamente.');
@@ -821,6 +827,9 @@ export default function App() {
           events: workspace.events,
         };
         await saveData(payload, true, targetProfile.id);
+        if (workspace.customStatuses) {
+          await updateProfileStatuses(targetProfile.id, workspace.customStatuses);
+        }
         restoredCount += 1;
       } catch (err) {
         errors.push(`"${workspace.name}": ${err.message}`);

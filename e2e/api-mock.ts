@@ -25,21 +25,31 @@ function emptyWorkspaceJson(activeProfileId = E2E_PROFILE_ID) {
 }
 
 function workspaceData(profileId: string) {
-  const importedTask = { id: 'imported-task', name: 'Tarea importada E2E', status: 'not_done', priority: 'medium', subtasks: [] };
+  const importedTask = { id: 'imported-task', name: 'Tarea importada E2E', status: 'custom_imported', priority: 'medium', subtasks: [] };
   const tasks =
     profileId === 'ws-importado'
       ? [importedTask]
       : profileId === SECOND_PROFILE_ID
         ? [{ id: 'second-task', name: SECOND_TASK_NAME, status: 'not_done', priority: 'medium', subtasks: [] }]
         : [{ id: 'first-task', name: E2E_TASK_NAME, status: 'not_done', priority: 'medium', subtasks: [] }];
+  
+  const customStatuses = profileId === 'ws-importado' ? [
+    {
+      v: 'custom_imported',
+      label: 'Estado E2E',
+      theme: 'warning',
+      kind: 'active'
+    }
+  ] : undefined;
+
   return json({
     tasks,
     boardNotes: [],
     events: [],
     profiles: [
-      { id: E2E_PROFILE_ID, name: 'E2E' },
+      { id: E2E_PROFILE_ID, name: 'E2E', customStatuses: profileId === E2E_PROFILE_ID ? undefined : undefined },
       { id: SECOND_PROFILE_ID, name: 'Secundario' },
-      { id: 'ws-importado', name: 'Importado' },
+      { id: 'ws-importado', name: 'Importado', customStatuses: profileId === 'ws-importado' ? customStatuses : undefined },
     ],
     activeProfileId: profileId,
   });
@@ -100,6 +110,13 @@ export async function installApiMocks(page: Page): Promise<void> {
       contentType: 'application/json',
       body: JSON.stringify({ profile: { id, name } }),
     });
+  });
+
+  await page.route((url) => url.pathname === '/api/profiles/update', (route) => {
+    if (route.request().method() !== 'POST') {
+      return route.continue();
+    }
+    return respondOk(route);
   });
 
   await page.route((url) => url.pathname === '/api/profiles/delete', (route) => {

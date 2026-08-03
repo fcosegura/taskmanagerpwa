@@ -224,7 +224,7 @@ test.describe('backup e importación', () => {
             {
               id: 'imported-task',
               name: 'Tarea importada E2E',
-              status: 'not_done',
+              status: 'custom_imported',
               priority: 'medium',
               subtasks: [],
               category: '',
@@ -237,6 +237,14 @@ test.describe('backup e importación', () => {
           ],
           boardNotes: [],
           events: [],
+          customStatuses: [
+            {
+              v: 'custom_imported',
+              label: 'Estado E2E',
+              theme: 'warning',
+              kind: 'active'
+            }
+          ]
         },
       ],
     };
@@ -255,7 +263,12 @@ test.describe('backup e importación', () => {
     // El import no cambia automáticamente al workspace importado; lo seleccionamos manualmente.
     await page.getByRole('button', { name: /Cambiar workspace/i }).click();
     await page.getByRole('menuitemradio', { name: 'Importado' }).click();
+    
+    // Verificamos que la tarea se muestre en la vista
     await expect(page.getByText('Tarea importada E2E')).toBeVisible();
+    
+    // Comprobamos que el estado personalizado (renderizado en un Chip) es visible
+    await expect(page.getByText('Estado E2E')).toBeVisible();
   });
 });
 
