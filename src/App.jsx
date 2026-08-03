@@ -1590,6 +1590,7 @@ export default function App() {
               onToggleComplete={toggleDone}
               onOpenCreateTask={() => open({ date: todayStr })}
               onNavigateToView={navigateToView}
+              statuses={statuses}
             />
           : view === 'tasks'
           ? <TasksView

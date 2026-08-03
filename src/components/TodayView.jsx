@@ -20,6 +20,21 @@ export default function TodayView({
     }, {});
   }, [statuses]);
 
+  const getStatusInfo = (statusKey) => {
+    if (!statusKey) return null;
+    if (statusMap[statusKey]) return statusMap[statusKey];
+    const formattedLabel = statusKey
+      .replace(/_/g, ' ')
+      .replace(/\b\w/g, (char) => char.toUpperCase());
+    return {
+      v: statusKey,
+      label: formattedLabel,
+      tv: '--color-text-info',
+      bv: '--color-background-info',
+      bov: '--color-border-info'
+    };
+  };
+
   const todayDateFormatted = useMemo(() => {
     const now = new Date();
     return now.toLocaleDateString('es-ES', {
@@ -150,48 +165,10 @@ export default function TodayView({
             </div>
           ) : (
             <div className="today-tasks-list">
-              {sortedTodayTasks.map((task) => (
-                <div key={task.id} className="today-task-card material-elevated">
-                  <button
-                    type="button"
-                    className="task-checkbox task-checkbox-animated"
-                    onClick={() => onToggleComplete && onToggleComplete(task.id)}
-                    aria-label={`Completar ${task.name}`}
-                  />
-                  <button
-                    type="button"
-                    className="task-card-body"
-                    onClick={() => onSelectTask && onSelectTask(task)}
-                  >
-                    <span className="task-title">{task.name}</span>
-                    <span className="task-card-sub">
-                      {task.status && statusMap[task.status] && (
-                        <span
-                          className={`status-pill status-${task.status}`}
-                          style={{
-                            color: statusMap[task.status].tv ? `var(${statusMap[task.status].tv})` : undefined,
-                            backgroundColor: statusMap[task.status].bv ? `var(${statusMap[task.status].bv})` : undefined,
-                            borderColor: statusMap[task.status].bov ? `var(${statusMap[task.status].bov})` : undefined
-                          }}
-                        >
-                          {statusMap[task.status].label || statusMap[task.status].l}
-                        </span>
-                      )}
-                      {task.category && <span className="category-pill">{task.category}</span>}
-                      {task.time && <span className="time-pill"><span aria-hidden="true">⏰ </span>{task.time}</span>}
-                    </span>
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {overdueTasks.length > 0 && (
-            <div className="overdue-subblock">
-              <h3><span aria-hidden="true">⚠️ </span>Tareas Atrasadas ({overdueTasks.length})</h3>
-              <div className="today-tasks-list">
-                {overdueTasks.map((task) => (
-                  <div key={task.id} className="today-task-card material-elevated overdue">
+              {sortedTodayTasks.map((task) => {
+                const sInfo = getStatusInfo(task.status);
+                return (
+                  <div key={task.id} className="today-task-card material-elevated">
                     <button
                       type="button"
                       className="task-checkbox task-checkbox-animated"
@@ -205,23 +182,67 @@ export default function TodayView({
                     >
                       <span className="task-title">{task.name}</span>
                       <span className="task-card-sub">
-                        {task.status && statusMap[task.status] && (
+                        {sInfo && (
                           <span
                             className={`status-pill status-${task.status}`}
                             style={{
-                              color: statusMap[task.status].tv ? `var(${statusMap[task.status].tv})` : undefined,
-                              backgroundColor: statusMap[task.status].bv ? `var(${statusMap[task.status].bv})` : undefined,
-                              borderColor: statusMap[task.status].bov ? `var(${statusMap[task.status].bov})` : undefined
+                              color: sInfo.tv ? `var(${sInfo.tv})` : undefined,
+                              backgroundColor: sInfo.bv ? `var(${sInfo.bv})` : undefined,
+                              borderColor: sInfo.bov ? `var(${sInfo.bov})` : undefined
                             }}
                           >
-                            {statusMap[task.status].label || statusMap[task.status].l}
+                            {sInfo.label || sInfo.l || task.status}
                           </span>
                         )}
-                        <span className="overdue-tag">Venció {task.date}</span>
+                        {task.category && <span className="category-pill">{task.category}</span>}
+                        {task.time && <span className="time-pill"><span aria-hidden="true">⏰ </span>{task.time}</span>}
                       </span>
                     </button>
                   </div>
-                ))}
+                );
+              })}
+            </div>
+          )}
+
+          {overdueTasks.length > 0 && (
+            <div className="overdue-subblock">
+              <h3><span aria-hidden="true">⚠️ </span>Tareas Atrasadas ({overdueTasks.length})</h3>
+              <div className="today-tasks-list">
+                {overdueTasks.map((task) => {
+                  const sInfo = getStatusInfo(task.status);
+                  return (
+                    <div key={task.id} className="today-task-card material-elevated overdue">
+                      <button
+                        type="button"
+                        className="task-checkbox task-checkbox-animated"
+                        onClick={() => onToggleComplete && onToggleComplete(task.id)}
+                        aria-label={`Completar ${task.name}`}
+                      />
+                      <button
+                        type="button"
+                        className="task-card-body"
+                        onClick={() => onSelectTask && onSelectTask(task)}
+                      >
+                        <span className="task-title">{task.name}</span>
+                        <span className="task-card-sub">
+                          {sInfo && (
+                            <span
+                              className={`status-pill status-${task.status}`}
+                              style={{
+                                color: sInfo.tv ? `var(${sInfo.tv})` : undefined,
+                                backgroundColor: sInfo.bv ? `var(${sInfo.bv})` : undefined,
+                                borderColor: sInfo.bov ? `var(${sInfo.bov})` : undefined
+                              }}
+                            >
+                              {sInfo.label || sInfo.l || task.status}
+                            </span>
+                          )}
+                          <span className="overdue-tag">Venció {task.date}</span>
+                        </span>
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
