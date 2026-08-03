@@ -268,7 +268,7 @@ test.describe('autenticación', () => {
 });
 
 test.describe('Siguiente Foco Recomendado y Cambio Rápido de Estado', () => {
-  test('muestra la razón de recomendación y permite cambiar rápidamente el estado', async ({ page }) => {
+  test('muestra la razón de recomendación, procesa el modal de comentario y revierte si se cancela', async ({ page }) => {
     await page.goto('/');
     await expect(page.getByRole('heading', { name: /Prioriza lo importante/i })).toBeVisible({ timeout: 30_000 });
 
@@ -279,21 +279,34 @@ test.describe('Siguiente Foco Recomendado y Cambio Rápido de Estado', () => {
     // Verificar que aparece el badge de razón
     await expect(page.locator('.next-focus-reason-pill')).toBeVisible();
 
-    // Verificar el selector de cambio rápido de estado
     const select = page.locator('.next-focus-status-select');
     await expect(select).toBeVisible();
 
-    // Cambiar estado a 'En progreso'
-    await select.selectOption('in_progress');
+    // 1. Probar flujo con cancelación
+    const initialStatus = await select.inputValue();
+    const testTargetStatus = initialStatus === 'blocked' ? 'paused' : 'blocked';
 
-    // Verificar si se abrió el modal de comentario (si está configurado) o actualización directa
-    const commentModal = page.getByText('Comentario de cambio de estado');
-    if (await commentModal.isVisible()) {
-      await page.getByPlaceholder('¿Qué cambió y por qué?').fill('Poniendo en progreso');
-      await page.keyboard.press('Enter');
-    }
+    await select.selectOption(testTargetStatus);
 
-    await expect(select).toHaveValue('in_progress');
+    // Verificar que la solicitud pasa por el flujo central abriendo el modal de comentario
+    const commentModalTitle = page.getByText('Comentario de cambio de estado');
+    await expect(commentModalTitle).toBeVisible();
+
+    // Cancelar el modal y verificar que el selector revierte visualmente al estado original
+    await page.getByRole('button', { name: 'Cancelar' }).click();
+    await expect(commentModalTitle).not.toBeVisible();
+    await expect(select).toHaveValue(initialStatus);
+
+    // 2. Probar flujo confirmado con comentario
+    const confirmTargetStatus = initialStatus === 'in_progress' ? 'paused' : 'in_progress';
+    await select.selectOption(confirmTargetStatus);
+    await expect(commentModalTitle).toBeVisible();
+
+    await page.getByPlaceholder('¿Qué cambió y por qué?').fill('Comentario E2E confirmado');
+    await page.keyboard.press('Enter');
+
+    await expect(commentModalTitle).not.toBeVisible();
+    await expect(select).toHaveValue(confirmTargetStatus);
   });
 });
 

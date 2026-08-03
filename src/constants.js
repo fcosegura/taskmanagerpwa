@@ -6,6 +6,8 @@ export const STATUS_KINDS = [
   { value: 'done', label: 'Completado', isTerminal: true, canBeFocused: false, sortWeight: 0 },
 ];
 
+const DEFAULT_KEYS = new Set(['not_done', 'in_progress', 'paused', 'blocked', 'done']);
+
 const DEFAULT_STATUS_KIND_MAP = {
   not_done: 'backlog',
   in_progress: 'active',
@@ -22,17 +24,29 @@ export function normalizeStatusDefinition(status) {
   const v = status.v || 'not_done';
   const label = status.label || v;
 
-  // Infer kind if missing
-  let kind = status.kind;
-  if (!kind) {
-    if (DEFAULT_STATUS_KIND_MAP[v]) {
-      kind = DEFAULT_STATUS_KIND_MAP[v];
-    } else {
-      kind = 'backlog';
-    }
+  const isStandard = DEFAULT_KEYS.has(v);
+
+  let kind;
+  if (isStandard) {
+    kind = DEFAULT_STATUS_KIND_MAP[v];
+  } else {
+    const isValidKind = STATUS_KINDS.some((k) => k.value === status.kind);
+    kind = isValidKind ? status.kind : 'backlog';
   }
 
   const kindMeta = STATUS_KINDS.find((k) => k.value === kind) || STATUS_KINDS[0];
+
+  if (isStandard) {
+    return {
+      ...status,
+      v,
+      label,
+      kind,
+      isTerminal: kindMeta.isTerminal,
+      canBeFocused: kindMeta.canBeFocused,
+      sortWeight: kindMeta.sortWeight,
+    };
+  }
 
   return {
     ...status,

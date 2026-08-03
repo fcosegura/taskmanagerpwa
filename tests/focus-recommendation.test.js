@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { test, describe } from 'node:test';
-import { STATUS, normalizeStatusDefinition, normalizeStatuses } from '../src/constants.js';
+import { STATUS, STATUS_KINDS, normalizeStatusDefinition, normalizeStatuses } from '../src/constants.js';
 import { recommendNextFocusTask } from '../src/focusRecommendation.js';
+import { normalizeDataPayload, normalizeMultiBackupPayload } from '../src/storage.js';
 
 describe('Status Semantics and Normalization', () => {
   test('normalizes standard statuses correctly with kind, isTerminal, canBeFocused, sortWeight', () => {
@@ -20,7 +21,25 @@ describe('Status Semantics and Normalization', () => {
     assert.strictEqual(activeStatus.sortWeight, 100);
   });
 
-  test('normalizes old custom statuses without metadata', () => {
+  test('forces official semantics on standard status even with corrupt metadata', () => {
+    const corruptDone = {
+      v: 'done',
+      label: 'Completado',
+      kind: 'backlog',
+      isTerminal: false,
+      canBeFocused: true,
+      sortWeight: 999
+    };
+    const normalized = normalizeStatusDefinition(corruptDone);
+
+    assert.strictEqual(normalized.v, 'done');
+    assert.strictEqual(normalized.kind, 'done');
+    assert.strictEqual(normalized.isTerminal, true);
+    assert.strictEqual(normalized.canBeFocused, false);
+    assert.strictEqual(normalized.sortWeight, 0);
+  });
+
+  test('normalizes old custom statuses without metadata to backlog', () => {
     const oldCustomStatus = { v: 'custom_old_status', label: 'Mi Estado Viejo', tv: '--color-text-primary', bv: '--color-background-secondary', bov: '--color-border-secondary' };
     const normalized = normalizeStatusDefinition(oldCustomStatus);
 
@@ -31,7 +50,16 @@ describe('Status Semantics and Normalization', () => {
     assert.strictEqual(normalized.sortWeight, 50);
   });
 
-  test('separates visual theme from semantic kind', () => {
+  test('converts invalid custom status kind to backlog', () => {
+    const invalidCustomStatus = { v: 'custom_invalid', label: 'Invalido', kind: 'super_kind' };
+    const normalized = normalizeStatusDefinition(invalidCustomStatus);
+
+    assert.strictEqual(normalized.kind, 'backlog');
+    assert.strictEqual(normalized.isTerminal, false);
+    assert.strictEqual(normalized.canBeFocused, true);
+  });
+
+  test('separates visual theme from semantic kind and preserves valid custom semantics', () => {
     const customStatus = {
       v: 'custom_waiting_client',
       label: 'Esperando cliente',
@@ -46,6 +74,100 @@ describe('Status Semantics and Normalization', () => {
     assert.strictEqual(normalized.theme, 'warning');
     assert.strictEqual(normalized.kind, 'waiting');
     assert.strictEqual(normalized.canBeFocused, false);
+  });
+});
+
+describe('Status Manager Modal Semantics Rules', () => {
+  const DEFAULT_KEYS = new Set(['not_done', 'in_progress', 'paused', 'blocked', 'done']);
+
+  test('standard statuses cannot change their semantic kind', () => {
+    const standardDone = normalizeStatusDefinition({ v: 'done', label: 'Completado' });
+
+    // Simulate update kind logic on standard status
+    const updateKindOnStandard = (status, newKind) => {
+      if (DEFAULT_KEYS.has(status.v)) return status; // Protection
+      const kindMeta = STATUS_KINDS.find((k) => k.value === newKind) || STATUS_KINDS[0];
+      return normalizeStatusDefinition({
+        ...status,
+        kind: newKind,
+        isTerminal: kindMeta.isTerminal,
+        canBeFocused: kindMeta.canBeFocused,
+        sortWeight: kindMeta.sortWeight,
+      });
+    };
+
+    const result = updateKindOnStandard(standardDone, 'backlog');
+    assert.strictEqual(result.kind, 'done');
+    assert.strictEqual(result.isTerminal, true);
+  });
+
+  test('custom statuses CAN change their semantic kind', () => {
+    const customStatus = normalizeStatusDefinition({ v: 'custom_review', label: 'En revisión', kind: 'backlog' });
+
+    const updateKindOnCustom = (status, newKind) => {
+      if (DEFAULT_KEYS.has(status.v)) return status;
+      const kindMeta = STATUS_KINDS.find((k) => k.value === newKind) || STATUS_KINDS[0];
+      return normalizeStatusDefinition({
+        ...status,
+        kind: newKind,
+        isTerminal: kindMeta.isTerminal,
+        canBeFocused: kindMeta.canBeFocused,
+        sortWeight: kindMeta.sortWeight,
+      });
+    };
+
+    const result = updateKindOnCustom(customStatus, 'active');
+    assert.strictEqual(result.kind, 'active');
+    assert.strictEqual(result.canBeFocused, true);
+    assert.strictEqual(result.sortWeight, 100);
+  });
+
+  test('changing visual theme does not automatically change semantic kind of an existing status', () => {
+    const customStatus = normalizeStatusDefinition({
+      v: 'custom_client',
+      label: 'Esperando Cliente',
+      theme: 'neutral',
+      kind: 'waiting'
+    });
+
+    // Update theme only
+    const updatedThemeStatus = normalizeStatusDefinition({
+      ...customStatus,
+      theme: 'danger',
+      tv: '--color-text-danger',
+      bv: '--color-background-danger',
+      bov: '--color-border-danger'
+    });
+
+    assert.strictEqual(updatedThemeStatus.theme, 'danger');
+    assert.strictEqual(updatedThemeStatus.kind, 'waiting'); // Preserved!
+  });
+
+  test('theme suggestion applies default kind on creation, allowing user override', () => {
+    const THEME_TO_KIND_SUGGESTION = {
+      neutral: 'backlog',
+      info: 'active',
+      warning: 'waiting',
+      danger: 'blocked',
+      success: 'done',
+    };
+
+    // User selects 'danger' theme for new status -> suggested kind is 'blocked'
+    let selectedTheme = 'danger';
+    let suggestedKind = THEME_TO_KIND_SUGGESTION[selectedTheme];
+    assert.strictEqual(suggestedKind, 'blocked');
+
+    // User explicitly overrides kind to 'active'
+    let userChosenKind = 'active';
+    const newStatus = normalizeStatusDefinition({
+      v: 'custom_urgent_review',
+      label: 'Revisión Urgente',
+      theme: selectedTheme,
+      kind: userChosenKind
+    });
+
+    assert.strictEqual(newStatus.theme, 'danger');
+    assert.strictEqual(newStatus.kind, 'active');
   });
 });
 
@@ -79,6 +201,16 @@ describe('Focus Recommendation Algorithm (recommendNextFocusTask)', () => {
     assert.strictEqual(res.reason, 'Vencida');
   });
 
+  test('prioritizes overdue task over active future task', () => {
+    const tasks = [
+      { id: 't-active-future', name: 'Tarea activa mañana', date: '2026-08-04', status: 'in_progress', priority: 'critical' },
+      { id: 't-overdue', name: 'Tarea vencida', date: '2026-08-01', status: 'not_done', priority: 'low' }
+    ];
+
+    const res = recommendNextFocusTask({ tasks, today: todayStr, now: fakeNow });
+    assert.strictEqual(res.task.id, 't-overdue');
+  });
+
   test('prioritizes today task over future task of equivalent priority', () => {
     const tasks = [
       { id: 't-future', name: 'Tarea mañana', date: '2026-08-04', status: 'not_done', priority: 'high' },
@@ -99,6 +231,16 @@ describe('Focus Recommendation Algorithm (recommendNextFocusTask)', () => {
     const res = recommendNextFocusTask({ tasks, today: todayStr, now: fakeNow });
     assert.strictEqual(res.task.id, 't-past-time');
     assert.strictEqual(res.reasonCode, 'overdue');
+  });
+
+  test('grants higher time bonus to tasks scheduled within next 2 hours', () => {
+    const tasks = [
+      { id: 't-near', name: 'Tarea en 1 hora', date: '2026-08-03', time: '13:00', status: 'not_done', priority: 'medium' },
+      { id: 't-far', name: 'Tarea en 7 horas', date: '2026-08-03', time: '19:00', status: 'not_done', priority: 'medium' }
+    ];
+
+    const res = recommendNextFocusTask({ tasks, today: todayStr, now: fakeNow });
+    assert.strictEqual(res.task.id, 't-near');
   });
 
   test('prioritizes active state over backlog state of same date and priority', () => {
@@ -126,8 +268,8 @@ describe('Focus Recommendation Algorithm (recommendNextFocusTask)', () => {
 
   test('uses sortWeight and custom kind semantics correctly', () => {
     const statuses = [
-      { v: 'custom_fast', label: 'Rápido', kind: 'active', sortWeight: 200, canBeFocused: true },
-      { v: 'custom_slow', label: 'Lento', kind: 'active', sortWeight: 50, canBeFocused: true }
+      { v: 'custom_fast', label: 'Rápido', kind: 'active', sortWeight: 100, canBeFocused: true },
+      { v: 'custom_slow', label: 'Lento', kind: 'active', sortWeight: 10, canBeFocused: true }
     ];
     const tasks = [
       { id: 't1', name: 'Tarea Lenta', status: 'custom_slow', date: '2026-08-03' },
@@ -178,5 +320,44 @@ describe('Focus Recommendation Algorithm (recommendNextFocusTask)', () => {
     recommendNextFocusTask({ tasks, today: todayStr, now: fakeNow });
     assert.strictEqual(JSON.stringify(tasks), tasksCopy);
     assert.strictEqual(tasks[0], originalTask);
+  });
+});
+
+describe('Backup Compatibility and Metadata Persistence', () => {
+  test('normalizes legacy single workspace backup payload without customStatuses', () => {
+    const legacyPayload = {
+      tasks: [
+        { id: 't1', name: 'Tarea legacy', status: 'not_done', priority: 'medium', subtasks: [] }
+      ]
+    };
+
+    const normalized = normalizeDataPayload(legacyPayload);
+    assert.strictEqual(normalized.tasks.length, 1);
+    assert.strictEqual(normalized.tasks[0].id, 't1');
+    assert.strictEqual(normalized.customStatuses, undefined);
+  });
+
+  test('preserves normalized customStatuses in multi-workspace backup payload', () => {
+    const multiBackup = {
+      workspaces: [
+        {
+          id: 'ws1',
+          name: 'Workspace 1',
+          tasks: [
+            { id: 't1', name: 'Tarea 1', status: 'custom_review', priority: 'high', subtasks: [] }
+          ],
+          customStatuses: [
+            { v: 'custom_review', label: 'En revisión', theme: 'info', kind: 'active' }
+          ]
+        }
+      ]
+    };
+
+    const normalized = normalizeMultiBackupPayload(multiBackup);
+    assert.ok(normalized);
+    assert.strictEqual(normalized.workspaces.length, 1);
+    assert.strictEqual(normalized.workspaces[0].customStatuses.length, 1);
+    assert.strictEqual(normalized.workspaces[0].customStatuses[0].kind, 'active');
+    assert.strictEqual(normalized.workspaces[0].customStatuses[0].canBeFocused, true);
   });
 });

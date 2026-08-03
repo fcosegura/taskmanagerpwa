@@ -4,6 +4,18 @@ import { STATUS, normalizeStatuses } from './constants.js';
  * Returns the recommended focus task using deterministic, explainable scoring rules.
  * Does NOT mutate tasks or input arrays.
  *
+ * Scoring Decision Documentation:
+ * 1. Base horizons: Overdue (+100) > Scheduled today (+80) > Future / Unscheduled (+0).
+ * 2. Status kind: Active (+40) > Backlog (+0) > Waiting (-60) > Blocked (-80).
+ * 3. Priority: Critical/Urgent (+30) > High (+20) > Medium (+10) > Low (+5).
+ * 4. Time Proximity Bonus:
+ *    - Today & within 2 hours -> +15 (high bonus)
+ *    - Today & within 2-6 hours -> +10 (medium bonus)
+ *    - Today & later (>6h) -> +5 (low bonus)
+ *    - Future date with time -> +2 (small bonus)
+ *    - No time -> +0
+ * 5. Sort Weight: Custom status sortWeight scaled lightly so it breaks ties without overriding dates or priorities.
+ *
  * @param {Object} params
  * @param {Array} params.tasks - List of tasks
  * @param {string} [params.today] - YYYY-MM-DD date string
@@ -70,7 +82,6 @@ export function recommendNextFocusTask({
     let isOverdue = false;
     let isToday = false;
     let isPastTimeToday = false;
-    let isUpcomingTime = false;
 
     if (task.date) {
       if (task.date < todayStr) {
@@ -85,8 +96,6 @@ export function recommendNextFocusTask({
             if (nowDate.getTime() > taskTimeDate.getTime()) {
               isPastTimeToday = true;
               isOverdue = true;
-            } else {
-              isUpcomingTime = true;
             }
           }
         }
@@ -95,7 +104,7 @@ export function recommendNextFocusTask({
 
     let score = 0;
 
-    // Date / Time scores
+    // Date scores
     if (isOverdue) {
       score += 100;
     } else if (isToday) {
@@ -115,13 +124,32 @@ export function recommendNextFocusTask({
     const pWeight = priorityWeightMap[task.priority] ?? 0;
     score += pWeight;
 
-    // Upcoming time score
-    if (isUpcomingTime || task.time) {
-      score += 5;
+    // Time Proximity Bonus
+    let timeBonus = 0;
+    if (isToday && task.time && !isPastTimeToday) {
+      const [h, m] = task.time.split(':').map(Number);
+      if (!isNaN(h) && !isNaN(m)) {
+        const taskTimeDate = new Date(nowDate);
+        taskTimeDate.setHours(h, m, 0, 0);
+        const diffMs = taskTimeDate.getTime() - nowDate.getTime();
+        const diffHours = diffMs / (1000 * 60 * 60);
+        if (diffHours >= 0 && diffHours <= 2) {
+          timeBonus = 15;
+        } else if (diffHours > 2 && diffHours <= 6) {
+          timeBonus = 10;
+        } else {
+          timeBonus = 5;
+        }
+      }
+    } else if (!isToday && task.time && !isOverdue) {
+      timeBonus = 2;
     }
 
-    // Normalized sort weight
-    score += typeof sDef.sortWeight === 'number' ? sDef.sortWeight : 0;
+    score += timeBonus;
+
+    // Normalized sort weight (scaled so custom status weights remain secondary to date/priority)
+    const normalizedSortWeight = Math.min(Math.max(typeof sDef.sortWeight === 'number' ? sDef.sortWeight : 50, 0), 100) / 10;
+    score += normalizedSortWeight;
 
     return {
       task,
@@ -130,7 +158,6 @@ export function recommendNextFocusTask({
       isOverdue,
       isToday,
       isPastTimeToday,
-      isUpcomingTime,
       priorityRank: priorityRankMap[task.priority] ?? 0,
     };
   };
