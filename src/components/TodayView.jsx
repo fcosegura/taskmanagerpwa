@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { STATUS } from '../constants.js';
 import { getDisplayDescription } from '../todayViewHelpers.js';
 
 export default function TodayView({
@@ -9,8 +10,16 @@ export default function TodayView({
   onSelectTask,
   onToggleComplete,
   onOpenCreateTask,
-  onNavigateToView
+  onNavigateToView,
+  statuses = STATUS
 }) {
+  const statusMap = useMemo(() => {
+    return (statuses || STATUS).reduce((acc, s) => {
+      acc[s.v] = s;
+      return acc;
+    }, {});
+  }, [statuses]);
+
   const todayDateFormatted = useMemo(() => {
     const now = new Date();
     return now.toLocaleDateString('es-ES', {
@@ -156,6 +165,18 @@ export default function TodayView({
                   >
                     <span className="task-title">{task.name}</span>
                     <span className="task-card-sub">
+                      {task.status && statusMap[task.status] && (
+                        <span
+                          className={`status-pill status-${task.status}`}
+                          style={{
+                            color: statusMap[task.status].tv ? `var(${statusMap[task.status].tv})` : undefined,
+                            backgroundColor: statusMap[task.status].bv ? `var(${statusMap[task.status].bv})` : undefined,
+                            borderColor: statusMap[task.status].bov ? `var(${statusMap[task.status].bov})` : undefined
+                          }}
+                        >
+                          {statusMap[task.status].label || statusMap[task.status].l}
+                        </span>
+                      )}
                       {task.category && <span className="category-pill">{task.category}</span>}
                       {task.time && <span className="time-pill"><span aria-hidden="true">⏰ </span>{task.time}</span>}
                     </span>
@@ -183,7 +204,21 @@ export default function TodayView({
                       onClick={() => onSelectTask && onSelectTask(task)}
                     >
                       <span className="task-title">{task.name}</span>
-                      <span className="overdue-tag">Venció {task.date}</span>
+                      <span className="task-card-sub">
+                        {task.status && statusMap[task.status] && (
+                          <span
+                            className={`status-pill status-${task.status}`}
+                            style={{
+                              color: statusMap[task.status].tv ? `var(${statusMap[task.status].tv})` : undefined,
+                              backgroundColor: statusMap[task.status].bv ? `var(${statusMap[task.status].bv})` : undefined,
+                              borderColor: statusMap[task.status].bov ? `var(${statusMap[task.status].bov})` : undefined
+                            }}
+                          >
+                            {statusMap[task.status].label || statusMap[task.status].l}
+                          </span>
+                        )}
+                        <span className="overdue-tag">Venció {task.date}</span>
+                      </span>
                     </button>
                   </div>
                 ))}

@@ -1039,7 +1039,7 @@ export default function App() {
 
   const navigateToView = useCallback((nextView) => {
     setTaskPreviewId(null);
-    setView(nextView);
+    setView(nextView === 'tasks' ? 'kanban' : nextView);
   }, [setTaskPreviewId, setView]);
 
   const handleSelectProfile = (profileId) => {
@@ -1401,7 +1401,7 @@ export default function App() {
             <button
               type="button"
               className={view === 'tasks' || view === 'kanban' ? 'active' : ''}
-              onClick={() => navigateToView(view === 'kanban' ? 'kanban' : 'tasks')}
+              onClick={() => navigateToView(view === 'tasks' ? 'tasks' : 'kanban')}
             >
               Tareas
             </button>
@@ -1424,7 +1424,7 @@ export default function App() {
           {/* Sub-view switcher pills */}
           {(view === 'tasks' || view === 'kanban') && (
             <div className="subview-pills">
-              <button type="button" className={view === 'tasks' ? 'active' : ''} onClick={() => navigateToView('tasks')}>Lista</button>
+              <button type="button" className={view === 'tasks' ? 'active' : ''} onClick={() => setView('tasks')}>Lista</button>
               <button type="button" className={view === 'kanban' ? 'active' : ''} onClick={() => navigateToView('kanban')}>Kanban</button>
             </div>
           )}
