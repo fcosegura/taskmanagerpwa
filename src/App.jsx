@@ -781,7 +781,7 @@ export default function App() {
     setBoardNotes(normalized.boardNotes);
     setEvents(normalized.events);
     if (normalized.customStatuses) {
-      setLocalStatuses(normalized.customStatuses);
+      setStatuses(normalizeStatuses(normalized.customStatuses));
       if (activeProfileId) {
         updateProfileStatuses(activeProfileId, normalized.customStatuses).catch(console.error);
       }
