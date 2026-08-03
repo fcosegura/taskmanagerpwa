@@ -1,4 +1,4 @@
-import { STORAGE_KEY, PRIORITY } from './constants.js';
+import { STORAGE_KEY, PRIORITY, normalizeStatuses } from './constants.js';
 import { isPlannedSlotsArrayShape, normalizePlannedSlots } from './plannedSlots.js';
 import { isValidStatusLogEntry, normalizeStatusLog } from './statusLog.js';
 
@@ -243,7 +243,15 @@ export function normalizeDataPayload(parsed) {
     const events = Array.isArray(parsed.events)
       ? parsed.events.map(normalizeEvent).filter(isValidEvent)
       : [];
-    return { tasks, boardNotes, events };
+    const customStatuses = Array.isArray(parsed.customStatuses)
+      ? normalizeStatuses(parsed.customStatuses)
+      : undefined;
+    return {
+      tasks,
+      boardNotes,
+      events,
+      ...(customStatuses ? { customStatuses } : {}),
+    };
   }
   return { tasks: [], boardNotes: [], events: [] };
 }
@@ -284,10 +292,14 @@ export function normalizeMultiBackupPayload(parsed) {
         normalized.boardNotes.length !== sourceNoteCount ||
         normalized.events.length !== sourceEventCount;
       if (droppedItems) return null;
+      const customStatuses = Array.isArray(raw.customStatuses)
+        ? normalizeStatuses(raw.customStatuses)
+        : (Array.isArray(raw.statuses) ? normalizeStatuses(raw.statuses) : undefined);
       return {
         id: typeof raw.id === 'string' ? raw.id : null,
         name,
         ...normalized,
+        ...(customStatuses ? { customStatuses } : {}),
       };
     })
     .filter(Boolean);
@@ -465,7 +477,20 @@ export async function fetchWorkspaceData(profileId) {
     throw new Error(`No se pudo leer el workspace (${resp.status}).`);
   }
   const cloudData = await resp.json();
-  return normalizeDataPayload(cloudData);
+  const data = normalizeDataPayload(cloudData);
+  // Los estados custom viven en el perfil dentro de cloudData.profiles, no en el payload de tareas.
+  const profile = Array.isArray(cloudData?.profiles)
+    ? cloudData.profiles.find((p) => p && p.id === profileId)
+    : null;
+  const customStatuses = Array.isArray(profile?.customStatuses) && profile.customStatuses.length > 0
+    ? normalizeStatuses(profile.customStatuses)
+    : undefined;
+  return {
+    tasks: data.tasks,
+    boardNotes: data.boardNotes,
+    events: data.events,
+    ...(customStatuses ? { customStatuses } : {}),
+  };
 }
 
 export async function loadData(profileId = null) {

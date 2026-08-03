@@ -1,24 +1,29 @@
 import { useMemo } from 'react';
-import { STATUS } from '../constants.js';
+import { STATUS, normalizeStatuses } from '../constants.js';
 import { getDisplayDescription } from '../todayViewHelpers.js';
+import { recommendNextFocusTask } from '../focusRecommendation.js';
 
 export default function TodayView({
   todayTasks = [],
   overdueTasks = [],
+  allTasks = [],
   todayEvents = [],
   completedTodayCount = 0,
   onSelectTask,
   onToggleComplete,
   onOpenCreateTask,
   onNavigateToView,
-  statuses = STATUS
+  statuses = STATUS,
+  onChangeStatus,
 }) {
+  const normalizedStatuses = useMemo(() => normalizeStatuses(statuses), [statuses]);
+
   const statusMap = useMemo(() => {
-    return (statuses || STATUS).reduce((acc, s) => {
+    return normalizedStatuses.reduce((acc, s) => {
       acc[s.v] = s;
       return acc;
     }, {});
-  }, [statuses]);
+  }, [normalizedStatuses]);
 
   const getStatusInfo = (statusKey) => {
     if (!statusKey) return null;
@@ -62,7 +67,39 @@ export default function TodayView({
     });
   }, [todayEvents]);
 
-  const nextRecommendedTask = sortedTodayTasks[0] || overdueTasks[0] || null;
+  const recommendation = useMemo(() => {
+    const combinedTasks = [];
+    const seenIds = new Set();
+    const addTasks = (list) => {
+      if (Array.isArray(list)) {
+        for (const t of list) {
+          if (t && t.id && !seenIds.has(t.id)) {
+            seenIds.add(t.id);
+            combinedTasks.push(t);
+          }
+        }
+      }
+    };
+    addTasks(overdueTasks);
+    addTasks(todayTasks);
+    addTasks(allTasks);
+
+    const now = new Date();
+    const yyyy = now.getFullYear();
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const dd = String(now.getDate()).padStart(2, '0');
+    const todayStr = `${yyyy}-${mm}-${dd}`;
+
+    return recommendNextFocusTask({
+      tasks: combinedTasks,
+      today: todayStr,
+      now,
+      statuses: normalizedStatuses,
+    });
+  }, [allTasks, todayTasks, overdueTasks, normalizedStatuses]);
+
+  const nextRecommendedTask = recommendation.task;
+  const recommendationReason = recommendation.reason;
   const displayDescription = useMemo(() => getDisplayDescription(nextRecommendedTask), [nextRecommendedTask]);
 
   return (
@@ -98,9 +135,17 @@ export default function TodayView({
       {/* Next Priority Focus Section */}
       {nextRecommendedTask && (
         <div className="today-next-focus material-floating">
-          <div className="next-focus-badge">
-            <span><span aria-hidden="true">🎯 </span>Siguiente Foco Recomendado</span>
+          <div className="next-focus-badge-wrapper" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+            <div className="next-focus-badge" style={{ marginBottom: 0 }}>
+              <span><span aria-hidden="true">🎯 </span>Siguiente Foco Recomendado</span>
+            </div>
+            {recommendationReason && (
+              <span className="next-focus-reason-pill">
+                {recommendationReason}
+              </span>
+            )}
           </div>
+
           <div className="next-focus-content">
             <div className="next-focus-main">
               <h3 className="next-focus-title">{nextRecommendedTask.name}</h3>
@@ -116,7 +161,21 @@ export default function TodayView({
                 )}
               </div>
             </div>
+
             <div className="next-focus-actions">
+              <select
+                className="next-focus-status-select"
+                value={nextRecommendedTask.status}
+                onChange={(e) => onChangeStatus && onChangeStatus(nextRecommendedTask.id, e.target.value)}
+                aria-label={`Cambiar estado de ${nextRecommendedTask.name}`}
+              >
+                {normalizedStatuses.map((s) => (
+                  <option key={s.v} value={s.v}>
+                    {s.label}
+                  </option>
+                ))}
+              </select>
+
               <button
                 type="button"
                 className="primary-button"
@@ -135,6 +194,7 @@ export default function TodayView({
           </div>
         </div>
       )}
+
 
       {/* Main Grid: Today's Tasks & Today's Events */}
       <div className="today-grid">
