@@ -1,13 +1,10 @@
-import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
-import { STATUS, PRIORITY } from './constants.js';
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, lazy, Suspense } from 'react';
+import { STATUS } from './constants.js';
 import { uid, toDateStr, compareTasksForTaskList, parseDateTimeFromDescription, parseDescriptionDateResult, cleanDescriptionSegment, isJiraCategory, normalizeTicketNumber, applyTicketNumberToTaskName, inheritTicketFromParentTask, mergeTaskCompletionMeta } from './utils.jsx';
 import { loadData, saveData, validateBackupPayload, normalizeDataPayload, loginWithGoogleCredential, logoutSession, createProfile, deleteProfile, updateProfileStatuses, parseTaskWithAI, checkSession, generateTasksFromText, generateDailyStatus, fetchWorkspaceData, isMultiBackupPayload, validateMultiBackupPayload, normalizeMultiBackupPayload } from './storage.js';
 import { appendStatusLogEntry } from './statusLog.js';
 import { collectDailyStatusActivities } from './dailyStatusActivities.js';
-import TasksView from './components/TasksView.jsx';
-import CalendarView from './components/CalendarView.jsx';
 import BoardView from './components/BoardView.jsx';
-import KanbanView from './components/KanbanView.jsx';
 import TaskModal from './components/TaskModal.jsx';
 import TaskPreviewModal from './components/TaskPreviewModal.jsx';
 import EventModal from './components/EventModal.jsx';
@@ -19,12 +16,19 @@ import DailyStatusDaysModal from './components/DailyStatusDaysModal.jsx';
 import DailyStatusResultModal from './components/DailyStatusResultModal.jsx';
 import BottomNav from './components/BottomNav.jsx';
 import Login from './components/Login.jsx';
-import DailyAgendaView from './components/DailyAgendaView.jsx';
 import ExternalAppDrawer from './components/ExternalAppDrawer.jsx';
-import TimelineView from './components/TimelineView.jsx';
 import { indexEventsByDate } from './calendarEvents.js';
 import { indexTasksByDate } from './calendarTaskIndex.js';
 import { normalizePlannedSlots } from './plannedSlots.js';
+
+const TodayView = lazy(() => import('./components/TodayView.jsx'));
+const TasksView = lazy(() => import('./components/TasksView.jsx'));
+const KanbanView = lazy(() => import('./components/KanbanView.jsx'));
+const CalendarView = lazy(() => import('./components/CalendarView.jsx'));
+const DailyAgendaView = lazy(() => import('./components/DailyAgendaView.jsx'));
+const TimelineView = lazy(() => import('./components/TimelineView.jsx'));
+const CommandMenu = lazy(() => import('./components/CommandMenu.jsx'));
+const TaskSheetDrawer = lazy(() => import('./components/TaskSheetDrawer.jsx'));
 
 function serializePayload(payload) {
   try {
@@ -131,8 +135,22 @@ export default function App() {
   const [hydratedSession, setHydratedSession] = useState(null);
   const [view, setView] = useState('tasks');
   const [modal, setModal] = useState(null);
+  const [showCommandMenu, setShowCommandMenu] = useState(false);
+  const [taskSheetDrawerTask, setTaskSheetDrawerTask] = useState(null);
+  const [isTaskSheetOpen, setIsTaskSheetOpen] = useState(false);
   const [taskPreviewId, setTaskPreviewId] = useState(null);
   const [priorityPickerTask, setPriorityPickerTask] = useState(null);
+
+  useEffect(() => {
+    const handleGlobalKeyDown = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setShowCommandMenu((prev) => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, []);
   const [eventModal, setEventModal] = useState(null);
   const [calDate, setCalDate] = useState(new Date());
   const [selDay, setSelDay] = useState(null);
@@ -913,7 +931,14 @@ export default function App() {
   };
   const open = (init = {}) => {
     setTaskPreviewId(null);
-    setModal({ name: '', url: '', notes: '', status: 'not_done', priority: 'medium', date: '', time: '', subtasks: [], dependencyTaskIds: [], category: '', ticketNumber: '', completedAt: '', hideInKanbanDone: false, ...init });
+    setTaskSheetDrawerTask({ name: '', url: '', notes: '', status: 'not_done', priority: 'medium', date: '', time: '', subtasks: [], dependencyTaskIds: [], category: '', ticketNumber: '', completedAt: '', hideInKanbanDone: false, ...init });
+    setIsTaskSheetOpen(true);
+  };
+
+  const handleOpenTaskSheet = (t) => {
+    setTaskPreviewId(null);
+    setTaskSheetDrawerTask(t);
+    setIsTaskSheetOpen(true);
   };
 
   const addBoardNote = (note) => setBoardNotes((p) => [note, ...p]);
@@ -1258,7 +1283,12 @@ export default function App() {
   const totalVisible = bySummary.length;
   const completedCount = focusTasks.filter((t) => t.status === 'done').length;
   const blockedCount = focusTasks.filter((t) => t.status === 'blocked').length;
-  const todayCount = (tByDate[todayStr] || []).filter((t) => t.status !== 'done').length;
+  const todayTasks = (tByDate[todayStr] || []).filter((t) => t.status !== 'done');
+  const overdueTasks = focusTasks.filter((t) => t.date && t.date < todayStr && t.status !== 'done');
+  const todayEvents = eByDate[todayStr] || [];
+  const completedTodayCount = focusTasks.filter((t) => t.status === 'done' && t.completedAt && t.completedAt.startsWith(todayStr)).length;
+
+  const todayCount = todayTasks.length;
   const activeMetric = summaryFilter === 'today'
     ? 'today'
     : filter === 'blocked'
@@ -1266,6 +1296,23 @@ export default function App() {
       : filter === 'done'
         ? 'done'
         : 'active';
+
+  const contextBgClass = useMemo(() => {
+    switch (view) {
+      case 'tasks':
+      case 'kanban':
+        return 'bg-context-tasks';
+      case 'calendar':
+      case 'daily':
+        return 'bg-context-agenda';
+      case 'board':
+        return 'bg-context-notes';
+      case 'timeline':
+        return 'bg-context-focus';
+      default:
+        return 'bg-context-tasks';
+    }
+  }, [view]);
 
   if (authenticated === null) {
     return null;
@@ -1276,7 +1323,7 @@ export default function App() {
   }
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${contextBgClass}`}>
       {swUpdateAvailable && (
         <div className="sw-update-banner" role="status">
           <span>Hay una nueva versión de la aplicación.</span>
@@ -1293,7 +1340,7 @@ export default function App() {
             <button
               type="button"
               className="brand-mark workspace-trigger"
-              onClick={() => setShowProfileMenu((open) => !open)}
+              onClick={() => setShowProfileMenu((openMenu) => !openMenu)}
               aria-haspopup="menu"
               aria-expanded={showProfileMenu}
               aria-label={`Cambiar workspace. Actual: ${activeProfileName}`}
@@ -1332,48 +1379,96 @@ export default function App() {
             )}
           </div>
           <div className="brand-copy">
-            <span className="brand-title">{view === 'kanban' ? 'Kanban' : view === 'calendar' ? 'Calendario' : view === 'board' ? 'Tablero' : view === 'agenda' ? 'Agenda diaria' : view === 'timeline' ? 'Cronología' : 'Tareas'}</span>
+            <span className="brand-title">
+              {view === 'today' ? 'Hoy' : view === 'kanban' || view === 'tasks' ? 'Tareas' : view === 'calendar' || view === 'daily' ? 'Calendario' : view === 'board' || view === 'timeline' ? 'Notas' : 'Tareas'}
+            </span>
             <span className="brand-subtitle hide-mobile">
-              {view === 'board' ? `Notas libres · ${activeProfileName}` : view === 'agenda' ? `Plan por horas · ${activeProfileName}` : view === 'timeline' ? `Historial de estados · ${activeProfileName}` : `Workspace: ${activeProfileName}`}
+              {activeProfileName}
             </span>
           </div>
         </div>
 
-        <div className="desktop-tabs hide-mobile">
-          {[['tasks', 'Tareas'], ['kanban', 'Kanban'], ['calendar', 'Calendario'], ['agenda', 'Agenda diaria'], ['board', 'Tablero'], ['timeline', 'Cronología']].map(([v, l]) => (
+        {/* Primary 4 Area Navigation Tabs */}
+        <div className="header-primary-nav hide-mobile">
+          <div className="desktop-tabs">
             <button
-              key={v}
               type="button"
-              aria-current={view === v ? 'page' : undefined}
-              className={view === v ? 'active' : ''}
-              onClick={() => navigateToView(v)}
+              className={view === 'today' ? 'active' : ''}
+              onClick={() => navigateToView('today')}
             >
-              {l}
+              Hoy
             </button>
-          ))}
+            <button
+              type="button"
+              className={view === 'tasks' || view === 'kanban' ? 'active' : ''}
+              onClick={() => navigateToView(view === 'kanban' ? 'kanban' : 'tasks')}
+            >
+              Tareas
+            </button>
+            <button
+              type="button"
+              className={view === 'calendar' || view === 'daily' ? 'active' : ''}
+              onClick={() => navigateToView(view === 'daily' ? 'daily' : 'calendar')}
+            >
+              Calendario
+            </button>
+            <button
+              type="button"
+              className={view === 'board' || view === 'timeline' ? 'active' : ''}
+              onClick={() => navigateToView(view === 'timeline' ? 'timeline' : 'board')}
+            >
+              Notas
+            </button>
+          </div>
+
+          {/* Sub-view switcher pills */}
+          {(view === 'tasks' || view === 'kanban') && (
+            <div className="subview-pills">
+              <button type="button" className={view === 'tasks' ? 'active' : ''} onClick={() => navigateToView('tasks')}>Lista</button>
+              <button type="button" className={view === 'kanban' ? 'active' : ''} onClick={() => navigateToView('kanban')}>Kanban</button>
+            </div>
+          )}
+          {(view === 'calendar' || view === 'daily') && (
+            <div className="subview-pills">
+              <button type="button" className={view === 'calendar' ? 'active' : ''} onClick={() => navigateToView('calendar')}>Mes</button>
+              <button type="button" className={view === 'daily' ? 'active' : ''} onClick={() => navigateToView('daily')}>Agenda</button>
+            </div>
+          )}
+          {(view === 'board' || view === 'timeline') && (
+            <div className="subview-pills">
+              <button type="button" className={view === 'board' ? 'active' : ''} onClick={() => navigateToView('board')}>Tablero</button>
+              <button type="button" className={view === 'timeline' ? 'active' : ''} onClick={() => navigateToView('timeline')}>Cronología</button>
+            </div>
+          )}
         </div>
 
         <div className="header-actions">
+          {/* Quick Search & Command Menu Button */}
+          <button
+            type="button"
+            className="ghost-button command-menu-btn"
+            onClick={() => setShowCommandMenu(true)}
+            aria-label="Abrir menú de comandos ⌘K"
+          >
+            🔍 <span className="hide-mobile">Buscar</span> <kbd className="kbd-shortcut hide-mobile">⌘K</kbd>
+          </button>
+
           <div
             className={`sync-indicator${syncState !== 'idle' ? ' visible' : ''}${syncState === 'error' ? ' error' : ''}`}
             aria-live="polite"
           >
             {syncState === 'saving' ? 'Guardando...' : syncState === 'saved' ? 'Guardado' : syncState === 'error' ? 'Error al guardar' : ''}
           </div>
-          {syncState === 'error' && (
-            <button
-              type="button"
-              className="ghost-button sync-retry-button"
-              onClick={() => void syncNowRef.current({ immediate: true })}
-            >
-              Reintentar
-            </button>
-          )}
+
+          <button type="button" className="ghost-button hide-mobile" onClick={openExternalApp}>
+            Notebook
+          </button>
+
           <div className="actions-menu-wrap hide-mobile" ref={actionsMenuRef}>
             <button
               className="ghost-button"
               type="button"
-              onClick={() => setShowActionsMenu((open) => !open)}
+              onClick={() => setShowActionsMenu((openMenu) => !openMenu)}
               aria-haspopup="menu"
               aria-expanded={showActionsMenu}
             >
@@ -1392,29 +1487,26 @@ export default function App() {
               </div>
             )}
           </div>
-          <button
-            type="button"
-            className="ghost-button hide-mobile"
-            onClick={openExternalApp}
-          >
-            Notebook
-          </button>
+
           <button
             type="button"
             className={`ghost-button hide-mobile focus-toggle${focusMode ? ' active' : ''}`}
             onClick={() => setFocusMode((current) => !current)}
             aria-pressed={focusMode}
-            aria-label={`Alternar modo focus (${focusPriorityLevels.map((v) => PRIORITY.find((p) => p.v === v)?.label || v).join(', ')})`}
+            aria-label="Alternar modo focus"
           >
             Focus
           </button>
-          <button type="button"
+
+          {/* Persistent Action + Button */}
+          <button
+            type="button"
             onClick={() => view === 'board'
               ? addBoardNote({ id: uid(), title: '', text: '', createdAt: new Date().toISOString(), x: 20 + Math.random() * 40, y: 20 + Math.random() * 40 })
               : open()
             }
             aria-label={view === 'board' ? 'Crear nueva nota' : 'Crear nueva tarea'}
-            className="primary-button"
+            className="primary-button persistent-add-btn"
           >
             {view === 'board' ? '+ Nota' : '+ Tarea'}
           </button>
@@ -1428,51 +1520,78 @@ export default function App() {
       <input ref={fileInputRef} type="file" accept="application/json" style={{ display: 'none' }} onChange={handleImportFile} />
 
       <main className="app-main">
-        <section className="overview-panel compact">
-          <div>
-            <p className="eyebrow">Resumen</p>
-            <h1>{view === 'kanban' ? 'Visualiza el flujo real' : view === 'calendar' ? 'Planifica la semana' : view === 'board' ? 'Ordena tus ideas' : view === 'agenda' ? 'Agenda y bloques de 30 min' : view === 'timeline' ? 'Sigue la evolución de tus tareas' : 'Prioriza lo importante'}</h1>
-          </div>
-          {view === 'tasks' && (
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
-              <button
-                type="button"
-                className="ghost-button"
-                onClick={handleGenerateTasksFromAi}
-                disabled={aiGenerationLoading}
-              >
-                {aiGenerationLoading ? 'Generando tareas...' : 'Generar tareas IA'}
-              </button>
+        {/* Contextual Overview Header */}
+        {view !== 'today' && (
+          <section className="overview-panel compact">
+            <div>
+              <p className="eyebrow">Resumen Contextual</p>
+              <h1>
+                {view === 'kanban'
+                  ? 'Visualiza el flujo real'
+                  : view === 'calendar'
+                  ? 'Planifica la semana'
+                  : view === 'board'
+                  ? 'Ordena tus ideas'
+                  : view === 'daily'
+                  ? 'Agenda y bloques de 30 min'
+                  : view === 'timeline'
+                  ? 'Sigue la evolución de tus tareas'
+                  : 'Prioriza lo importante'}
+              </h1>
             </div>
-          )}
-          <div className="metric-strip">
-            {[
-              { key: 'active', label: 'Activas', count: activeTasks.length },
-              { key: 'today', label: 'Hoy', count: todayCount },
-              { key: 'blocked', label: 'Bloqueadas', count: blockedCount },
-              { key: 'done', label: 'Hechas', count: completedCount },
-            ].map((metric) => (
-              <button
-                key={metric.key}
-                type="button"
-                className={`metric-card${activeMetric === metric.key ? ' active' : ''}`}
-                onClick={() => handleSummaryMetricClick(metric.key)}
-                aria-pressed={activeMetric === metric.key}
-              >
-                <strong>{metric.count}</strong>
-                <span>{metric.label}</span>
-              </button>
-            ))}
-          </div>
-          {view === 'tasks' && aiGenerationError && (
-            <div style={{ marginTop: 10, fontSize: 12, color: 'var(--color-text-danger)' }}>{aiGenerationError}</div>
-          )}
-          {view === 'kanban' && dailyStatusError && (
-            <div style={{ marginTop: 10, fontSize: 12, color: 'var(--color-text-danger)' }}>{dailyStatusError}</div>
-          )}
-        </section>
+            {view === 'tasks' && (
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+                <button
+                  type="button"
+                  className="ghost-button"
+                  onClick={handleGenerateTasksFromAi}
+                  disabled={aiGenerationLoading}
+                >
+                  {aiGenerationLoading ? 'Generando tareas...' : 'Generar tareas IA'}
+                </button>
+              </div>
+            )}
+            <div className="metric-strip">
+              {[
+                { key: 'active', label: 'Activas', count: activeTasks.length },
+                { key: 'today', label: 'Hoy', count: todayCount },
+                { key: 'blocked', label: 'Bloqueadas', count: blockedCount },
+                { key: 'done', label: 'Hechas', count: completedCount },
+              ].map((metric) => (
+                <button
+                  key={metric.key}
+                  type="button"
+                  className={`metric-card${activeMetric === metric.key ? ' active' : ''}`}
+                  onClick={() => handleSummaryMetricClick(metric.key)}
+                  aria-pressed={activeMetric === metric.key}
+                >
+                  <strong>{metric.count}</strong>
+                  <span>{metric.label}</span>
+                </button>
+              ))}
+            </div>
+            {view === 'tasks' && aiGenerationError && (
+              <div style={{ marginTop: 10, fontSize: 12, color: 'var(--color-text-danger)' }}>{aiGenerationError}</div>
+            )}
+            {view === 'kanban' && dailyStatusError && (
+              <div style={{ marginTop: 10, fontSize: 12, color: 'var(--color-text-danger)' }}>{dailyStatusError}</div>
+            )}
+          </section>
+        )}
 
-        {view === 'tasks'
+        <Suspense fallback={<div style={{ padding: 24, textAlign: 'center', opacity: 0.7 }}>Cargando vista...</div>}>
+        {view === 'today'
+          ? <TodayView
+              todayTasks={todayTasks}
+              overdueTasks={overdueTasks}
+              todayEvents={todayEvents}
+              completedTodayCount={completedTodayCount}
+              onSelectTask={(t) => handleOpenTaskSheet(t)}
+              onToggleComplete={toggleDone}
+              onOpenCreateTask={() => open({ date: todayStr })}
+              onNavigateToView={navigateToView}
+            />
+          : view === 'tasks'
           ? <TasksView
               allTasks={focusTasks}
               tasks={sorted} total={totalVisible} filter={filter} setFilter={setFilter}
@@ -1480,7 +1599,7 @@ export default function App() {
               categoryFilter={categoryFilter} setCategoryFilter={setCategoryFilter}
               categories={categories} statusCounts={statusCounts} categoryCounts={categoryCounts}
               onOpenTaskPreview={(t) => setTaskPreviewId(t.id)}
-              onEditTask={(t) => { setTaskPreviewId(null); setModal(t); }}
+              onEditTask={(t) => handleOpenTaskSheet(t)}
               onToggleDone={toggleDone}
               onOpenPriorityPicker={(t) => setPriorityPickerTask(t)}
               onQuickAdd={handleQuickAdd} onQuickSuggest={handleQuickSuggest}
@@ -1495,7 +1614,8 @@ export default function App() {
                 kanbanColumnsStorageKey={`taskmanager_kanban_visible_columns_${activeProfileId || 'default'}`}
                 kanbanDoneRangeStorageKey={`taskmanager_kanban_done_range_${activeProfileId || 'default'}`}
                 onOpenTaskPreview={(t) => setTaskPreviewId(t.id)}
-                onEditTask={(task) => { setTaskPreviewId(null); setModal(task); }}
+                onEditTask={(task) => handleOpenTaskSheet(task)}
+                onOpenCreateTask={(initial) => open(initial)}
                 onOpenPriorityPicker={(t) => setPriorityPickerTask(t)}
                 onMoveTaskStatus={moveTaskToStatus}
                 onDropTaskOnTask={linkStandaloneTaskAsChild}
@@ -1512,7 +1632,7 @@ export default function App() {
                 onOpenPriorityPicker={(t) => setPriorityPickerTask(t)}
                 onAddEventForDay={(date) => openEventModal({ startDate: date, endDate: date })} onEditEvent={(e) => openEventModal(e)}
               />
-          : view === 'agenda'
+          : view === 'daily'
             ? (
               <DailyAgendaView
                 tasks={focusTasks}
@@ -1520,7 +1640,7 @@ export default function App() {
                 todayStr={todayStr}
                 onSaveTaskSlots={saveTaskPlannedSlots}
                 onEditEvent={(e) => openEventModal(e)}
-                onOpenTaskModal={(t) => { setTaskPreviewId(null); setModal({ ...t, _taskModalInitialAdvanced: false }); }}
+                onOpenTaskModal={(t) => handleOpenTaskSheet(t)}
               />
             )
             : view === 'timeline'
@@ -1531,6 +1651,7 @@ export default function App() {
                 />
               : <BoardView notes={boardNotes} onAddNote={addBoardNote} onUpdateNote={updateBoardNote} onDeleteNote={deleteBoardNote} />
         }
+        </Suspense>
       </main>
 
       {previewTaskResolved && (
@@ -1662,8 +1783,32 @@ export default function App() {
         </div>
       )}
 
+      <Suspense fallback={null}>
+        <CommandMenu
+          isOpen={showCommandMenu}
+          onClose={() => setShowCommandMenu(false)}
+          tasks={focusTasks}
+          onNavigateToView={navigateToView}
+          onOpenCreateTask={() => open()}
+          onToggleTheme={toggleTheme}
+          onOpenWorkspaceMenu={() => setShowProfileMenu(true)}
+          onSelectTask={(t) => handleOpenTaskSheet(t)}
+        />
+
+        <TaskSheetDrawer
+          key={taskSheetDrawerTask ? (taskSheetDrawerTask.id || `new-sheet-${taskSheetDrawerTask.date || ''}`) : 'closed-sheet'}
+          isOpen={isTaskSheetOpen}
+          task={taskSheetDrawerTask}
+          categories={categories}
+          onSave={upsert}
+          onDelete={taskSheetDrawerTask?.id ? (id) => del(id) : null}
+          onClose={() => { setIsTaskSheetOpen(false); setTaskSheetDrawerTask(null); }}
+          statuses={statuses}
+        />
+      </Suspense>
+
       <ExternalAppDrawer isOpen={externalAppOpen} onClose={closeExternalApp} />
-      <BottomNav currentView={view} setView={navigateToView} onOpenExternalApp={openExternalApp} />
+      <BottomNav currentView={view} setView={navigateToView} onOpenCreateTask={() => open()} onOpenExternalApp={openExternalApp} />
     </div>
   );
 }

@@ -83,18 +83,25 @@ export default function CalendarView({
 
   return (
     <div className="calendar-view" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div className="calendar-panel" style={{ background: 'var(--color-background-primary)', border: '0.5px solid var(--color-border-tertiary)', borderRadius: 'var(--border-radius-lg)', padding: '16px 20px' }}>
-        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18, gap: 12 }}>
+      <div className="calendar-panel material-base" style={{ borderRadius: 'var(--border-radius-xl)', padding: '20px 24px' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, gap: 12 }}>
           <div>
-            <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 4, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Calendario</div>
-            <div style={{ fontSize: 18, fontWeight: 700 }}>{MONTHS[mo]} {y}</div>
+            <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 4, letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 700 }}>
+              Mes Actual
+            </div>
+            <div style={{ fontSize: 'var(--font-size-xl)', fontWeight: 850 }}>
+              {MONTHS[mo]} {y}
+            </div>
           </div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
             <button
               type="button"
+              className="ghost-button"
               onClick={() => onAddEventForDay(eventCreateDate)}
-              style={{ padding: '8px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', border: '1px solid var(--color-border-secondary)', background: 'var(--color-background-primary)', color: 'var(--color-text-primary)', borderRadius: '999px', whiteSpace: 'nowrap' }}
-            >+ Evento</button>
+              style={{ borderRadius: '999px', fontSize: 12, fontWeight: 700 }}
+            >
+              + Evento
+            </button>
             <div style={{ display: 'flex', gap: 6 }}>
               <NBtn onClick={prev}>{'‹'}</NBtn>
               <NBtn onClick={next}>{'›'}</NBtn>
@@ -102,7 +109,7 @@ export default function CalendarView({
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: '4px 8px', marginBottom: 8, color: 'var(--color-text-secondary)', fontSize: 11, fontWeight: 600 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: '6px 8px', marginBottom: 10, color: 'var(--color-text-secondary)', fontSize: 11, fontWeight: 700, textTransform: 'uppercase' }}>
           {DAYS.map((day, dayIndex) => {
             const isWeekendHeader = dayIndex === 0 || dayIndex === 6;
             return (
@@ -142,44 +149,52 @@ export default function CalendarView({
                 key={index}
                 className={`calendar-cell${isToday ? ' today' : ''}${isSelected ? ' selected' : ''}${hasEndDateTask ? ' has-end-date' : ''}`}
                 style={{
-                  position: 'relative', minHeight: 65, padding: '8px 4px',
-                  borderRadius: 12,
+                  position: 'relative',
+                  minHeight: 70,
+                  padding: '8px 6px',
+                  borderRadius: 'var(--border-radius-md)',
                   background: isSelected
-                    ? 'var(--calendar-selected-bg)'
+                    ? 'var(--material-elevated-bg)'
                     : isToday
-                      ? 'var(--calendar-today-bg)'
+                      ? 'rgba(23, 107, 135, 0.12)'
                       : holidayLike
                         ? 'var(--calendar-holiday-bg)'
-                        : 'var(--color-background-primary)',
-                  border: `1px solid ${isSelected
-                    ? 'var(--calendar-selected-border)'
+                        : 'var(--material-base-bg)',
+                  border: isSelected
+                    ? '2px solid var(--color-accent)'
                     : isToday
-                      ? 'var(--calendar-today-border)'
-                      : holidayLike
-                        ? 'var(--calendar-holiday-border)'
-                        : 'var(--calendar-default-border)'}`,
+                      ? '2px solid var(--color-accent)'
+                      : 'var(--material-base-border)',
                   color: day ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
                   cursor: day ? 'pointer' : 'default',
-                  display: 'flex', flexDirection: 'column',
-                  boxShadow: hasEndDateTask && !isSelected
-                    ? 'inset 0 -4px 0 var(--calendar-end-marker), 0 2px 4px rgba(0,0,0,0.06)'
-                    : '0 2px 4px rgba(0,0,0,0.01)',
-                  ...(hasEndDateTask && !isSelected && !isToday
-                    ? { borderColor: 'var(--calendar-end-marker)' }
-                    : {}),
+                  display: 'flex',
+                  flexDirection: 'column',
+                  transition: 'all 0.15s ease',
                 }}
                 onClick={() => day && setSelDay(day)}
                 onDoubleClick={() => day && onAddTaskForDay(dateStr)}
               >
                 <div>
-                  <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', marginBottom: 4 }}>
-                    <span style={{ fontSize: 13, fontWeight: isToday ? 700 : 500, color: day ? (isToday ? 'var(--color-text-success)' : holidayLike ? 'var(--color-text-danger)' : 'var(--color-text-primary)') : 'var(--color-text-secondary)', width: 24, height: 24, display: 'grid', placeItems: 'center', borderRadius: 999, background: isToday ? 'var(--calendar-today-pill-bg)' : undefined }}>
+                  <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', marginBottom: 6 }}>
+                    <span
+                      style={{
+                        fontSize: 13,
+                        fontWeight: isToday ? 850 : 600,
+                        color: day ? (isToday ? 'var(--color-accent)' : holidayLike ? 'var(--color-text-danger)' : 'var(--color-text-primary)') : 'var(--color-text-secondary)',
+                        width: 24,
+                        height: 24,
+                        display: 'grid',
+                        placeItems: 'center',
+                        borderRadius: 999,
+                        background: isToday ? 'var(--material-elevated-bg)' : undefined
+                      }}
+                    >
                       {day || ''}
                     </span>
                   </div>
-                  <div className="calendar-task-markers">
+                  <div className="calendar-task-markers" style={{ display: 'flex', gap: 3, justifyContent: 'center', flexWrap: 'wrap' }}>
                     {eventsForDay.slice(0, 3).map((event) => (
-                      <div key={`${event.id}-${event.occurrenceDate || dateStr || 'event'}`} className="calendar-task-marker" style={{ width: 6, height: 6, background: event.color }} />
+                      <div key={`${event.id}-${event.occurrenceDate || dateStr || 'event'}`} className="calendar-task-marker" style={{ width: 6, height: 6, borderRadius: '50%', background: event.color }} />
                     ))}
                     {visibleTaskMarkers.slice(0, 3 - eventsForDay.length).map((task) => {
                       const isEndMarker = task.calendarDateRole === 'end';
@@ -188,7 +203,13 @@ export default function CalendarView({
                           key={`${task.id}-${task.calendarDateRole || 'start'}`}
                           className={`calendar-task-marker${isEndMarker ? ' calendar-task-marker--end' : ' calendar-task-marker--start'}`}
                           title={isEndMarker ? 'Fecha fin' : 'Fecha inicio'}
-                          style={{ opacity: task.status === 'done' ? 0.45 : 1 }}
+                          style={{
+                            width: 6,
+                            height: 6,
+                            borderRadius: '50%',
+                            background: isEndMarker ? 'var(--color-text-danger)' : 'var(--color-accent)',
+                            opacity: task.status === 'done' ? 0.45 : 1
+                          }}
                         />
                       );
                     })}
@@ -200,16 +221,18 @@ export default function CalendarView({
         </div>
       </div>
 
-      <div className="day-panel" style={{ background: 'var(--color-background-primary)', border: '0.5px solid var(--color-border-tertiary)', borderRadius: 'var(--border-radius-lg)', padding: '16px 20px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+      <div className="day-panel material-elevated" style={{ borderRadius: 'var(--border-radius-xl)', padding: '20px 24px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
           <div>
-            <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 3 }}>Día seleccionado</div>
-            <div style={{ fontSize: 16, fontWeight: 700 }}>
-              {selDs ? `${DAYS[new Date(selDs).getDay()]}, ${fmtDate(selDs)}` : 'Selecciona un día'}
+            <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 3, fontWeight: 700, textTransform: 'uppercase' }}>
+              Día seleccionado
+            </div>
+            <div style={{ fontSize: 'var(--font-size-md)', fontWeight: 800 }}>
+              {selDs ? `${DAYS[new Date(selDs).getDay()]}, ${fmtDate(selDs)}` : 'Selecciona un día en la cuadrícula'}
             </div>
           </div>
           {selDs && (
-            <button type="button" onClick={() => setSelDay(null)} style={{ border: 'none', background: 'transparent', color: 'var(--color-text-secondary)', cursor: 'pointer', fontSize: 13 }}>
+            <button type="button" className="ghost-button compact" onClick={() => setSelDay(null)}>
               Cerrar
             </button>
           )}
@@ -217,11 +240,24 @@ export default function CalendarView({
 
         {selDs ? (
           ((tByDate[selDs] || []).length + (eByDate[selDs] || []).length) > 0 ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {[...(eByDate[selDs] || [])].sort(compareCalendarEvents).map((event) => (
-                <div key={`${event.id}-${event.occurrenceDate || selDs}`} onClick={() => onEditEvent(event)} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 'var(--border-radius-lg)', background: event.color, color: 'white' }}>
-                  <div style={{ fontSize: 14, fontWeight: 500 }}>{event.title}{isRecurringEvent(event) ? ' ↻' : ''}</div>
-                  <div style={{ fontSize: 12, opacity: 0.8, marginLeft: 'auto', textAlign: 'right' }}>
+                <div
+                  key={`${event.id}-${event.occurrenceDate || selDs}`}
+                  onClick={() => onEditEvent(event)}
+                  className="material-base"
+                  style={{
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 12,
+                    padding: '12px 16px',
+                    borderRadius: 'var(--border-radius-md)',
+                    borderLeft: `4px solid ${event.color || 'var(--color-accent)'}`
+                  }}
+                >
+                  <div style={{ fontSize: 'var(--font-size-sm)', fontWeight: 700 }}>{event.title}{isRecurringEvent(event) ? ' ↻' : ''}</div>
+                  <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginLeft: 'auto', textAlign: 'right', fontWeight: 600 }}>
                     {formatEventSchedule(event)}
                   </div>
                 </div>
@@ -240,10 +276,10 @@ export default function CalendarView({
               ))}
             </div>
           ) : (
-            <div style={{ color: 'var(--color-text-secondary)', fontSize: 14 }}>No hay tareas ni eventos para este día.</div>
+            <div style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--font-size-sm)' }}>No hay tareas ni eventos para este día.</div>
           )
         ) : (
-          <div style={{ color: 'var(--color-text-secondary)', fontSize: 14 }}>Haz clic en un día para ver o añadir tareas.</div>
+          <div style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--font-size-sm)' }}>Haz clic en un día para ver o añadir tareas.</div>
         )}
       </div>
     </div>

@@ -1,0 +1,243 @@
+import { useMemo } from 'react';
+
+export default function TodayView({
+  todayTasks = [],
+  overdueTasks = [],
+  todayEvents = [],
+  completedTodayCount = 0,
+  onSelectTask,
+  onToggleComplete,
+  onOpenCreateTask,
+  onNavigateToView
+}) {
+  const todayDateFormatted = useMemo(() => {
+    const now = new Date();
+    return now.toLocaleDateString('es-ES', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long'
+    });
+  }, []);
+
+  const sortedTodayTasks = useMemo(() => {
+    const pMap = { critical: 4, urgent: 4, high: 3, medium: 2, low: 1 };
+    return [...todayTasks].sort((a, b) => {
+      const pA = pMap[a.priority] || 0;
+      const pB = pMap[b.priority] || 0;
+      if (pA !== pB) return pB - pA;
+      return (a.time || '23:59').localeCompare(b.time || '23:59');
+    });
+  }, [todayTasks]);
+
+  const sortedTodayEvents = useMemo(() => {
+    return [...todayEvents].sort((a, b) => {
+      const timeA = a.startTime || a.time || '00:00';
+      const timeB = b.startTime || b.time || '00:00';
+      return timeA.localeCompare(timeB);
+    });
+  }, [todayEvents]);
+
+  const nextRecommendedTask = sortedTodayTasks[0] || overdueTasks[0] || null;
+
+  const handleTaskKeyDown = (e, task) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      if (onSelectTask) onSelectTask(task);
+    }
+  };
+
+  return (
+    <div className="today-view-container fade-in">
+      {/* Welcome & Productivity Overview */}
+      <div className="today-header-banner material-elevated">
+        <div className="today-welcome-text">
+          <span className="eyebrow">Resumen del Día</span>
+          <h1 className="today-date-title">{todayDateFormatted}</h1>
+          <p className="today-subtitle">
+            {todayTasks.length === 0 && overdueTasks.length === 0
+              ? '✨ No tienes tareas pendientes para hoy. ¡Excelente trabajo!'
+              : `Tienes ${todayTasks.length} tarea${todayTasks.length === 1 ? '' : 's'} programada${todayTasks.length === 1 ? '' : 's'} hoy${overdueTasks.length > 0 ? ` y ${overdueTasks.length} atrasada${overdueTasks.length === 1 ? '' : 's'}` : ''}.`}
+          </p>
+        </div>
+
+        <div className="today-quick-stats">
+          <div className="today-stat-pill">
+            <span className="today-stat-value">{todayTasks.length}</span>
+            <span className="today-stat-label">Para Hoy</span>
+          </div>
+          <div className={`today-stat-pill ${overdueTasks.length > 0 ? 'warning' : ''}`}>
+            <span className="today-stat-value">{overdueTasks.length}</span>
+            <span className="today-stat-label">Atrasadas</span>
+          </div>
+          <div className="today-stat-pill success">
+            <span className="today-stat-value">{completedTodayCount}</span>
+            <span className="today-stat-label">Hechas Hoy</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Next Priority Focus Section */}
+      {nextRecommendedTask && (
+        <div className="today-next-focus material-floating">
+          <div className="next-focus-badge">
+            <span>🎯 Siguiente Foco Recomendado</span>
+          </div>
+          <div className="next-focus-content">
+            <div className="next-focus-main">
+              <h3 className="next-focus-title">{nextRecommendedTask.name}</h3>
+              {nextRecommendedTask.description && (
+                <p className="next-focus-desc">{nextRecommendedTask.description}</p>
+              )}
+              <div className="next-focus-meta">
+                {nextRecommendedTask.category && (
+                  <span className="category-pill">{nextRecommendedTask.category}</span>
+                )}
+                {nextRecommendedTask.time && (
+                  <span className="time-pill">⏰ {nextRecommendedTask.time}</span>
+                )}
+              </div>
+            </div>
+            <div className="next-focus-actions">
+              <button
+                type="button"
+                className="primary-button"
+                onClick={() => onToggleComplete && onToggleComplete(nextRecommendedTask.id)}
+              >
+                ✓ Completar
+              </button>
+              <button
+                type="button"
+                className="ghost-button"
+                onClick={() => onSelectTask && onSelectTask(nextRecommendedTask)}
+              >
+                Editar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Main Grid: Today's Tasks & Today's Events */}
+      <div className="today-grid">
+        {/* Today's Tasks Column */}
+        <section className="today-tasks-section material-base">
+          <div className="section-header">
+            <h2>Tareas de Hoy ({todayTasks.length})</h2>
+            <button
+              type="button"
+              className="ghost-button compact"
+              onClick={() => onOpenCreateTask && onOpenCreateTask()}
+            >
+              + Nueva Tarea
+            </button>
+          </div>
+
+          {todayTasks.length === 0 ? (
+            <div className="empty-state-card">
+              <span className="empty-icon">🎉</span>
+              <p>No hay tareas pendientes para el día de hoy.</p>
+              <button
+                type="button"
+                className="primary-button"
+                onClick={() => onOpenCreateTask && onOpenCreateTask()}
+              >
+                Crear Tarea
+              </button>
+            </div>
+          ) : (
+            <div className="today-tasks-list">
+              {sortedTodayTasks.map((task) => (
+                <div key={task.id} className="today-task-card material-elevated">
+                  <button
+                    type="button"
+                    className="task-checkbox task-checkbox-animated"
+                    onClick={() => onToggleComplete && onToggleComplete(task.id)}
+                    aria-label={`Completar ${task.name}`}
+                  />
+                  <div
+                    className="task-card-body"
+                    onClick={() => onSelectTask && onSelectTask(task)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => handleTaskKeyDown(e, task)}
+                  >
+                    <span className="task-title">{task.name}</span>
+                    <div className="task-card-sub">
+                      {task.category && <span className="category-pill">{task.category}</span>}
+                      {task.time && <span className="time-pill">⏰ {task.time}</span>}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {overdueTasks.length > 0 && (
+            <div className="overdue-subblock">
+              <h3>⚠️ Tareas Atrasadas ({overdueTasks.length})</h3>
+              <div className="today-tasks-list">
+                {overdueTasks.map((task) => (
+                  <div key={task.id} className="today-task-card material-elevated overdue">
+                    <button
+                      type="button"
+                      className="task-checkbox task-checkbox-animated"
+                      onClick={() => onToggleComplete && onToggleComplete(task.id)}
+                      aria-label={`Completar ${task.name}`}
+                    />
+                    <div
+                      className="task-card-body"
+                      onClick={() => onSelectTask && onSelectTask(task)}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => handleTaskKeyDown(e, task)}
+                    >
+                      <span className="task-title">{task.name}</span>
+                      <span className="overdue-tag">Venció {task.date}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </section>
+
+        {/* Agenda / Events Column */}
+        <section className="today-events-section material-base">
+          <div className="section-header">
+            <h2>Agenda & Eventos</h2>
+            <button
+              type="button"
+              className="ghost-button compact"
+              onClick={() => onNavigateToView && onNavigateToView('calendar')}
+            >
+              Ver Calendario →
+            </button>
+          </div>
+
+          {sortedTodayEvents.length === 0 ? (
+            <div className="empty-state-card">
+              <span className="empty-icon">📅</span>
+              <p>Sin eventos ni reuniones en la agenda de hoy.</p>
+            </div>
+          ) : (
+            <div className="today-events-list">
+              {sortedTodayEvents.map((evt, idx) => {
+                const timeBadge = evt.allDay ? 'Todo el día' : (evt.startTime || evt.time || 'Todo el día');
+                const eventTitle = evt.title || evt.name || 'Evento';
+                return (
+                  <div key={evt.id || idx} className="today-event-card material-elevated">
+                    <span className="event-time-badge">{timeBadge}</span>
+                    <div className="event-info">
+                      <span className="event-title">{eventTitle}</span>
+                      {evt.description && <span className="event-desc">{evt.description}</span>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
+      </div>
+    </div>
+  );
+}
