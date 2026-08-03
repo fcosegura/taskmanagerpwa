@@ -782,7 +782,12 @@ export default function App() {
     setEvents(normalized.events);
     if (normalized.customStatuses) {
       setStatuses(normalizeStatuses(normalized.customStatuses));
-      if (activeProfileId) {
+      try {
+        localStorage.setItem(`taskmanager_custom_statuses_${activeProfileId || 'default'}`, JSON.stringify(normalized.customStatuses));
+      } catch {
+        // El guardado local puede fallar por cuota o modo privado.
+      }
+      if (authenticated && activeProfileId) {
         updateProfileStatuses(activeProfileId, normalized.customStatuses).catch(console.error);
       }
     }
@@ -829,6 +834,11 @@ export default function App() {
         await saveData(payload, true, targetProfile.id);
         if (workspace.customStatuses) {
           await updateProfileStatuses(targetProfile.id, workspace.customStatuses);
+          try {
+            localStorage.setItem(`taskmanager_custom_statuses_${targetProfile.id}`, JSON.stringify(workspace.customStatuses));
+          } catch {
+            // El guardado local puede fallar por cuota o modo privado.
+          }
         }
         restoredCount += 1;
       } catch (err) {

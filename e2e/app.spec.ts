@@ -195,7 +195,7 @@ test.describe('workspaces y sincronización', () => {
 });
 
 test.describe('backup e importación', () => {
-  test('exporta un backup multi-workspace', async ({ page }) => {
+  test('exporta un backup multi-workspace con los estados custom de cada workspace', async ({ page }) => {
     await page.goto('/');
     await expect(page.getByRole('heading', { name: /Prioriza lo importante/i })).toBeVisible({ timeout: 30_000 });
 
@@ -207,6 +207,50 @@ test.describe('backup e importación', () => {
     ]);
 
     expect(download.suggestedFilename()).toMatch(/^taskmanager-backup-.*\.json$/);
+
+    // Leer el JSON descargado con la API de Playwright (sin rutas rígidas del sistema local).
+    const stream = await download.createReadStream();
+    if (!stream) throw new Error('No se pudo leer el archivo descargado.');
+    const chunks: Buffer[] = [];
+    for await (const chunk of stream) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    }
+    const backup = JSON.parse(Buffer.concat(chunks).toString('utf-8'));
+
+    expect(Array.isArray(backup.workspaces)).toBe(true);
+    expect(backup.workspaces.length).toBeGreaterThanOrEqual(2);
+
+    // El workspace activo conserva sus estados custom.
+    const activeWorkspace = backup.workspaces.find((w: { name?: string }) => w.name === 'E2E');
+    expect(activeWorkspace).toBeTruthy();
+    expect(Array.isArray(activeWorkspace.customStatuses)).toBe(true);
+    const activeCustom = activeWorkspace.customStatuses.find((s: { v?: string }) => s.v === 'custom_review');
+    expect(activeCustom).toBeTruthy();
+    expect(activeCustom.label).toBe('Revisión E2E');
+
+    // Al menos un workspace NO activo conserva sus propios estados custom (no los del activo).
+    const secondWorkspace = backup.workspaces.find((w: { name?: string }) => w.name === 'Secundario');
+    expect(secondWorkspace).toBeTruthy();
+    expect(Array.isArray(secondWorkspace.customStatuses)).toBe(true);
+    const secondCustom = secondWorkspace.customStatuses.find((s: { v?: string }) => s.v === 'custom_qa_secundario');
+    expect(secondCustom).toBeTruthy();
+    expect(secondCustom.label).toBe('QA Secundario');
+    expect(secondWorkspace.customStatuses.some((s: { v?: string }) => s.v === 'custom_review')).toBe(false);
+
+    // Cada colección de estados contiene metadata semántica normalizada.
+    for (const workspace of backup.workspaces) {
+      if (!Array.isArray(workspace.customStatuses)) continue;
+      for (const status of workspace.customStatuses) {
+        expect(typeof status.kind).toBe('string');
+        expect(typeof status.isTerminal).toBe('boolean');
+        expect(typeof status.canBeFocused).toBe('boolean');
+        expect(typeof status.sortWeight).toBe('number');
+      }
+    }
+    expect(activeCustom.kind).toBe('active');
+    expect(activeCustom.isTerminal).toBe(false);
+    expect(activeCustom.canBeFocused).toBe(true);
+    expect(activeCustom.theme).toBe('info');
   });
 
   test('importa un backup multi-workspace y muestra los datos importados', async ({ page }) => {
@@ -266,9 +310,19 @@ test.describe('backup e importación', () => {
     
     // Verificamos que la tarea se muestre en la vista
     await expect(page.getByText('Tarea importada E2E')).toBeVisible();
-    
+
     // Comprobamos que el estado personalizado (renderizado en un Chip) es visible
     await expect(page.getByText('Estado E2E')).toBeVisible();
+    // Y que NO se usa el fallback derivado del identificador del estado
+    await expect(page.getByText('Custom Imported')).not.toBeVisible();
+
+    // Tras recargar, la app vuelve a pedir los datos del workspace: la etiqueta debe seguir
+    // visible, lo que demuestra que los estados custom se persistieron de verdad.
+    await page.reload();
+    await expect(page.getByRole('heading', { name: /Prioriza lo importante/i })).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText('Tarea importada E2E')).toBeVisible();
+    await expect(page.getByText('Estado E2E')).toBeVisible();
+    await expect(page.getByText('Custom Imported')).not.toBeVisible();
   });
 });
 

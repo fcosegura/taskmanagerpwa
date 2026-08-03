@@ -477,7 +477,20 @@ export async function fetchWorkspaceData(profileId) {
     throw new Error(`No se pudo leer el workspace (${resp.status}).`);
   }
   const cloudData = await resp.json();
-  return normalizeDataPayload(cloudData);
+  const data = normalizeDataPayload(cloudData);
+  // Los estados custom viven en el perfil dentro de cloudData.profiles, no en el payload de tareas.
+  const profile = Array.isArray(cloudData?.profiles)
+    ? cloudData.profiles.find((p) => p && p.id === profileId)
+    : null;
+  const customStatuses = Array.isArray(profile?.customStatuses) && profile.customStatuses.length > 0
+    ? normalizeStatuses(profile.customStatuses)
+    : undefined;
+  return {
+    tasks: data.tasks,
+    boardNotes: data.boardNotes,
+    events: data.events,
+    ...(customStatuses ? { customStatuses } : {}),
+  };
 }
 
 export async function loadData(profileId = null) {
