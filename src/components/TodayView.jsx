@@ -39,13 +39,6 @@ export default function TodayView({
 
   const nextRecommendedTask = sortedTodayTasks[0] || overdueTasks[0] || null;
 
-  const handleTaskKeyDown = (e, task) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      if (onSelectTask) onSelectTask(task);
-    }
-  };
-
   return (
     <div className="today-view-container fade-in">
       {/* Welcome & Productivity Overview */}
@@ -55,7 +48,7 @@ export default function TodayView({
           <h1 className="today-date-title">{todayDateFormatted}</h1>
           <p className="today-subtitle">
             {todayTasks.length === 0 && overdueTasks.length === 0
-              ? '✨ No tienes tareas pendientes para hoy. ¡Excelente trabajo!'
+              ? <><span aria-hidden="true">✨ </span>No tienes tareas pendientes para hoy. ¡Excelente trabajo!</>
               : `Tienes ${todayTasks.length} tarea${todayTasks.length === 1 ? '' : 's'} programada${todayTasks.length === 1 ? '' : 's'} hoy${overdueTasks.length > 0 ? ` y ${overdueTasks.length} atrasada${overdueTasks.length === 1 ? '' : 's'}` : ''}.`}
           </p>
         </div>
@@ -80,7 +73,7 @@ export default function TodayView({
       {nextRecommendedTask && (
         <div className="today-next-focus material-floating">
           <div className="next-focus-badge">
-            <span>🎯 Siguiente Foco Recomendado</span>
+            <span><span aria-hidden="true">🎯 </span>Siguiente Foco Recomendado</span>
           </div>
           <div className="next-focus-content">
             <div className="next-focus-main">
@@ -93,7 +86,7 @@ export default function TodayView({
                   <span className="category-pill">{nextRecommendedTask.category}</span>
                 )}
                 {nextRecommendedTask.time && (
-                  <span className="time-pill">⏰ {nextRecommendedTask.time}</span>
+                  <span className="time-pill"><span aria-hidden="true">⏰ </span>{nextRecommendedTask.time}</span>
                 )}
               </div>
             </div>
@@ -103,7 +96,7 @@ export default function TodayView({
                 className="primary-button"
                 onClick={() => onToggleComplete && onToggleComplete(nextRecommendedTask.id)}
               >
-                ✓ Completar
+                <span aria-hidden="true">✓ </span>Completar
               </button>
               <button
                 type="button"
@@ -134,7 +127,7 @@ export default function TodayView({
 
           {todayTasks.length === 0 ? (
             <div className="empty-state-card">
-              <span className="empty-icon">🎉</span>
+              <span className="empty-icon" aria-hidden="true">🎉</span>
               <p>No hay tareas pendientes para el día de hoy.</p>
               <button
                 type="button"
@@ -154,19 +147,17 @@ export default function TodayView({
                     onClick={() => onToggleComplete && onToggleComplete(task.id)}
                     aria-label={`Completar ${task.name}`}
                   />
-                  <div
+                  <button
+                    type="button"
                     className="task-card-body"
                     onClick={() => onSelectTask && onSelectTask(task)}
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(e) => handleTaskKeyDown(e, task)}
                   >
                     <span className="task-title">{task.name}</span>
                     <div className="task-card-sub">
                       {task.category && <span className="category-pill">{task.category}</span>}
-                      {task.time && <span className="time-pill">⏰ {task.time}</span>}
+                      {task.time && <span className="time-pill"><span aria-hidden="true">⏰ </span>{task.time}</span>}
                     </div>
-                  </div>
+                  </button>
                 </div>
               ))}
             </div>
@@ -174,7 +165,7 @@ export default function TodayView({
 
           {overdueTasks.length > 0 && (
             <div className="overdue-subblock">
-              <h3>⚠️ Tareas Atrasadas ({overdueTasks.length})</h3>
+              <h3><span aria-hidden="true">⚠️ </span>Tareas Atrasadas ({overdueTasks.length})</h3>
               <div className="today-tasks-list">
                 {overdueTasks.map((task) => (
                   <div key={task.id} className="today-task-card material-elevated overdue">
@@ -184,16 +175,14 @@ export default function TodayView({
                       onClick={() => onToggleComplete && onToggleComplete(task.id)}
                       aria-label={`Completar ${task.name}`}
                     />
-                    <div
+                    <button
+                      type="button"
                       className="task-card-body"
                       onClick={() => onSelectTask && onSelectTask(task)}
-                      role="button"
-                      tabIndex={0}
-                      onKeyDown={(e) => handleTaskKeyDown(e, task)}
                     >
                       <span className="task-title">{task.name}</span>
                       <span className="overdue-tag">Venció {task.date}</span>
-                    </div>
+                    </button>
                   </div>
                 ))}
               </div>
@@ -216,7 +205,7 @@ export default function TodayView({
 
           {sortedTodayEvents.length === 0 ? (
             <div className="empty-state-card">
-              <span className="empty-icon">📅</span>
+              <span className="empty-icon" aria-hidden="true">📅</span>
               <p>Sin eventos ni reuniones en la agenda de hoy.</p>
             </div>
           ) : (

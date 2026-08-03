@@ -1,11 +1,20 @@
+import { Button as UiButton, IconButton as UiIconButton, Input as UiInput, Modal as UiModal, Sheet as UiSheet } from '../ui/index.jsx';
+
+export const Button = UiButton;
+export const IconButton = UiIconButton;
+export const Input = UiInput;
+export const Modal = UiModal;
+export const Sheet = UiSheet;
+
 export function Pill({ s, fixedWidth = null }) {
+  const className = fixedWidth ? `pill pill--fixed` : 'pill';
   return (
     <span
+      className={className}
       style={{
-        fontSize: 11, fontWeight: 500, padding: '2px 8px', borderRadius: 20, whiteSpace: 'nowrap',
-        background: `var(${s.bv})`, color: `var(${s.tv})`,
+        background: `var(${s.bv})`,
+        color: `var(${s.tv})`,
         minWidth: fixedWidth || undefined,
-        textAlign: fixedWidth ? 'center' : undefined,
       }}
     >
       {s.label}
@@ -21,22 +30,11 @@ export function CategoryPill({ name }) {
   );
 }
 
-export function NBtn({ onClick, children }) {
+export function NBtn({ onClick, children, label }) {
   return (
-    <button
-      onClick={onClick}
-      style={{
-        width: 34, height: 34, fontSize: 16, cursor: 'pointer',
-        border: '1px solid var(--color-border-secondary)',
-        background: 'var(--color-background-primary)',
-        borderRadius: '999px',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        color: 'var(--color-text-secondary)',
-        boxShadow: '0 10px 22px rgba(15,23,42,0.06)',
-      }}
-    >
+    <UiIconButton onClick={onClick} label={label}>
       {children}
-    </button>
+    </UiIconButton>
   );
 }
 

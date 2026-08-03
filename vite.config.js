@@ -14,12 +14,18 @@ export default defineConfig(({ mode }) => {
       'import.meta.env.VITE_GOOGLE_CLIENT_ID': JSON.stringify(googleClientId),
     },
     build: {
-      chunkSizeWarningLimit: 1000,
+      chunkSizeWarningLimit: 500,
       rollupOptions: {
         output: {
           manualChunks(id) {
+            if (id.includes('node_modules/react-dom')) {
+              return 'vendor-react-dom';
+            }
             if (id.includes('node_modules/react')) {
               return 'vendor-react';
+            }
+            if (id.includes('node_modules/chrono-node')) {
+              return 'vendor-chrono';
             }
           },
         },

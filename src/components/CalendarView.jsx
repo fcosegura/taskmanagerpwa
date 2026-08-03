@@ -1,6 +1,6 @@
 import { MONTHS, DAYS } from '../constants.js';
 import { toDateStr, fmtDate } from '../utils.jsx';
-import { NBtn } from './shared/index.jsx';
+import { Button, NBtn } from './shared/index.jsx';
 import TaskRow from './TaskRow.jsx';
 
 function getEasterSunday(year) {
@@ -94,17 +94,12 @@ export default function CalendarView({
             </div>
           </div>
           <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-            <button
-              type="button"
-              className="ghost-button"
-              onClick={() => onAddEventForDay(eventCreateDate)}
-              style={{ borderRadius: '999px', fontSize: 12, fontWeight: 700 }}
-            >
+            <Button variant="ghost" onClick={() => onAddEventForDay(eventCreateDate)}>
               + Evento
-            </button>
+            </Button>
             <div style={{ display: 'flex', gap: 6 }}>
-              <NBtn onClick={prev}>{'‹'}</NBtn>
-              <NBtn onClick={next}>{'›'}</NBtn>
+              <NBtn onClick={prev} label="Mes anterior">{'‹'}</NBtn>
+              <NBtn onClick={next} label="Mes siguiente">{'›'}</NBtn>
             </div>
           </div>
         </div>

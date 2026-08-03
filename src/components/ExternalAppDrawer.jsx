@@ -184,13 +184,14 @@ export default function ExternalAppDrawer({ isOpen, onClose }) {
         aria-label="MyNotebook"
         style={{ '--external-drawer-width': `${drawerWidth}px` }}
       >
-        <button
-          type="button"
+        <div
+          role="slider"
           className="external-app-resize-handle"
           aria-label="Redimensionar panel de MyNotebook"
           aria-valuemin={MIN_DRAWER_WIDTH}
+          aria-valuemax={MAX_DRAWER_WIDTH}
           aria-valuenow={drawerWidth}
-          disabled={!isOpen}
+          tabIndex={0}
           onPointerDown={startResize}
           onKeyDown={handleResizeKeyDown}
         />

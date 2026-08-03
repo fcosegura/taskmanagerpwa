@@ -114,7 +114,7 @@ export default function CommandMenu({
       >
         <span id="command-menu-heading" className="sr-only" style={{ display: 'none' }}>Menú de Comandos</span>
         <div className="command-menu-header">
-          <span className="search-icon">🔍</span>
+          <span className="search-icon" aria-hidden="true">🔍</span>
           <input
             ref={inputRef}
             type="text"
@@ -138,22 +138,14 @@ export default function CommandMenu({
             allItems.map((item, index) => {
               const isSelected = index === selectedIndex;
               return (
-                <div
+                <button
                   key={item.id}
+                  type="button"
                   className={`command-item ${isSelected ? 'selected' : ''}`}
                   onClick={() => executeItem(item)}
                   onMouseEnter={() => setSelectedIndex(index)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      executeItem(item);
-                    }
-                  }}
-                  role="button"
-                  tabIndex={0}
                 >
-                  <span className="command-icon">{item.icon || (item.type === 'task' ? '📌' : '⚡')}</span>
+                  <span className="command-icon" aria-hidden="true">{item.icon || (item.type === 'task' ? '📌' : '⚡')}</span>
                   <div className="command-item-content">
                     <span className="command-item-title">{item.label}</span>
                     {item.type === 'task' && item.task.category && (
@@ -161,7 +153,7 @@ export default function CommandMenu({
                     )}
                   </div>
                   {isSelected && <span className="command-item-enter">↵ Ejecutar</span>}
-                </div>
+                </button>
               );
             })
           )}

@@ -34,10 +34,11 @@ export default function DailyStatusDaysModal({ onConfirm, onClose }) {
           ¿Cuántos días de actividad quieres incluir? (máximo {MAX_DAYS})
         </p>
         <form onSubmit={handleSubmit}>
-          <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 6 }}>
+          <label htmlFor="daily-status-days-input" style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 6 }}>
             Días
           </label>
           <input
+            id="daily-status-days-input"
             type="number"
             min={1}
             max={MAX_DAYS}

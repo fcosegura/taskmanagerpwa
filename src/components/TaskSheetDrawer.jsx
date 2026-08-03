@@ -2,6 +2,7 @@ import { useState, useRef } from 'react';
 import { STATUS, PRIORITY } from '../constants.js';
 import { isJiraCategory, extractJiraTicketFromUrl, getJiraTaskDefaultsFromUrl } from '../jiraTicket.js';
 import { useModalDialog } from '../hooks/useModalDialog.js';
+import { IconButton } from './ui/index.jsx';
 
 export default function TaskSheetDrawer({
   isOpen,
@@ -106,9 +107,9 @@ export default function TaskSheetDrawer({
       >
         <div className="sheet-drawer-header">
           <h2 id="task-sheet-drawer-heading">{task?.id ? 'Editar Tarea' : 'Nueva Tarea'}</h2>
-          <button type="button" className="icon-button close-btn" onClick={onClose} aria-label="Cerrar">
+          <IconButton onClick={onClose} label="Cerrar" className="close-btn">
             ✕
-          </button>
+          </IconButton>
         </div>
 
         <form onSubmit={handleSubmit} className="sheet-drawer-body">

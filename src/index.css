@@ -999,6 +999,19 @@ select:focus {
   vertical-align: middle;
 }
 
+.pill {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 20px;
+  white-space: nowrap;
+}
+
+.pill--fixed {
+  text-align: center;
+}
+
 .filter-chip {
   padding: 8px 14px;
   border-radius: 999px;
@@ -2269,6 +2282,12 @@ nav.show-mobile button.active {
   border-radius: var(--border-radius-md);
   cursor: pointer;
   transition: background 0.15s ease;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  width: 100%;
+  text-align: left;
 }
 
 .command-item.selected,
@@ -2613,12 +2632,19 @@ nav.show-mobile button.active {
   background: rgba(23, 107, 135, 0.15);
 }
 
-.task-card-body {
+.task-card-body,
+button.task-card-body {
   flex: 1;
   display: flex;
   flex-direction: column;
   gap: 4px;
   cursor: pointer;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  padding: 0;
 }
 
 .task-card-sub {
