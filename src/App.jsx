@@ -1026,7 +1026,9 @@ export default function App() {
       completedAt: '',
       hideInKanbanDone: false,
     };
-    applyTaskUpdate(newTask);
+    // applyTaskUpdate trata tasks con id existente como ediciones (map), no inserciones.
+    // Para una tarea nueva con id propio usamos setTasks directamente.
+    setTasks((prev) => [...prev, newTask]);
     setBoardNotes((p) => p.filter((n) => n.id !== note.id));
     pushUndoTransaction({
       description: `Nota convertida en tarea "${taskTitle}"`,
@@ -1036,6 +1038,7 @@ export default function App() {
       },
     });
   };
+
 
   const upsertEvent = (event) => {
     const cleanEvent = { ...event };
