@@ -135,8 +135,8 @@ export default function TodayView({
       {/* Next Priority Focus Section */}
       {nextRecommendedTask && (
         <div className="today-next-focus material-floating">
-          <div className="next-focus-badge-wrapper" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
-            <div className="next-focus-badge" style={{ marginBottom: 0 }}>
+          <div className="next-focus-badge-wrapper">
+            <div className="next-focus-badge">
               <span><span aria-hidden="true">🎯 </span>Siguiente Foco Recomendado</span>
             </div>
             {recommendationReason && (

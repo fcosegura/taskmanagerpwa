@@ -2623,9 +2623,20 @@ nav.show-mobile button.active {
   border-radius: var(--border-radius-lg);
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
   max-width: 100%;
   box-sizing: border-box;
+}
+
+.next-focus-badge-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.next-focus-badge {
+  margin: 0;
 }
 
 .next-focus-badge span {
@@ -2662,10 +2673,13 @@ nav.show-mobile button.active {
   flex: 1;
   min-width: 0;
   max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .next-focus-title {
-  margin: 0 0 4px;
+  margin: 0;
   font-size: var(--font-size-lg);
   font-weight: 750;
   overflow-wrap: anywhere;
@@ -2673,7 +2687,7 @@ nav.show-mobile button.active {
 }
 
 .next-focus-desc {
-  margin: 0 0 8px;
+  margin: 0;
   font-size: var(--font-size-sm);
   color: var(--color-text-secondary);
   overflow-wrap: anywhere;
