@@ -37,8 +37,8 @@ export default function TasksView({
       await onQuickSuggest(quickText);
       setQuickText('');
       setQuickFeedback('Tarea creada con sugerencia IA.');
-    } catch (error) {
-      setQuickFeedback(error.message || 'No se pudo sugerir la tarea.');
+    } catch {
+      setQuickFeedback('No pude completar esta sugerencia. Puedes continuar trabajando normalmente.');
     } finally {
       setQuickAiLoading(false);
     }

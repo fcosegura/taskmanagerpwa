@@ -20,6 +20,8 @@ import ExternalAppDrawer from './components/ExternalAppDrawer.jsx';
 import { indexEventsByDate } from './calendarEvents.js';
 import { indexTasksByDate } from './calendarTaskIndex.js';
 import { normalizePlannedSlots } from './plannedSlots.js';
+import { UndoToast } from './core/history/UndoToast.jsx';
+import { pushUndoTransaction, performUndo } from './core/history/undoManager.js';
 
 const TodayView = lazy(() => import('./components/TodayView.jsx'));
 const TasksView = lazy(() => import('./components/TasksView.jsx'));
@@ -175,6 +177,25 @@ export default function App() {
     const storedTheme = localStorage.getItem(THEME_STORAGE_KEY);
     return storedTheme === 'dark' ? 'dark' : 'light';
   });
+
+  const DENSITY_STORAGE_KEY = 'taskmanager_density';
+  const [density, setDensity] = useState(() => {
+    try {
+      return localStorage.getItem(DENSITY_STORAGE_KEY) || 'comfortable';
+    } catch {
+      return 'comfortable';
+    }
+  });
+
+  const toggleDensity = (newDensity) => {
+    const val = newDensity || (density === 'comfortable' ? 'compact' : 'comfortable');
+    setDensity(val);
+    try {
+      localStorage.setItem(DENSITY_STORAGE_KEY, val);
+    } catch {
+      // ignore
+    }
+  };
   const [aiGenerationLoading, setAiGenerationLoading] = useState(false);
   const [aiGenerationError, setAiGenerationError] = useState('');
   const [aiPlanPreview, setAiPlanPreview] = useState(null);
@@ -922,6 +943,8 @@ export default function App() {
   const del = (id) => {
     let blockedByOpenChildren = false;
     let blockedChildrenCount = 0;
+    let deletedTaskName = '';
+    let savedPreviousTasks = null;
     setTasks((previousTasks) => {
       const targetTask = previousTasks.find((task) => task.id === id);
       if (!targetTask) return previousTasks;
@@ -934,6 +957,8 @@ export default function App() {
         blockedChildrenCount = openChildTasks.length;
         return previousTasks;
       }
+      deletedTaskName = targetTask.name || 'Tarea';
+      savedPreviousTasks = previousTasks;
       return previousTasks
         .filter((task) => task.id !== id)
         .map((task) => ({
@@ -945,8 +970,16 @@ export default function App() {
       showParentBlockedMessage('eliminar', blockedChildrenCount || 1);
       return;
     }
+    if (savedPreviousTasks) {
+      pushUndoTransaction({
+        description: `Tarea "${deletedTaskName}" eliminada`,
+        rollbackFn: () => setTasks(savedPreviousTasks),
+      });
+    }
     setModal(null);
     setTaskPreviewId((currentId) => (currentId === id ? null : currentId));
+    setIsTaskSheetOpen(false);
+    setTaskSheetDrawerTask(null);
   };
   const open = (init = {}) => {
     setTaskPreviewId(null);
@@ -961,8 +994,39 @@ export default function App() {
   };
 
   const addBoardNote = (note) => setBoardNotes((p) => [note, ...p]);
-  const deleteBoardNote = (id) => setBoardNotes((p) => p.filter((note) => note.id !== id));
+  const deleteBoardNote = (id) => {
+    const targetNote = boardNotes.find((note) => note.id === id);
+    const previousNotes = boardNotes;
+    setBoardNotes((p) => p.filter((note) => note.id !== id));
+    if (targetNote) {
+      pushUndoTransaction({
+        description: `Nota "${targetNote.title || 'adhesiva'}" eliminada`,
+        rollbackFn: () => setBoardNotes(previousNotes),
+      });
+    }
+  };
   const updateBoardNote = (id, changes) => setBoardNotes((p) => p.map((note) => note.id === id ? { ...note, ...changes } : note));
+  const handleConvertNoteToTask = (note) => {
+    const taskTitle = (note.title || note.text || 'Nota').trim();
+    if (!taskTitle) return;
+    const newTask = {
+      id: uid(),
+      name: taskTitle,
+      notes: note.title && note.text ? note.text : '',
+      status: 'not_done',
+      priority: 'medium',
+      date: '',
+      time: '',
+      subtasks: [],
+      dependencyTaskIds: [],
+      category: '',
+      ticketNumber: '',
+      completedAt: '',
+      hideInKanbanDone: false,
+    };
+    applyTaskUpdate(newTask);
+    deleteBoardNote(note.id);
+  };
 
   const upsertEvent = (event) => {
     const cleanEvent = { ...event };
@@ -971,7 +1035,18 @@ export default function App() {
     setEvents((p) => cleanEvent.id ? p.map((e) => e.id === cleanEvent.id ? cleanEvent : e) : [...p, { ...cleanEvent, id: uid() }]);
     setEventModal(null);
   };
-  const deleteEvent = (id) => { setEvents((p) => p.filter((e) => e.id !== id)); setEventModal(null); };
+  const deleteEvent = (id) => {
+    const targetEvent = events.find((e) => e.id === id);
+    const previousEvents = events;
+    setEvents((p) => p.filter((e) => e.id !== id));
+    setEventModal(null);
+    if (targetEvent) {
+      pushUndoTransaction({
+        description: `Evento "${targetEvent.title || 'de calendario'}" eliminado`,
+        rollbackFn: () => setEvents(previousEvents),
+      });
+    }
+  };
   const openEventModal = (init = {}) => setEventModal({
     title: '',
     startDate: '',
@@ -1198,8 +1273,8 @@ export default function App() {
         mainTasks: normalizedMain,
         childTasks: normalizedChildren,
       });
-    } catch (error) {
-      setAiGenerationError(error.message || 'No se pudo generar tareas con IA.');
+    } catch {
+      setAiGenerationError('No pude completar esta sugerencia. Puedes continuar trabajando normalmente.');
     } finally {
       setAiGenerationLoading(false);
     }
@@ -1342,7 +1417,7 @@ export default function App() {
   }
 
   return (
-    <div className={`app-shell ${contextBgClass}`}>
+    <div className={`app-shell ${contextBgClass}`} data-density={density}>
       {swUpdateAvailable && (
         <div className="sw-update-banner" role="status">
           <span>Hay una nueva versión de la aplicación.</span>
@@ -1681,7 +1756,7 @@ export default function App() {
                   statuses={statuses}
                   onOpenTaskPreview={(t) => setTaskPreviewId(t.id)}
                 />
-              : <BoardView notes={boardNotes} onAddNote={addBoardNote} onUpdateNote={updateBoardNote} onDeleteNote={deleteBoardNote} />
+              : <BoardView notes={boardNotes} onAddNote={addBoardNote} onUpdateNote={updateBoardNote} onDeleteNote={deleteBoardNote} onConvertToTask={handleConvertNoteToTask} />
         }
         </Suspense>
       </main>
@@ -1762,6 +1837,8 @@ export default function App() {
             setFocusPriorityLevels(levels);
             localStorage.setItem('focusPriorityLevels', JSON.stringify(levels));
           }}
+          density={density}
+          onToggleDensity={toggleDensity}
           onClose={() => setShowSettingsModal(false)}
         />
       )}
@@ -1823,6 +1900,8 @@ export default function App() {
           onNavigateToView={navigateToView}
           onOpenCreateTask={() => open()}
           onToggleTheme={toggleTheme}
+          onToggleDensity={toggleDensity}
+          onUndo={performUndo}
           onOpenWorkspaceMenu={() => setShowProfileMenu(true)}
           onSelectTask={(t) => handleOpenTaskSheet(t)}
         />
@@ -1840,6 +1919,7 @@ export default function App() {
       </Suspense>
 
       <ExternalAppDrawer isOpen={externalAppOpen} onClose={closeExternalApp} />
+      <UndoToast />
       <BottomNav currentView={view} setView={navigateToView} onOpenCreateTask={() => open()} onOpenExternalApp={openExternalApp} />
     </div>
   );

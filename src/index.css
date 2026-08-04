@@ -3030,3 +3030,167 @@ button.task-card-body {
     transform: none !important;
   }
 }
+
+/* ── Universal Tabular Typography (Manifiesto v4.0) ── */
+.tabular-nums,
+.task-date-pill,
+.event-time-badge,
+.subtask-progress-pill,
+.kanban-badge,
+.time-slot-label,
+.ticket-badge,
+.hero-progress-counter,
+.jira-ticket-tag,
+time {
+  font-variant-numeric: tabular-nums;
+  -moz-font-feature-settings: "tnum";
+  -webkit-font-feature-settings: "tnum";
+  font-feature-settings: "tnum";
+}
+
+/* ── Focused Adaptive Density Mode (A11y Preserved) ── */
+[data-density="compact"] .task-card,
+[data-density="compact"] .today-task-card,
+[data-density="compact"] .kanban-task-card {
+  padding: 8px 12px;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+[data-density="compact"] .task-row-content {
+  gap: 6px;
+}
+
+[data-density="compact"] .board-note {
+  padding: 10px 12px;
+}
+
+[data-density="compact"] .daily-agenda-scroll {
+  font-size: 12px;
+}
+
+/* Preserve 44px min touch targets for buttons and inputs even in compact mode */
+.btn,
+.primary-button,
+.secondary-button,
+.ghost-button,
+.icon-btn,
+.task-checkbox-animated,
+.input-field,
+select,
+input {
+  min-height: 44px;
+}
+
+/* ── Undo Toast Component (Trust First) ── */
+.undo-toast-container {
+  position: fixed;
+  bottom: 84px;
+  right: 24px;
+  z-index: 9999;
+  display: flex;
+  justify-content: flex-end;
+  pointer-events: none;
+  animation: undoToastSlideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@media (max-width: 640px) {
+  .undo-toast-container {
+    bottom: 76px;
+    left: 16px;
+    right: 16px;
+    justify-content: center;
+  }
+}
+
+@keyframes undoToastSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.undo-toast-card {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border-radius: var(--border-radius-lg, 12px);
+  background: var(--material-elevated-bg, rgba(255, 255, 255, 0.95));
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--color-border-secondary, rgba(0, 0, 0, 0.1));
+  box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.15), 0 4px 12px -2px rgba(0, 0, 0, 0.1);
+  color: var(--color-text-primary, #1e293b);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.undo-toast-icon {
+  font-size: 16px;
+  color: var(--color-accent, #3b82f6);
+}
+
+.undo-toast-message {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 260px;
+}
+
+.undo-toast-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--color-accent, #3b82f6);
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  min-height: 34px !important;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.undo-toast-btn:hover {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+}
+
+.undo-toast-kbd {
+  font-family: inherit;
+  font-size: 11px;
+  background: rgba(255, 255, 255, 0.25);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.undo-toast-close {
+  background: transparent;
+  border: none;
+  color: var(--color-text-secondary, #64748b);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px !important;
+  min-width: 28px;
+}
+
+.undo-toast-close:hover {
+  background: var(--color-background-secondary, rgba(0, 0, 0, 0.05));
+  color: var(--color-text-primary, #0f172a);
+}
+

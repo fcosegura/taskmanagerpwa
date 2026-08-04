@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 
-function BoardNoteCard({ note, onDelete, onUpdate, onDragHandlePointerDown, isDragging, noteWidth }) {
+function BoardNoteCard({ note, onDelete, onUpdate, onConvertToTask, onDragHandlePointerDown, isDragging, noteWidth }) {
   return (
     <div
       className="board-note material-elevated"
@@ -43,22 +43,48 @@ function BoardNoteCard({ note, onDelete, onUpdate, onDragHandlePointerDown, isDr
           <span style={{ fontSize: 11, fontWeight: 700 }}>Mover</span>
         </button>
 
-        <button
-          type="button"
-          onClick={(e) => { e.stopPropagation(); onDelete(note.id); }}
-          aria-label="Eliminar nota"
-          style={{
-            border: 'none',
-            background: 'transparent',
-            color: 'var(--color-text-secondary)',
-            cursor: 'pointer',
-            fontSize: 16,
-            lineHeight: 1,
-            padding: '2px 4px'
-          }}
-        >
-          ✕
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          {onConvertToTask && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onConvertToTask(note); }}
+              aria-label="Convertir nota a tarea"
+              title="Convertir a tarea al instante"
+              style={{
+                border: 'none',
+                background: 'var(--color-accent-subtle, rgba(59, 130, 246, 0.1))',
+                color: 'var(--color-accent, #3b82f6)',
+                borderRadius: 6,
+                fontSize: 11,
+                fontWeight: 700,
+                cursor: 'pointer',
+                padding: '2px 6px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 2,
+              }}
+            >
+              <span>⚡</span> Tarea
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onDelete(note.id); }}
+            aria-label="Eliminar nota"
+            style={{
+              border: 'none',
+              background: 'transparent',
+              color: 'var(--color-text-secondary)',
+              cursor: 'pointer',
+              fontSize: 16,
+              lineHeight: 1,
+              padding: '2px 4px'
+            }}
+          >
+            ✕
+          </button>
+        </div>
       </div>
 
       <input
@@ -100,7 +126,7 @@ function BoardNoteCard({ note, onDelete, onUpdate, onDragHandlePointerDown, isDr
   );
 }
 
-export default function BoardView({ notes, onAddNote, onUpdateNote, onDeleteNote }) {
+export default function BoardView({ notes, onAddNote, onUpdateNote, onDeleteNote, onConvertToTask }) {
   const boardRef = useRef(null);
   const dragCaptureRef = useRef(null);
   const [draggedId, setDraggedId] = useState(null);
@@ -225,6 +251,7 @@ export default function BoardView({ notes, onAddNote, onUpdateNote, onDeleteNote
               note={displayNote}
               onDelete={onDeleteNote}
               onUpdate={onUpdateNote}
+              onConvertToTask={onConvertToTask}
               onDragHandlePointerDown={(e) => handlePointerDown(e, displayNote)}
               isDragging={draggedId === note.id}
               noteWidth={noteWidth}
