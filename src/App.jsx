@@ -1005,10 +1005,11 @@ export default function App() {
       });
     }
   };
-  const updateBoardNote = (id, changes) => setBoardNotes((p) => p.map((note) => note.id === id ? { ...note, ...changes } : note));
   const handleConvertNoteToTask = (note) => {
     const taskTitle = (note.title || note.text || 'Nota').trim();
     if (!taskTitle) return;
+    const previousTasks = tasks;
+    const previousNotes = boardNotes;
     const newTask = {
       id: uid(),
       name: taskTitle,
@@ -1025,7 +1026,14 @@ export default function App() {
       hideInKanbanDone: false,
     };
     applyTaskUpdate(newTask);
-    deleteBoardNote(note.id);
+    setBoardNotes((p) => p.filter((n) => n.id !== note.id));
+    pushUndoTransaction({
+      description: `Nota convertida en tarea "${taskTitle}"`,
+      rollbackFn: () => {
+        setTasks(previousTasks);
+        setBoardNotes(previousNotes);
+      },
+    });
   };
 
   const upsertEvent = (event) => {
