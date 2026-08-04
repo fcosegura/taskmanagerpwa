@@ -1005,6 +1005,7 @@ export default function App() {
       });
     }
   };
+  const updateBoardNote = (id, changes) => setBoardNotes((p) => p.map((note) => note.id === id ? { ...note, ...changes } : note));
   const handleConvertNoteToTask = (note) => {
     const taskTitle = (note.title || note.text || 'Nota').trim();
     if (!taskTitle) return;
