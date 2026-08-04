@@ -1007,14 +1007,18 @@ export default function App() {
   };
   const updateBoardNote = (id, changes) => setBoardNotes((p) => p.map((note) => note.id === id ? { ...note, ...changes } : note));
   const handleConvertNoteToTask = (note) => {
-    const taskTitle = (note.title || note.text || 'Nota').trim();
-    if (!taskTitle) return;
+    const taskTitle = (note?.title || '').trim();
+    if (!taskTitle) {
+      setBackupMessage('El título de la nota es obligatorio para convertirla en tarea.');
+      setTimeout(() => setBackupMessage(''), 4200);
+      return;
+    }
     const previousTasks = tasks;
     const previousNotes = boardNotes;
     const newTask = {
       id: uid(),
       name: taskTitle,
-      notes: note.title && note.text ? note.text : '',
+      notes: note.text ? note.text.trim() : '',
       status: 'not_done',
       priority: 'medium',
       date: '',
@@ -1026,8 +1030,6 @@ export default function App() {
       completedAt: '',
       hideInKanbanDone: false,
     };
-    // applyTaskUpdate trata tasks con id existente como ediciones (map), no inserciones.
-    // Para una tarea nueva con id propio usamos setTasks directamente.
     setTasks((prev) => [...prev, newTask]);
     setBoardNotes((p) => p.filter((n) => n.id !== note.id));
     pushUndoTransaction({

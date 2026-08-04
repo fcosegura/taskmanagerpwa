@@ -49,7 +49,7 @@ function BoardNoteCard({ note, onDelete, onUpdate, onConvertToTask, onDragHandle
               type="button"
               onClick={(e) => { e.stopPropagation(); onConvertToTask(note); }}
               aria-label="Convertir nota a tarea"
-              title="Convertir a tarea al instante"
+              title={note.title?.trim() ? 'Convertir a tarea al instante' : 'Se requiere un título en la nota para convertirla en tarea'}
               style={{
                 border: 'none',
                 background: 'var(--color-accent-subtle, rgba(59, 130, 246, 0.1))',
@@ -62,6 +62,7 @@ function BoardNoteCard({ note, onDelete, onUpdate, onConvertToTask, onDragHandle
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: 2,
+                opacity: note.title?.trim() ? 1 : 0.6,
               }}
             >
               <span>⚡</span> Tarea
