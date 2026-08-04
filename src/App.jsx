@@ -22,6 +22,8 @@ import { indexTasksByDate } from './calendarTaskIndex.js';
 import { normalizePlannedSlots } from './plannedSlots.js';
 import { UndoToast } from './core/history/UndoToast.jsx';
 import { pushUndoTransaction, performUndo } from './core/history/undoManager.js';
+import { useToasts } from './components/Toast/useToasts.js';
+import ToastContainer from './components/Toast/index.jsx';
 
 const TodayView = lazy(() => import('./components/TodayView.jsx'));
 const TasksView = lazy(() => import('./components/TasksView.jsx'));
@@ -216,6 +218,23 @@ export default function App() {
   const syncInFlightRef = useRef(false);
   const pendingSyncRef = useRef(false);
   const syncNowRef = useRef(async () => false);
+  const isOnlineRef = useRef(typeof navigator !== 'undefined' ? navigator.onLine : true);
+
+  const { toasts, showToast, dismiss: dismissToast, clearToasts } = useToasts();
+  const [isOnline, setIsOnline] = useState(() => (typeof navigator !== 'undefined' ? navigator.onLine : true));
+  const [reconnecting, setReconnecting] = useState(false);
+  const [installPromptEvent, setInstallPromptEvent] = useState(null);
+  const [isInstalled, setIsInstalled] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.matchMedia?.('(display-mode: standalone)').matches || false;
+  });
+  const [sessionExpiredLoggedOut, setSessionExpiredLoggedOut] = useState(() => {
+    try {
+      return localStorage.getItem('taskmanager_session_expired') === '1';
+    } catch {
+      return false;
+    }
+  });
 
   const clearSyncDebounce = useCallback(() => {
     if (syncDebounceTimerRef.current) {
@@ -248,7 +267,7 @@ export default function App() {
         syncFeedbackTimerRef.current = window.setTimeout(() => setSyncState('idle'), 1600);
         return true;
       } catch {
-        setSyncState('error');
+        setSyncState(isOnlineRef.current ? 'error' : 'offline');
         return false;
       } finally {
         syncInFlightRef.current = false;
@@ -265,6 +284,54 @@ export default function App() {
     window.addEventListener('taskmanager-sw-update', onSwUpdate);
     return () => window.removeEventListener('taskmanager-sw-update', onSwUpdate);
   }, []);
+
+  useEffect(() => {
+    const onOnline = () => {
+      isOnlineRef.current = true;
+      setIsOnline(true);
+      const hasPending = serializePayload(latestPayloadRef.current) !== lastSyncedPayloadRef.current;
+      if (hasPending) {
+        setReconnecting(true);
+        void syncNowRef.current({ immediate: true }).then(() => setReconnecting(false)).catch(() => setReconnecting(false));
+      }
+    };
+    const onOffline = () => {
+      isOnlineRef.current = false;
+      setIsOnline(false);
+      setReconnecting(false);
+    };
+    window.addEventListener('online', onOnline);
+    window.addEventListener('offline', onOffline);
+    return () => {
+      window.removeEventListener('online', onOnline);
+      window.removeEventListener('offline', onOffline);
+    };
+  }, []);
+
+  useEffect(() => {
+    const onBeforeInstallPrompt = (e) => {
+      e.preventDefault();
+      setInstallPromptEvent(e);
+    };
+    const onAppInstalled = () => {
+      setIsInstalled(true);
+      setInstallPromptEvent(null);
+    };
+    window.addEventListener('beforeinstallprompt', onBeforeInstallPrompt);
+    window.addEventListener('appinstalled', onAppInstalled);
+    return () => {
+      window.removeEventListener('beforeinstallprompt', onBeforeInstallPrompt);
+      window.removeEventListener('appinstalled', onAppInstalled);
+    };
+  }, []);
+
+  const handleInstallApp = () => {
+    if (!installPromptEvent) return;
+    installPromptEvent.prompt();
+    installPromptEvent.userChoice.then(() => {
+      setInstallPromptEvent(null);
+    });
+  };
 
   useEffect(() => {
     localStorage.removeItem('userToken');
@@ -332,13 +399,12 @@ export default function App() {
       setAuthenticated(data.authenticated);
       setHydratedSession(data.authenticated);
       if (data.cloudError) {
-        setBackupMessage(`Sync D1: ${data.cloudError}`);
-        setTimeout(() => setBackupMessage(''), 5500);
+        showToast(`Sync D1: ${data.cloudError}`, { type: 'warning', duration: 5500 });
       }
       setReady(true);
     });
     return () => { cancelled = true; };
-  }, [authVersion, activeProfileId]);
+  }, [authVersion, activeProfileId, showToast]);
 
   useEffect(() => {
     const onPointerDown = (event) => {
@@ -364,6 +430,12 @@ export default function App() {
 
   const handleLoginSuccess = async (credential) => {
     await loginWithGoogleCredential(credential);
+    try {
+      localStorage.removeItem('taskmanager_session_expired');
+    } catch {
+      // ignore
+    }
+    setSessionExpiredLoggedOut(false);
     setReady(false);
     setAuthenticated(true);
     setAuthVersion((version) => version + 1);
@@ -388,10 +460,21 @@ export default function App() {
     setActiveProfileId(null);
     setSyncState('idle');
     setShowProfileMenu(false);
+    clearToasts();
+    try {
+      localStorage.removeItem('taskmanager_session_expired');
+    } catch {
+      // ignore
+    }
     localStorage.removeItem(ACTIVE_PROFILE_STORAGE_KEY);
   };
 
-  const forceLogout = () => {
+  const forceLogout = useCallback(() => {
+    try {
+      localStorage.setItem('taskmanager_session_expired', '1');
+    } catch {
+      // ignore
+    }
     setAuthenticated(false);
     setReady(false);
     setHydratedSession(null);
@@ -404,8 +487,9 @@ export default function App() {
     setActiveProfileId(null);
     setSyncState('idle');
     setShowProfileMenu(false);
-    localStorage.removeItem(ACTIVE_PROFILE_STORAGE_KEY);
-  };
+    clearToasts();
+    // Keep ACTIVE_PROFILE_STORAGE_KEY so the last workspace can be restored on re-login.
+  }, [clearToasts]);
 
   useEffect(() => {
     if (!authenticated) return undefined;
@@ -431,7 +515,7 @@ export default function App() {
       window.clearInterval(intervalId);
       document.removeEventListener('visibilitychange', onVisibilityChange);
     };
-  }, [authenticated]);
+  }, [authenticated, forceLogout]);
 
   useEffect(() => {
     latestPayloadRef.current = { tasks, boardNotes, events };
@@ -485,8 +569,7 @@ export default function App() {
   }, []);
 
   const showParentBlockedMessage = (actionLabel, openChildrenCount) => {
-    setBackupMessage(`No se puede ${actionLabel}: la tarea padre tiene ${openChildrenCount} tarea(s) hija(s) abierta(s).`);
-    setTimeout(() => setBackupMessage(''), 4200);
+    showToast(`No se puede ${actionLabel}: la tarea padre tiene ${openChildrenCount} tarea(s) hija(s) abierta(s).`, { type: 'warning', duration: 4200 });
   };
 
   const normalizeTaskWithTicket = (taskInput) => {
@@ -523,8 +606,7 @@ export default function App() {
           item.status !== 'done'
         ));
         if (openChildTasks.length > 0) {
-          setBackupMessage(`No se puede guardar en Hecha: tiene ${openChildTasks.length} tarea(s) hija(s) abierta(s).`);
-          setTimeout(() => setBackupMessage(''), 4200);
+          showToast(`No se puede guardar en Hecha: tiene ${openChildTasks.length} tarea(s) hija(s) abierta(s).`, { type: 'warning', duration: 4200 });
           return previousTasks;
         }
       }
@@ -672,8 +754,7 @@ export default function App() {
     setDailyStatusDaysOpen(false);
     const { activities } = collectDailyStatusActivities(focusTasks, days);
     if (activities.length === 0) {
-      setBackupMessage('No hay actividad en ese periodo.');
-      setTimeout(() => setBackupMessage(''), 4000);
+      showToast('No hay actividad en ese periodo.', { type: 'info', duration: 4000 });
       return;
     }
     setDailyStatusLoading(true);
@@ -724,8 +805,7 @@ export default function App() {
       });
     });
     if (linked) {
-      setBackupMessage('Dependencia creada: la tarea arrastrada ahora es hija de la tarea destino.');
-      setTimeout(() => setBackupMessage(''), 3000);
+      showToast('Dependencia creada: la tarea arrastrada ahora es hija de la tarea destino.', { type: 'success', duration: 3000 });
     }
     return linked;
   };
@@ -745,13 +825,11 @@ export default function App() {
     if (!authenticated || !Array.isArray(profiles) || profiles.length === 0) {
       const payload = { tasks, boardNotes, events, customStatuses: statuses };
       if (!validateBackupPayload(payload)) {
-        setBackupMessage('Error: los datos internos están corruptos y no se puede exportar el backup.');
-        setTimeout(() => setBackupMessage(''), 5000);
+        showToast('Error: los datos internos están corruptos y no se puede exportar el backup.', { type: 'error', duration: 5000 });
         return;
       }
       triggerJsonDownload(payload, fileName);
-      setBackupMessage(`Exportado ${fileName}`);
-      setTimeout(() => setBackupMessage(''), 3500);
+      showToast(`Exportado ${fileName}`, { type: 'success', duration: 3500 });
       return;
     }
 
@@ -772,16 +850,13 @@ export default function App() {
         workspaces: workspacesData,
       };
       if (!validateMultiBackupPayload(backup)) {
-        setBackupMessage('Error: los datos exportados están corruptos.');
-        setTimeout(() => setBackupMessage(''), 5000);
+        showToast('Error: los datos exportados están corruptos.', { type: 'error', duration: 5000 });
         return;
       }
       triggerJsonDownload(backup, fileName);
-      setBackupMessage(`Exportado ${fileName} (${workspacesData.length} workspace${workspacesData.length === 1 ? '' : 's'})`);
-      setTimeout(() => setBackupMessage(''), 4000);
+      showToast(`Exportado ${fileName} (${workspacesData.length} workspace${workspacesData.length === 1 ? '' : 's'})`, { type: 'success', duration: 4000 });
     } catch (err) {
-      setBackupMessage(`Error al exportar: ${err.message}`);
-      setTimeout(() => setBackupMessage(''), 5000);
+      showToast(`Error al exportar: ${err.message}`, { type: 'error', duration: 5000 });
     }
   };
 
@@ -814,7 +889,7 @@ export default function App() {
     }
     setFilter('all'); setCategoryFilter('all'); setModal(null); setTaskPreviewId(null); setEventModal(null);
     setSummaryFilter('none');
-    setBackupMessage('Importación completada correctamente.');
+    showToast('Importación completada correctamente.', { type: 'success', duration: 4000 });
   };
 
   const importMultiBackup = async (parsed) => {
@@ -877,9 +952,9 @@ export default function App() {
     setAuthVersion((version) => version + 1);
 
     if (errors.length === 0) {
-      setBackupMessage(`Importados ${restoredCount} workspace${restoredCount === 1 ? '' : 's'} correctamente.`);
+      showToast(`Importados ${restoredCount} workspace${restoredCount === 1 ? '' : 's'} correctamente.`, { type: 'success', duration: 4500 });
     } else {
-      setBackupMessage(`Importación parcial (${restoredCount} ok, ${errors.length} con errores): ${errors.join(' | ')}`);
+      showToast(`Importación parcial (${restoredCount} ok, ${errors.length} con errores): ${errors.join(' | ')}`, { type: 'warning', duration: 6000 });
     }
   };
 
@@ -896,10 +971,9 @@ export default function App() {
           importLegacyBackup(parsed);
         }
       } catch (err) {
-        setBackupMessage(`Error al importar: ${err.message}`);
+        showToast(`Error al importar: ${err.message}`, { type: 'error', duration: 6000 });
       }
       e.target.value = '';
-      setTimeout(() => setBackupMessage(''), 6000);
     };
     reader.readAsText(file);
   };
@@ -1009,8 +1083,7 @@ export default function App() {
   const handleConvertNoteToTask = (note) => {
     const taskTitle = (note?.title || '').trim();
     if (!taskTitle) {
-      setBackupMessage('El título de la nota es obligatorio para convertirla en tarea.');
-      setTimeout(() => setBackupMessage(''), 4200);
+      showToast('El título de la nota es obligatorio para convertirla en tarea.', { type: 'warning', duration: 4200 });
       return;
     }
     const previousTasks = tasks;
@@ -1182,8 +1255,7 @@ export default function App() {
       setProfiles((prev) => [...prev, profile]);
       handleSelectProfile(profile.id);
     } catch (error) {
-      setBackupMessage(error.message || 'No se pudo crear el workspace.');
-      setTimeout(() => setBackupMessage(''), 5000);
+      showToast(error.message || 'No se pudo crear el workspace.', { type: 'error', duration: 5000 });
     }
   };
 
@@ -1249,8 +1321,7 @@ export default function App() {
     });
 
     const sourceLabel = aiPlanPreview.source === 'ai' ? 'IA' : 'fallback';
-    setBackupMessage(`Plan de tareas creado (${sourceLabel}).`);
-    setTimeout(() => setBackupMessage(''), 3500);
+    showToast(`Plan de tareas creado (${sourceLabel}).`, { type: 'success', duration: 3500 });
     setAiPlanPreview(null);
   };
 
@@ -1297,8 +1368,7 @@ export default function App() {
   const handleDeleteProfile = async (profile) => {
     if (!profile?.id) return;
     if (profiles.length <= 1) {
-      setBackupMessage('No puedes borrar el unico workspace.');
-      setTimeout(() => setBackupMessage(''), 4000);
+      showToast('No puedes borrar el unico workspace.', { type: 'warning', duration: 4000 });
       return;
     }
     const confirmed = window.confirm(`Vas a borrar "${profile.name}" y todas sus tareas, notas y eventos. Esta accion no se puede deshacer.\n\nDeseas continuar?`);
@@ -1312,8 +1382,7 @@ export default function App() {
       if (nextProfileId) {
         handleSelectProfile(nextProfileId);
       }
-      setBackupMessage(`Workspace "${profile.name}" eliminado.`);
-      setTimeout(() => setBackupMessage(''), 4500);
+      showToast(`Workspace "${profile.name}" eliminado.`, { type: 'success', duration: 4500 });
     } catch (error) {
       // If backend says profile no longer exists, refresh from cloud to reconcile stale UI list.
       if (typeof error?.message === 'string' && error.message.includes('no existe')) {
@@ -1328,8 +1397,7 @@ export default function App() {
           // Keep original error toast if refresh fails.
         }
       }
-      setBackupMessage(error.message || 'No se pudo borrar el workspace.');
-      setTimeout(() => setBackupMessage(''), 5000);
+      showToast(error.message || 'No se pudo borrar el workspace.', { type: 'error', duration: 5000 });
     }
   };
 
@@ -1423,12 +1491,22 @@ export default function App() {
   }, [view]);
 
   if (authenticated === null) {
-    return null;
+    return (
+      <div className="app-loader">
+        <div className="app-loader-spinner" aria-label="Cargando aplicación">
+          <div className="app-loader-logo">T</div>
+          <div className="app-loader-bar"></div>
+        </div>
+      </div>
+    );
   }
 
   if (!authenticated) {
-    return <Login onLoginSuccess={handleLoginSuccess} />;
+    const sessionExpired = sessionExpiredLoggedOut;
+    return <Login onLoginSuccess={handleLoginSuccess} notice={sessionExpired ? 'Tu sesión expiró. Inicia sesión para continuar. Tus datos están seguros.' : ''} />;
   }
+
+  const hasAnyData = tasks.length > 0 || boardNotes.length > 0 || events.length > 0;
 
   return (
     <div className={`app-shell ${contextBgClass}`} data-density={density}>
@@ -1437,6 +1515,23 @@ export default function App() {
           <span>Hay una nueva versión de la aplicación.</span>
           <button type="button" className="ghost-button" onClick={() => window.location.reload()}>
             Recargar
+          </button>
+        </div>
+      )}
+      {!isOnline && (
+        <div className="offline-banner" role="alert">
+          <span className="offline-banner-icon" aria-hidden="true">⚠</span>
+          <span>Sin conexión — los cambios se guardarán cuando vuelvas</span>
+        </div>
+      )}
+      {installPromptEvent && !isInstalled && (
+        <div className="install-banner" role="status">
+          <span className="install-banner-text">Instala Task Manager para acceso rápido desde tu escritorio</span>
+          <button type="button" className="install-banner-btn" onClick={handleInstallApp}>
+            Instalar
+          </button>
+          <button type="button" className="install-banner-dismiss" onClick={() => setInstallPromptEvent(null)} aria-label="Descartar">
+            ✕
           </button>
         </div>
       )}
@@ -1562,10 +1657,21 @@ export default function App() {
           </button>
 
           <div
-            className={`sync-indicator${syncState !== 'idle' ? ' visible' : ''}${syncState === 'error' ? ' error' : ''}`}
+            className={`sync-indicator${syncState !== 'idle' ? ' visible' : ''}${syncState === 'error' ? ' error' : ''}${syncState === 'offline' ? ' offline' : ''}`}
             aria-live="polite"
+            role="status"
           >
-            {syncState === 'saving' ? 'Guardando...' : syncState === 'saved' ? 'Guardado' : syncState === 'error' ? 'Error al guardar' : ''}
+            {syncState === 'saving' ? (reconnecting ? 'Reconectando...' : 'Guardando...')
+              : syncState === 'saved' ? 'Guardado'
+              : syncState === 'offline' ? 'Sin conexión'
+              : syncState === 'error' ? (
+                <>
+                  <span>Error al guardar</span>
+                  <button type="button" className="sync-retry-btn" onClick={() => void syncNowRef.current({ immediate: true })}>
+                    Reintentar
+                  </button>
+                </>
+              ) : ''}
           </div>
 
           <button type="button" className="ghost-button hide-mobile" onClick={openExternalApp}>
@@ -1687,7 +1793,24 @@ export default function App() {
           </section>
         )}
 
-        <Suspense fallback={<div style={{ padding: 24, textAlign: 'center', opacity: 0.7 }}>Cargando vista...</div>}>
+        {!hasAnyData && ready && (
+          <section className="onboarding-banner">
+            <div className="onboarding-content">
+              <h3>Bienvenido a Task Manager</h3>
+              <p>Gestiona tus tareas, eventos y notas en un solo lugar. Crea tu primera tarea para empezar.</p>
+              <div className="onboarding-actions">
+                <button type="button" className="primary-button" onClick={() => open()}>
+                  Crear tarea
+                </button>
+                <button type="button" className="ghost-button" onClick={() => setView('today')}>
+                  Ir al resumen
+                </button>
+              </div>
+            </div>
+          </section>
+        )}
+
+        <Suspense fallback={<div className="view-skeleton" role="status"><div className="view-skeleton-pulse" aria-label="Cargando vista..."></div></div>}>
         {view === 'today'
           ? <TodayView
               todayTasks={todayTasks}
@@ -1936,6 +2059,7 @@ export default function App() {
 
       <ExternalAppDrawer isOpen={externalAppOpen} onClose={closeExternalApp} />
       <UndoToast />
+      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
       <BottomNav currentView={view} setView={navigateToView} onOpenCreateTask={() => open()} onOpenExternalApp={openExternalApp} />
     </div>
   );
