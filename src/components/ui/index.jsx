@@ -53,6 +53,8 @@ export const Input = forwardRef(function Input({
   );
 });
 
+import { useModalDialog } from '../../hooks/useModalDialog.js';
+
 export function Modal({
   isOpen,
   onClose,
@@ -61,10 +63,11 @@ export function Modal({
   children,
   className = '',
 }) {
+  const dialogRef = useModalDialog({ isOpen, onClose });
   if (!isOpen) return null;
   return (
     <div className="dialog-overlay" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby={titleId || undefined}>
-      <div className={`material-modal ${className}`.trim()} onClick={(e) => e.stopPropagation()}>
+      <div ref={dialogRef} className={`material-modal ${className}`.trim()} onClick={(e) => e.stopPropagation()}>
         {title && <h2 id={titleId}>{title}</h2>}
         {children}
       </div>
@@ -80,10 +83,11 @@ export function Sheet({
   children,
   className = '',
 }) {
+  const dialogRef = useModalDialog({ isOpen, onClose });
   if (!isOpen) return null;
   return (
     <div className="sheet-drawer-overlay dialog-overlay" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby={titleId || undefined}>
-      <div className={`sheet-drawer-card material-modal ${className}`.trim()} onClick={(e) => e.stopPropagation()}>
+      <div ref={dialogRef} className={`sheet-drawer-card material-modal ${className}`.trim()} onClick={(e) => e.stopPropagation()}>
         {title && (
           <div className="sheet-drawer-header">
             <h2 id={titleId}>{title}</h2>

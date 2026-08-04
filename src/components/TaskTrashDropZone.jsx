@@ -100,6 +100,33 @@ export default function TaskTrashDropZone({
             ¿Estás seguro de que deseas eliminar la tarea{' '}
             <strong style={{ color: 'var(--color-text-primary)' }}>{`"${taskToDelete?.name || ''}"`}</strong>?
           </p>
+
+          {(taskToDelete?.subtasks?.length > 0 || (taskToDelete?.dependencyTaskIds && taskToDelete.dependencyTaskIds.length > 0)) && (
+            <div style={{
+              background: 'var(--color-background-secondary, rgba(239, 68, 68, 0.04))',
+              borderLeft: '3px solid var(--color-danger, #ef4444)',
+              padding: '10px 12px',
+              borderRadius: 6,
+              fontSize: 12.5,
+              color: 'var(--color-text-secondary)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 4
+            }}>
+              <strong style={{ color: 'var(--color-text-primary)', display: 'block', marginBottom: 2 }}>⚠️ Impacto de la eliminación:</strong>
+              {taskToDelete?.subtasks?.length > 0 && (
+                <span>• Se eliminarán permanentemente las <strong>{taskToDelete.subtasks.length} subtareas</strong> asociadas.</span>
+              )}
+              {taskToDelete?.dependencyTaskIds?.length > 0 && (
+                <span>• Se desvincularán las dependencias/tareas relacionadas.</span>
+              )}
+            </div>
+          )}
+
+          <p style={{ margin: 0, fontSize: 12.5, color: 'var(--color-text-secondary)', fontStyle: 'italic' }}>
+            * Esta acción se puede revertir inmediatamente usando <strong>⌘Z</strong> o desde la notificación flotante.
+          </p>
+
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 8 }}>
             <Button variant="ghost" onClick={() => setTaskToDelete(null)}>
               Cancelar
