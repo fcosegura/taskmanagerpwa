@@ -3,13 +3,14 @@ import { STATUS } from '../constants.js';
 import { compareTasksForTaskList } from '../utils.jsx';
 import { Chip } from './shared/index.jsx';
 import TaskRow from './TaskRow.jsx';
+import TaskTrashDropZone from './TaskTrashDropZone.jsx';
 
 export default function TasksView({
   allTasks = [],
   tasks, total, filter, setFilter, searchQuery, setSearchQuery,
   categoryFilter, setCategoryFilter, categories,
   statusCounts, categoryCounts,
-  onOpenTaskPreview, onEditTask, onToggleDone, onOpenPriorityPicker, onQuickAdd, onQuickSuggest, onDropTaskOnTask,
+  onOpenTaskPreview, onEditTask, onToggleDone, onOpenPriorityPicker, onQuickAdd, onQuickSuggest, onDropTaskOnTask, onDeleteTask,
   statuses = STATUS,
 }) {
   const [quickText, setQuickText] = useState('');
@@ -161,6 +162,11 @@ export default function TasksView({
             />
           </div>
           <div className="toolbar-actions">
+            <TaskTrashDropZone
+              draggedTaskId={draggedTaskId}
+              allTasks={allTasks}
+              onDeleteTask={onDeleteTask}
+            />
             <button
               type="button"
               onClick={() => setShowFilters((p) => !p)}
@@ -249,6 +255,7 @@ export default function TasksView({
                 draggable
                 onDragStart={(event) => {
                   event.dataTransfer.effectAllowed = 'move';
+                  event.dataTransfer.setData('text/plain', t.id);
                   setDraggedTaskId(t.id);
                 }}
                 onDragEnd={() => {

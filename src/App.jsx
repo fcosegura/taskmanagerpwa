@@ -1725,6 +1725,7 @@ export default function App() {
               onOpenPriorityPicker={(t) => setPriorityPickerTask(t)}
               onQuickAdd={handleQuickAdd} onQuickSuggest={handleQuickSuggest}
               onDropTaskOnTask={linkStandaloneTaskAsChild}
+              onDeleteTask={del}
               statuses={statuses}
             />
           : view === 'kanban'
@@ -1740,6 +1741,7 @@ export default function App() {
                 onOpenPriorityPicker={(t) => setPriorityPickerTask(t)}
                 onMoveTaskStatus={moveTaskToStatus}
                 onDropTaskOnTask={linkStandaloneTaskAsChild}
+                onDeleteTask={del}
                 onDailyStatus={handleOpenDailyStatus}
                 dailyStatusLoading={dailyStatusLoading}
                 statuses={statuses}
