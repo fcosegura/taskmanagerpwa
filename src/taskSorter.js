@@ -1,11 +1,32 @@
 import { isJiraCategory } from './jiraTicket.js';
 import { P_ORDER } from './constants.js';
 
+function buildKindMap(statuses) {
+  if (!Array.isArray(statuses) || statuses.length === 0) return null;
+  const map = new Map();
+  for (const s of statuses) {
+    if (s && typeof s.v === 'string' && typeof s.kind === 'string') {
+      map.set(s.v, s.kind);
+    }
+  }
+  return map;
+}
+
+const DEFAULT_KIND = { blocked: 'blocked', paused: 'waiting', done: 'done' };
+
 /** Same ordering as the main Tasks list: Jira first, blocked/paused at the end, done last. */
-export function compareTasksForTaskList(a, b) {
+export function compareTasksForTaskList(a, b, statuses) {
+  const kindMap = Array.isArray(statuses) ? buildKindMap(statuses) : null;
+
+  const getKind = (task) => {
+    if (kindMap?.has(task.status)) return kindMap.get(task.status);
+    return DEFAULT_KIND[task.status] || 'active';
+  };
+
   const getTaskRank = (task) => {
-    const isDone = task.status === 'done';
-    const isBlockedOrPaused = task.status === 'blocked' || task.status === 'paused';
+    const kind = getKind(task);
+    const isDone = kind === 'done';
+    const isBlockedOrPaused = kind === 'blocked' || kind === 'waiting';
     const isJira = isJiraCategory(task.category);
 
     if (isDone) {

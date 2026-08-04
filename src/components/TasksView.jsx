@@ -90,7 +90,7 @@ export default function TasksView({
         const ta = taskById.get(left);
         const tb = taskById.get(right);
         if (ta && tb) {
-          const cmp = compareTasksForTaskList(ta, tb);
+          const cmp = compareTasksForTaskList(ta, tb, statuses);
           if (cmp !== 0) return cmp;
         }
         return (depOrder.get(left) ?? 0) - (depOrder.get(right) ?? 0);
@@ -122,7 +122,7 @@ export default function TasksView({
     }
 
     return { orderedTasks: ordered, parentByChild: pbc, visibleIds: vIds };
-  }, [tasks]);
+  }, [tasks, statuses]);
 
   const toggleParentCollapse = useCallback((parentId) => {
     setExpandedParentIds((prev) => {

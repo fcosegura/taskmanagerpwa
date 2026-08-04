@@ -1450,7 +1450,7 @@ export default function App() {
   const bySearch = normalizedSearch
     ? bySummary.filter((t) => t.name.toLowerCase().includes(normalizedSearch) || (t.category || '').toLowerCase().includes(normalizedSearch))
     : bySummary;
-  const sorted = [...bySearch].sort(compareTasksForTaskList);
+  const sorted = [...bySearch].sort((a, b) => compareTasksForTaskList(a, b, statuses));
 
   const statusBase = categoryFilter === 'all' ? focusTasks : focusTasks.filter((t) => t.category === categoryFilter);
   const statusCounts = statusBase.reduce((acc, t) => { const key = t.status || 'not_done'; acc[key] = (acc[key] || 0) + 1; return acc; }, {});
