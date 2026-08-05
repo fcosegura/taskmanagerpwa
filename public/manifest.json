@@ -23,5 +23,20 @@
     }
   ],
   "categories": ["productivity", "utilities"],
-  "screenshots": []
+  "screenshots": [
+    {
+      "src": "/screenshot-wide.png",
+      "sizes": "1280x800",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Vista de tareas de Task Manager"
+    },
+    {
+      "src": "/screenshot-narrow.png",
+      "sizes": "750x1334",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Vista móvil de Task Manager"
+    }
+  ]
 }

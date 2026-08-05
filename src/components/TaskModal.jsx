@@ -124,8 +124,8 @@ export default function TaskModal({ task, categories, allTasks = [], onSave, onD
       }));
       if (!newCategory && suggestedCategory) setNewCategory(suggestedCategory);
       setAiFeedback(source === 'ai' ? 'Sugerencia IA aplicada.' : 'Sugerencia local aplicada.');
-    } catch (error) {
-      setAiFeedback(error.message || 'No se pudo generar sugerencia.');
+    } catch {
+      setAiFeedback('No pude completar esta sugerencia. Puedes continuar trabajando normalmente.');
     } finally {
       setAiLoading(false);
     }

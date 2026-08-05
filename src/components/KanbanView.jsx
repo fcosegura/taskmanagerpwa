@@ -5,6 +5,7 @@ import { isChildTask, shouldShowTaskInKanbanDoneColumn } from '../kanbanTaskVisi
 import { getHiddenKanbanTaskCount, getVisibleKanbanTasks, sortKanbanTasksByRecency } from '../kanbanTaskLimit.js';
 import CopyTicketButton from './CopyTicketButton.jsx';
 import { CategoryPill } from './shared/index.jsx';
+import TaskTrashDropZone from './TaskTrashDropZone.jsx';
 
 const KANBAN_DONE_RANGE_OPTIONS = [
   { key: 'week', label: 'Semana actual' },
@@ -209,6 +210,7 @@ export default function KanbanView({
   onOpenPriorityPicker,
   onMoveTaskStatus,
   onDropTaskOnTask,
+  onDeleteTask,
   onDailyStatus,
   dailyStatusLoading = false,
   kanbanColumnsStorageKey = 'taskmanager_kanban_visible_columns_default',
@@ -414,6 +416,12 @@ export default function KanbanView({
           </button>
         )}
 
+        <TaskTrashDropZone
+          draggedTaskId={draggedTaskId}
+          allTasks={allTasks}
+          onDeleteTask={onDeleteTask}
+        />
+
         <div className="actions-menu-wrap" ref={columnsMenuRef}>
           <button
             type="button"
@@ -611,6 +619,7 @@ export default function KanbanView({
                         onOpenPriorityPicker={onOpenPriorityPicker}
                         onDragStart={(event, taskId) => {
                           event.dataTransfer.effectAllowed = 'move';
+                          event.dataTransfer.setData('text/plain', taskId);
                           const sourceTask = allTasks.find((item) => item.id === taskId);
                           setDraggedTaskId(taskId);
                           setDragSourceStatus(sourceTask?.status ?? null);

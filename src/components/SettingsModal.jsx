@@ -22,7 +22,7 @@ const cancelButtonStyle = {
   cursor: 'pointer',
 };
 
-export default function SettingsModal({ focusPriorityLevels, onSaveFocusPriorities, onClose }) {
+export default function SettingsModal({ focusPriorityLevels, onSaveFocusPriorities, density = 'comfortable', onToggleDensity, onClose }) {
   const [showFocusPriority, setShowFocusPriority] = useState(false);
 
   return (
@@ -38,6 +38,46 @@ export default function SettingsModal({ focusPriorityLevels, onSaveFocusPrioriti
           <div id="settings-modal-title" style={{ fontSize: 16, fontWeight: 700, marginBottom: 18 }}>
             Configuración
           </div>
+
+          {/* Selector de Densidad Visual (Manifiesto v4.0) */}
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Densidad de Interfaz</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              <button
+                type="button"
+                onClick={() => onToggleDensity && onToggleDensity('comfortable')}
+                style={{
+                  padding: '8px 12px',
+                  borderRadius: 10,
+                  border: density === 'comfortable' ? '2px solid var(--color-accent)' : '1px solid var(--color-border-tertiary)',
+                  background: density === 'comfortable' ? 'var(--color-accent-subtle, rgba(59, 130, 246, 0.1))' : 'var(--color-background-secondary)',
+                  color: density === 'comfortable' ? 'var(--color-accent)' : 'var(--color-text-secondary)',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                🌿 Cómodo
+              </button>
+              <button
+                type="button"
+                onClick={() => onToggleDensity && onToggleDensity('compact')}
+                style={{
+                  padding: '8px 12px',
+                  borderRadius: 10,
+                  border: density === 'compact' ? '2px solid var(--color-accent)' : '1px solid var(--color-border-tertiary)',
+                  background: density === 'compact' ? 'var(--color-accent-subtle, rgba(59, 130, 246, 0.1))' : 'var(--color-background-secondary)',
+                  color: density === 'compact' ? 'var(--color-accent)' : 'var(--color-text-secondary)',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                ⚡ Compacto
+              </button>
+            </div>
+          </div>
+
           <button
             type="button"
             onClick={() => setShowFocusPriority(true)}

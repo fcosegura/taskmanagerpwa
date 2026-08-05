@@ -8,6 +8,8 @@ export default function CommandMenu({
   onNavigateToView,
   onOpenCreateTask,
   onToggleTheme,
+  onToggleDensity,
+  onUndo,
   onOpenWorkspaceMenu,
   onSelectTask
 }) {
@@ -32,10 +34,12 @@ export default function CommandMenu({
   ], [onNavigateToView]);
 
   const systemActions = useMemo(() => [
+    { id: 'sys-undo', label: 'Deshacer última acción (⌘Z)', icon: '↩', action: () => onUndo && onUndo() },
     { id: 'sys-new-task', label: 'Crear nueva tarea', icon: '➕', action: () => onOpenCreateTask && onOpenCreateTask() },
+    { id: 'sys-density', label: 'Cambiar densidad visual (Cómodo/Compacto)', icon: '⚡', action: () => onToggleDensity && onToggleDensity() },
     { id: 'sys-toggle-theme', label: 'Cambiar tema (Claro/Oscuro)', icon: '🌓', action: () => onToggleTheme && onToggleTheme() },
     { id: 'sys-workspace', label: 'Cambiar Workspace', icon: '🏢', action: () => onOpenWorkspaceMenu && onOpenWorkspaceMenu() }
-  ], [onOpenCreateTask, onToggleTheme, onOpenWorkspaceMenu]);
+  ], [onUndo, onOpenCreateTask, onToggleDensity, onToggleTheme, onOpenWorkspaceMenu]);
 
   const matchingTasks = useMemo(() => {
     if (!searchQuery.trim()) return [];

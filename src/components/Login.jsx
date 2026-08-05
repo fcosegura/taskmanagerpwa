@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
-export default function Login({ onLoginSuccess }) {
+export default function Login({ onLoginSuccess, notice = '' }) {
   const googleBtnRef = useRef(null);
   const [error, setError] = useState(() =>
     (GOOGLE_CLIENT_ID ? '' : 'Falta VITE_GOOGLE_CLIENT_ID en la configuración de build.')
@@ -73,6 +73,11 @@ export default function Login({ onLoginSuccess }) {
         </div>
 
         <div className="login-actions">
+          {notice && (
+            <div className="login-notice" role="status">
+              {notice}
+            </div>
+          )}
           <div ref={googleBtnRef} style={{ width: '100%', minHeight: 44, display: 'flex', justifyContent: 'center' }}></div>
           {error && (
             <div className="login-error">
