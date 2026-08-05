@@ -505,7 +505,7 @@ export default function App() {
     clearToasts();
     clearUndoTransaction();
     // Keep ACTIVE_PROFILE_STORAGE_KEY so the last workspace can be restored on re-login.
-  }, [clearToasts, clearUndoTransaction]);
+  }, [clearToasts]);
 
   useEffect(() => {
     if (!authenticated) return undefined;
