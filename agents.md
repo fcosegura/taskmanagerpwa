@@ -18,7 +18,7 @@
 | Base de datos | Cloudflare D1 (SQLite) |
 | IA | Cloudflare Workers AI (`@cf/meta/llama-3.1-8b-instruct`) |
 | Autenticación | Google OAuth (Sign In with Google) + sesiones HttpOnly opacas |
-| Cifrado | AES-256-GCM server-side y client-side (Web Crypto API) |
+| Cifrado | AES-256-GCM field-level en el Worker (`d1-field-crypto.js` + Web Crypto API) |
 | PWA | Service Worker (`public/sw.js`) + `manifest.json` |
 | Tests unitarios | Node.js built-in test runner (`node --test`) |
 | Tests E2E | Playwright (Chromium) |
@@ -49,15 +49,15 @@ taskmanagerpwa/
 │
 ├── src/
 │   ├── main.jsx                # Entry point React + registro de Service Worker + detección de updates
-│   ├── App.jsx                 # ⭐ Componente raíz (~76KB). Todo el estado vive aquí.
+│   ├── App.jsx                 # ⭐ Componente raíz (~85KB). Todo el estado vive aquí.
 │   ├── App.css                 # Estilos específicos de App
-│   ├── index.css               # ⭐ Estilos globales (~68KB). Sistema de diseño completo.
+│   ├── index.css               # ⭐ Estilos globales (~79KB). Sistema de diseño completo.
 │   ├── ui-cleanup.css          # Estilos adicionales de limpieza UI
 │   ├── worker.js               # ⭐ Cloudflare Worker (~67KB). API completa + auth + sync + cifrado.
 │   ├── storage.js              # ⭐ Capa de persistencia (localStorage + sync cloud + AI + auth client)
 │   ├── constants.js            # Constantes: statuses, prioridades, categorías, normalización
 │   ├── utils.jsx               # Utilidades: IDs, fechas, parsing NLP, linkificación
-│   ├── d1-field-crypto.js      # Cifrado AES-256-GCM + hashing SHA-256 + snapshots de entidades
+│   ├── d1-field-crypto.js      # Cifrado AES-256-GCM + hashing SHA-256 + snapshots (usado por el Worker)
 │   ├── focusRecommendation.js  # Algoritmo de recomendación de foco (scoring determinístico)
 │   ├── calendarEvents.js       # Expansión de eventos recurrentes + indexado por fecha
 │   ├── calendarTaskIndex.js    # Índice de tareas por fecha (indexTasksByDate)
@@ -72,6 +72,12 @@ taskmanagerpwa/
 │   ├── kanbanTaskVisibility.js # Visibilidad de hijos en columna Done del Kanban
 │   ├── jiraTicket.js           # Parsing, formateo y herencia de tickets Jira
 │   ├── todayViewHelpers.js     # Sanitización de descripciones (oculta payloads cifrados)
+│   ├── taskTrashHelpers.js     # Helpers de papelera (conteo de hijos abiertos al borrar)
+│   │
+│   ├── core/
+│   │   └── history/
+│   │       ├── undoManager.js  # Undo transaccional (una tx activa, auto-expire 6s)
+│   │       └── UndoToast.jsx   # Toast de deshacer suscrito al undoManager
 │   │
 │   ├── components/
 │   │   ├── KanbanView.jsx      # Vista Kanban con drag-and-drop y filtrado Epic/Sub-task
@@ -86,10 +92,11 @@ taskmanagerpwa/
 │   │   ├── TaskRow.jsx         # Componente de fila de tarea reutilizable (lista y board)
 │   │   ├── TaskPreviewModal.jsx # Preview read-only con audit trail de statusLog
 │   │   ├── TaskSheetDrawer.jsx # Slide-over drawer de edición de tarea
+│   │   ├── TaskTrashDropZone.jsx # Zona drop de papelera (Lista/Kanban) con confirmación
 │   │   ├── CommandMenu.jsx     # Paleta de comandos (Cmd+K) con navegación por teclado
 │   │   ├── Login.jsx           # Pantalla de login con Google Identity Services
 │   │   ├── BottomNav.jsx       # Navegación inferior mobile + botón Quick Add central
-│   │   ├── SettingsModal.jsx   # Configuración de Focus Mode priorities
+│   │   ├── SettingsModal.jsx   # Focus Mode priorities + densidad visual
 │   │   ├── StatusManagerModal.jsx # CRUD de statuses personalizados con kinds/themes
 │   │   ├── ExternalAppDrawer.jsx # Drawer con iframe de MyNotebook + postMessage
 │   │   ├── AgendaPlanModal.jsx  # Modal de time-blocking para asignar planned slots
@@ -98,6 +105,7 @@ taskmanagerpwa/
 │   │   ├── DailyStatusDaysModal.jsx    # Selector de días (1-7) para daily status
 │   │   ├── DailyStatusResultModal.jsx  # Visualización y copia del daily status report
 │   │   ├── CopyTicketButton.jsx        # Botón copiar ticket Jira al clipboard
+│   │   ├── Toast/              # Sistema de toasts unificado (useToasts + ToastContainer)
 │   │   ├── shared/
 │   │   │   └── index.jsx       # Pill, CategoryPill, NBtn, Chip + re-exports de ui/
 │   │   └── ui/
@@ -112,11 +120,12 @@ taskmanagerpwa/
 │   ├── manifest.json           # PWA manifest (standalone, es, productivity)
 │   ├── sw.js                   # Service Worker v4 (estrategias diferenciadas)
 │   ├── icon-192.png / icon-512.png  # Iconos PWA (any maskable)
+│   ├── screenshot-wide.png / screenshot-narrow.png  # Screenshots PWA (wide/narrow)
 │   ├── favicon.svg             # Favicon
 │   └── icons.svg               # Sprite SVG de iconos de la app
 │
 ├── tests/                      # Tests unitarios (node --test)
-│   └── *.test.js               # 18 archivos de test
+│   └── *.test.js               # 21 archivos de test
 │
 ├── e2e/                        # Tests E2E (Playwright)
 │   ├── app.spec.ts             # Escenarios completos de la app
@@ -215,9 +224,17 @@ Estado principal en `App.jsx`:
 | `filter` / `searchQuery` / `categoryFilter` | `string` | Filtros |
 | `summaryFilter` | `string` | Filtro de resumen |
 | `focusMode` / `focusPriorityLevels` | `boolean` / `string[]` | Modo foco y niveles |
-| `syncState` | `string` | `'idle'`, `'saving'`, `'saved'`, `'error'` |
+| `density` | `string` | Densidad UI: `'comfortable'` o `'compact'` (localStorage `taskmanager_density`) |
+| `syncState` | `string` | `'idle'`, `'saving'`, `'saved'`, `'error'`, `'offline'` |
 | `theme` | `string` | `'light'` o `'dark'` |
+| `isOnline` | `boolean` | Conectividad (`navigator.onLine` + eventos online/offline) |
+| `installPromptEvent` | `Event\|null` | Evento `beforeinstallprompt` para instalar PWA |
+| `sessionExpiredLoggedOut` | `boolean` | Muestra aviso en Login tras logout forzado por sesión expirada |
 | `swUpdateAvailable` | `boolean` | Indica update del SW disponible |
+
+**Fuera de React state (módulos dedicados)**:
+- **Toasts**: `useToasts()` en `App.jsx` → cola de mensajes (`ToastContainer`)
+- **Undo**: `undoManager.js` (singleton, una transacción activa con auto-expire 6s) + `UndoToast`
 
 **Refs críticos** (para evitar re-renders y race conditions):
 
@@ -501,7 +518,9 @@ App.jsx (applyTaskUpdate / commitStatusChange)
 
 ### 6.5 Cifrado de Campos (Field-Level Encryption)
 
-`d1-field-crypto.js` implementa:
+`d1-field-crypto.js` es un módulo compartido de crypto (Web Crypto API) **usado por el Worker** al leer/escribir D1. El cliente (`storage.js`) **no cifra**: guarda plaintext en localStorage y envía plaintext al sync; el cifrado ocurre solo server-side antes de persistir en D1.
+
+Implementa:
 
 1. **`importDataEncryptionKey(secret)`** — importa clave AES-256 de 32 bytes via Web Crypto API
 2. **`encryptField(plaintext, key)`** — AES-GCM con IV de 12 bytes → formato `v1.<base64(iv+ciphertext)>`
@@ -511,7 +530,7 @@ App.jsx (applyTaskUpdate / commitStatusChange)
 6. **`buildTaskPlainSnapshot(task)`** / **`buildNotePlainSnapshot`** / **`buildEventPlainSnapshot`** — constructores de snapshots normalizados
 
 **Campos cifrados en D1** (los no-cifrados se mantienen para queries/indexes):
-- **Tasks**: `name`, `description`, `url`, `notes`, `ticket_number`, `completed_at`, `category`, `date`, `end_date`, `time`, `subtasks`, `dependencies`, `planned_slots`, `status_log`
+- **Tasks**: `name`, `url`, `notes`, `ticket_number`, `completed_at`, `category`, `date`, `end_date`, `time`, `subtasks`, `dependencies`, `planned_slots`, `status_log`
 - **Notes**: `title`, `text`
 - **Events**: `title`, `startDate`, `endDate`, `color`, `startTime`, `endTime`, `recurrenceFrequency`, `recurrenceUntil`
 - **Profiles**: `name`, `custom_statuses`
@@ -527,8 +546,8 @@ App.jsx (applyTaskUpdate / commitStatusChange)
 | Componente | Archivo | Descripción |
 |---|---|---|
 | `TodayView` | `components/TodayView.jsx` | Dashboard diario con recomendación de foco, overdue, schedule, progreso. Usa `recommendNextFocusTask`. |
-| `TasksView` | `components/TasksView.jsx` | Lista con búsqueda, filtros (status chips, category chips), quickAdd, AI suggest, dependencias jerárquicas expand/collapse. |
-| `KanbanView` | `components/KanbanView.jsx` | Kanban con drag-and-drop para mover status o crear dependencias padre-hijo. Filtrado Epic vs Sub-task. Columnas colapsables. |
+| `TasksView` | `components/TasksView.jsx` | Lista con búsqueda, filtros (status chips, category chips), quickAdd, AI suggest, dependencias jerárquicas expand/collapse, papelera drag-and-drop. |
+| `KanbanView` | `components/KanbanView.jsx` | Kanban con drag-and-drop para mover status o crear dependencias padre-hijo. Filtrado Epic vs Sub-task. Columnas colapsables. Papelera drag-and-drop. |
 | `CalendarView` | `components/CalendarView.jsx` | Calendario mensual con festivos españoles. Tasks/events por fecha. Panel lateral con detalle del día. |
 | `DailyAgendaView` | `components/DailyAgendaView.jsx` | Agenda 1-día o 7-días (06:00-22:00) con time slots, events, planned slots. Línea roja de hora actual. |
 | `BoardView` | `components/BoardView.jsx` | Canvas de notas adhesivas con drag via Pointer Events (`setPointerCapture`). Edición inline. |
@@ -542,15 +561,16 @@ App.jsx (applyTaskUpdate / commitStatusChange)
 | `EventModal` | Crear/editar evento | Formulario con recurrencia (daily/weekly/monthly), colores, all-day toggle |
 | `TaskPreviewModal` | Click en tarea | Vista read-only con audit trail de statusLog y dependencias |
 | `TaskSheetDrawer` | Editar tarea (slide-over) | Drawer lateral para edición con focus trap |
-| `CommandMenu` | Cmd/Ctrl+K | Paleta de comandos: navegación, acciones, búsqueda de tareas |
+| `CommandMenu` | Cmd/Ctrl+K | Paleta de comandos: navegación, acciones, densidad, búsqueda de tareas |
 | `StatusManagerModal` | Desde gestión de workspace | CRUD de statuses personalizados con kinds y themes |
-| `SettingsModal` | Configuración | Focus mode priority levels |
+| `SettingsModal` | Configuración | Focus mode priority levels + densidad visual (cómodo/compacto) |
 | `AgendaPlanModal` | Time-blocking | Asignar tareas a time slots en la agenda |
 | `StatusChangeCommentModal` | Cambio de status | Comentario obligatorio con shortcut Enter |
 | `PriorityPickerModal` | Click en prioridad | Selector visual rápido |
 | `DailyStatusDaysModal` | Generar status | Selector de días (1-7) |
 | `DailyStatusResultModal` | Ver status generado | Visualización + copy to clipboard |
 | `ExternalAppDrawer` | Abrir MyNotebook | Drawer lateral resizable con iframe + postMessage |
+| `TaskTrashDropZone` | Drag en Lista/Kanban | Zona de papelera: drop → confirmación → `del()` (respeta parent blocking) |
 
 ### 7.3 Design System (`components/ui/` y `components/shared/`)
 
@@ -566,6 +586,10 @@ App.jsx (applyTaskUpdate / commitStatusChange)
 - `CategoryPill` — Badge de categoría con tooltip
 - `NBtn` — Botón de navegación con icono
 - `Chip` — Chip de filtro con count y estado activo
+
+**Feedback (`Toast/` + `core/history/`)**:
+- `useToasts` / `ToastContainer` — cola unificada de toasts (`success` / `error` / `info` / `warning`), auto-dismiss, máx. ~5 visibles
+- `undoManager` / `UndoToast` — undo transaccional desacoplado del estado React (una tx activa)
 
 ### 7.4 Hook: `useModalDialog(isOpen, onClose, initialFocusRef, closeOnEscape)`
 
@@ -662,6 +686,20 @@ Dentro del grupo: por prioridad (critical > high > medium > low).
 - **`kanbanTaskLimit.js`**: `KANBAN_COLLAPSED_TASK_LIMIT = 5`. Ordena por recencia de entrada al status (via `statusLog`). Colapsa columnas mostrando solo 5 tareas.
 - **`kanbanTaskVisibility.js`**: En columna Done, muestra root tasks done pero oculta child tasks si su padre ya está done.
 
+### 8.11 `core/history/undoManager.js` — Undo Transaccional
+
+- Una sola transacción activa: `{ id, description, rollbackFn, expiresAt }`
+- `pushUndoTransaction({ description, rollbackFn, timeoutMs? })` — reemplaza la tx previa; auto-expire por defecto **6s**
+- `performUndo()` — ejecuta `rollbackFn` y limpia
+- `clearUndoTransaction()` — limpia sin rollback (cambio de workspace, import, logout)
+- UI: `UndoToast.jsx` se suscribe via `subscribeToUndo`
+
+Usado al eliminar tareas/notas/eventos y al convertir nota → tarea.
+
+### 8.12 `taskTrashHelpers.js` — Papelera
+
+- `countOpenChildTasks(parentTask, allTasks)` — cuenta hijos abiertos (misma regla que parent blocking en `del()`)
+
 ---
 
 ## 9. Funcionalidades Especiales
@@ -673,30 +711,49 @@ Dentro del grupo: por prioridad (critical > high > medium > low).
 
 ### 9.2 Parent Task Blocking
 
-- Un parent task **no puede** moverse a `done` o `deleted` si tiene hijos abiertos (no-done)
-- Se muestra un toast (`showParentBlockedMessage`) y se bloquea la operación
+- Un parent task **no puede** moverse a `done` ni **eliminarse** si tiene hijos abiertos (no-done)
+- Se muestra un toast (`showParentBlockedMessage` via `showToast`) y se bloquea la operación
 
 ### 9.3 Drag-and-Drop para Dependencias
 
 - En las vistas Lista y Kanban, arrastrar una tarea standalone sobre otra crea una relación padre-hijo
 - `linkStandaloneTaskAsChild(sourceTaskId, targetTaskId)` — valida links circulares e inválidos, hereda ticket Jira
 
-### 9.4 AI Task Parsing
+### 9.4 Papelera (Task Trash Drop Zone)
+
+- En Lista y Kanban: zona de drop visible al arrastrar una tarea
+- Drop → modal de confirmación (detalla subtareas/deps); si hay hijos abiertos, salta al parent blocking toast
+- Tras borrar: undo disponible ~6s via `UndoToast`
+
+### 9.5 Densidad Visual
+
+- `comfortable` (default) o `compact`, persistido en `localStorage` (`taskmanager_density`)
+- Aplicado como `data-density` en `.app-shell`
+- Configurable desde Settings y Command Menu (`sys-density`)
+
+### 9.6 AI Task Parsing
 
 - `parseTaskWithAI(text)` → extrae título, fecha, hora, categoría, prioridad de texto libre
 - `generateTasksFromText(text)` → genera plan con main tasks + child tasks, muestra preview modal antes de confirmar
 - `generateDailyStatus(activities, days)` → genera report Scrum en español vía IA
 
-### 9.5 Data Export/Import
+### 9.7 Data Export/Import
 
 - **Export JSON**: Backup single-workspace (legacy) o multi-workspace v2 (todos los workspaces)
 - **Import JSON**: Valida y restaura backups. Multi-workspace import crea nuevos workspaces y recarga.
 - **Metadata preservada**: custom statuses con `kind`, `isTerminal`, `canBeFocused`, `sortWeight`, `theme`
 
-### 9.6 Session Liveness
+### 9.8 Session Liveness y Offline UX
 
 - `checkSession()` cada 60s + en `visibilitychange` a `'visible'`
-- Si sesión expira en servidor → `forceLogout()` limpia todo y muestra Login
+- Si sesión expira en servidor → `forceLogout()` limpia todo, marca `sessionExpiredLoggedOut` y muestra Login con aviso
+- Banner offline cuando `!isOnline`; `syncState` puede ser `'offline'`
+- Prompt de instalación PWA via `beforeinstallprompt` (si no está instalada)
+
+### 9.9 Undo
+
+- Acciones destructivas registran snapshot + `rollbackFn` en `undoManager`
+- `clearUndoTransaction()` al cambiar workspace, importar o logout (evita rollbacks cruzados)
 
 ---
 
@@ -706,7 +763,7 @@ Dentro del grupo: por prioridad (critical > high > medium > low).
 
 | Archivo | Propósito | Tamaño |
 |---|---|---|
-| `src/index.css` | Sistema de diseño global: variables, dark mode, componentes, layouts, responsive | ~68KB |
+| `src/index.css` | Sistema de diseño global: variables, dark mode, density, componentes, layouts, responsive | ~79KB |
 | `src/App.css` | Estilos específicos del componente App | ~3KB |
 | `src/ui-cleanup.css` | Ajustes adicionales de limpieza visual | ~14KB |
 | `src/components/TimelineView.css` | Estilos del timeline | ~12KB |
@@ -717,6 +774,7 @@ Dentro del grupo: por prioridad (critical > high > medium > low).
 - **Vanilla CSS** — No usa Tailwind, SASS, ni CSS-in-JS
 - **Variables CSS** para temas (light/dark)
 - **Dark mode**: clase en root + variables CSS
+- **Densidad**: atributo `data-density="comfortable|compact"` en `.app-shell`
 - **Responsive**: media queries
 - Status pills usan CSS vars del status definition (`bv`, `tv`, `label`)
 
@@ -791,9 +849,9 @@ En `main.jsx`:
 
 - **Runner**: Node.js built-in (`node --test`)
 - **Comando**: `npm test`
-- **Ubicación**: `tests/*.test.js` (18 archivos)
+- **Ubicación**: `tests/*.test.js` (21 archivos)
 - **Sin dependencias** de testing (no Jest, no Vitest, solo `node:assert` y `node:test`)
-- **Cobertura**: storage, focus recommendation, daily status, kanban helpers, task sorting, status cascade, today view, jira ticket, status log, calendar tasks, command menu, copy ticket, external app drawer, task sheet drawer, status change comment modal
+- **Cobertura**: storage, focus recommendation, daily status, kanban helpers, task sorting, status cascade, today view, jira ticket, status log, calendar tasks, command menu, copy ticket, external app drawer, task sheet drawer, status change comment modal, density, task trash drop zone, undo manager
 
 ### 13.2 Tests E2E
 
@@ -931,8 +989,10 @@ npm run deploy   # = vite build && wrangler deploy
 - Modales usan `useModalDialog` hook (focus trap, no `<dialog>` nativo).
 - Design system en `components/ui/` (Button, IconButton, Input, Modal, Sheet).
 - Domain components en `components/shared/` (Pill, CategoryPill, NBtn, Chip).
+- Feedback de usuario via `showToast` (`useToasts`), no `setBackupMessage` ad-hoc.
+- Undo destructivo via `pushUndoTransaction` + `UndoToast`; limpiar con `clearUndoTransaction` al cambiar workspace/import/logout.
 - Iconos via sprite `/icons.svg`.
-- Drag-and-drop: HTML5 Drag API en Kanban/Lista, Pointer Events en Board.
+- Drag-and-drop: HTML5 Drag API en Kanban/Lista (incluye papelera), Pointer Events en Board.
 
 ### 17.3 Estilos
 
@@ -1004,6 +1064,10 @@ npm run deploy   # = vite build && wrangler deploy
 
 21. **Custom statuses tienen metadata semántica**: `kind`, `isTerminal`, `canBeFocused`, `sortWeight`, `theme`. Respetar al crear/editar statuses.
 
-22. **Parent blocking**: Un parent task no puede moverse a `done` si tiene hijos abiertos. Respetar esta regla en cualquier nuevo flujo de cambio de status.
+22. **Parent blocking**: Un parent task no puede moverse a `done` ni eliminarse si tiene hijos abiertos. Respetar esta regla en cualquier nuevo flujo de cambio de status o borrado.
 
 23. **Logs anonimizados**: Usar `shortHashForLog` para user IDs en logs del worker. Nunca loguear emails en plaintext.
+
+24. **Feedback UX**: Usar `showToast` (`useToasts`) para mensajes al usuario. Acciones destructivas (borrar tarea/nota/evento, convertir nota→tarea) deben registrar undo via `pushUndoTransaction` y limpiar con `clearUndoTransaction` al cambiar workspace/import/logout.
+
+25. **Cifrado solo en Worker**: No cifrar en el cliente. `d1-field-crypto.js` se usa desde `worker.js`; localStorage guarda plaintext.
