@@ -490,6 +490,7 @@ export default function App() {
     } catch {
       // ignore
     }
+    setSessionExpiredLoggedOut(true);
     setAuthenticated(false);
     setReady(false);
     setHydratedSession(null);
@@ -964,6 +965,8 @@ export default function App() {
 
     setFilter('all'); setCategoryFilter('all'); setModal(null); setTaskPreviewId(null); setEventModal(null);
     setSummaryFilter('none');
+    clearUndoTransaction();
+    clearToasts();
     setReady(false);
     setAuthVersion((version) => version + 1);
 
@@ -1251,6 +1254,8 @@ export default function App() {
       setShowProfileMenu(false);
       return;
     }
+    clearUndoTransaction();
+    clearToasts();
     setActiveProfileId(profileId);
     localStorage.setItem(ACTIVE_PROFILE_STORAGE_KEY, profileId);
     setView('tasks');

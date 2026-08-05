@@ -17,7 +17,11 @@ export function UndoToast() {
     const handleKeyDown = (e) => {
       // Catch Cmd+Z or Ctrl+Z to undo
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z' && !e.shiftKey) {
-        // Prevent default browser undo if we have an active transaction
+        const target = e.target;
+        const tag = target?.tagName?.toLowerCase();
+        const isEditable = tag === 'input' || tag === 'textarea' || tag === 'select' || target?.isContentEditable;
+        // Keep native text undo while typing in form fields.
+        if (isEditable) return;
         e.preventDefault();
         performUndo();
       }

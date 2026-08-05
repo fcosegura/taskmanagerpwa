@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Modal, Button } from './ui/index.jsx';
+import { countOpenChildTasks } from '../taskTrashHelpers.js';
 
 export default function TaskTrashDropZone({
   draggedTaskId,
@@ -22,6 +23,8 @@ export default function TaskTrashDropZone({
   const handleDragLeave = (e) => {
     e.preventDefault();
     e.stopPropagation();
+    // Ignore leave events that stay within this drop zone (child spans).
+    if (e.currentTarget.contains(e.relatedTarget)) return;
     setIsDragOver(false);
   };
 
@@ -34,9 +37,16 @@ export default function TaskTrashDropZone({
     if (!droppedId) return;
 
     const task = allTasks.find((t) => t.id === droppedId);
-    if (task) {
-      setTaskToDelete(task);
+    if (!task) return;
+
+    const openChildren = countOpenChildTasks(task, allTasks);
+    if (openChildren > 0) {
+      // Skip confirm modal — delete will be blocked and show the parent warning toast.
+      onDeleteTask?.(task.id);
+      return;
     }
+
+    setTaskToDelete(task);
   };
 
   const confirmDelete = () => {
@@ -47,6 +57,16 @@ export default function TaskTrashDropZone({
   };
 
   const isDraggingAny = Boolean(draggedTaskId);
+  const closedChildCount = taskToDelete
+    ? (taskToDelete.dependencyTaskIds || []).filter((childId) => {
+        const child = allTasks.find((t) => t.id === childId);
+        return child && child.status === 'done';
+      }).length
+    : 0;
+  // Remaining deps that are missing from allTasks still get unlinked on delete.
+  const unlinkableChildCount = taskToDelete
+    ? (taskToDelete.dependencyTaskIds || []).length
+    : 0;
 
   return (
     <>
@@ -101,7 +121,7 @@ export default function TaskTrashDropZone({
             <strong style={{ color: 'var(--color-text-primary)' }}>{`"${taskToDelete?.name || ''}"`}</strong>?
           </p>
 
-          {(taskToDelete?.subtasks?.length > 0 || (taskToDelete?.dependencyTaskIds && taskToDelete.dependencyTaskIds.length > 0)) && (
+          {(taskToDelete?.subtasks?.length > 0 || unlinkableChildCount > 0) && (
             <div style={{
               background: 'var(--color-background-secondary, rgba(239, 68, 68, 0.04))',
               borderLeft: '3px solid var(--color-danger, #ef4444)',
@@ -117,8 +137,8 @@ export default function TaskTrashDropZone({
               {taskToDelete?.subtasks?.length > 0 && (
                 <span>• Se eliminarán permanentemente las <strong>{taskToDelete.subtasks.length} subtarea{taskToDelete.subtasks.length !== 1 ? 's' : ''}</strong> del checklist.</span>
               )}
-              {taskToDelete?.dependencyTaskIds?.length > 0 && (
-                <span>• Se desvincularán las <strong>{taskToDelete.dependencyTaskIds.length} tarea{taskToDelete.dependencyTaskIds.length !== 1 ? 's' : ''} hija{taskToDelete.dependencyTaskIds.length !== 1 ? 's' : ''}</strong> asociadas (no se eliminarán).</span>
+              {unlinkableChildCount > 0 && (
+                <span>• Se desvincularán las <strong>{unlinkableChildCount} tarea{unlinkableChildCount !== 1 ? 's' : ''} hija{unlinkableChildCount !== 1 ? 's' : ''}</strong> asociadas (no se eliminarán){closedChildCount === unlinkableChildCount ? ' — todas están completadas' : ''}.</span>
               )}
             </div>
           )}
