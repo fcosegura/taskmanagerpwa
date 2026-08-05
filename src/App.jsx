@@ -21,7 +21,7 @@ import { indexEventsByDate } from './calendarEvents.js';
 import { indexTasksByDate } from './calendarTaskIndex.js';
 import { normalizePlannedSlots } from './plannedSlots.js';
 import { UndoToast } from './core/history/UndoToast.jsx';
-import { pushUndoTransaction, performUndo } from './core/history/undoManager.js';
+import { pushUndoTransaction, performUndo, clearUndoTransaction } from './core/history/undoManager.js';
 import { useToasts } from './components/Toast/useToasts.js';
 import ToastContainer from './components/Toast/index.jsx';
 
@@ -42,9 +42,11 @@ function serializePayload(payload) {
   }
 }
 
+const ACTIVE_PROFILE_STORAGE_KEY = 'taskmanager_active_profile';
+const THEME_STORAGE_KEY = 'taskmanager_theme';
+const DENSITY_STORAGE_KEY = 'taskmanager_density';
+
 export default function App() {
-  const ACTIVE_PROFILE_STORAGE_KEY = 'taskmanager_active_profile';
-  const THEME_STORAGE_KEY = 'taskmanager_theme';
   const [authenticated, setAuthenticated] = useState(null);
   const [authVersion, setAuthVersion] = useState(0);
   const [tasks, setTasks] = useState([]);
@@ -180,7 +182,6 @@ export default function App() {
     return storedTheme === 'dark' ? 'dark' : 'light';
   });
 
-  const DENSITY_STORAGE_KEY = 'taskmanager_density';
   const [density, setDensity] = useState(() => {
     try {
       return localStorage.getItem(DENSITY_STORAGE_KEY) || 'comfortable';
@@ -289,10 +290,19 @@ export default function App() {
     const onOnline = () => {
       isOnlineRef.current = true;
       setIsOnline(true);
-      const hasPending = serializePayload(latestPayloadRef.current) !== lastSyncedPayloadRef.current;
+      // Only show "Reconectando" if there is actually pending data to flush.
+      // We compare against lastSyncedPayloadRef but guard against the case where
+      // lastSyncedPayloadRef is still empty (first load) so we don't get stuck.
+      const currentSerialized = serializePayload(latestPayloadRef.current);
+      const hasPending =
+        currentSerialized !== '' &&
+        currentSerialized !== lastSyncedPayloadRef.current;
       if (hasPending) {
         setReconnecting(true);
-        void syncNowRef.current({ immediate: true }).then(() => setReconnecting(false)).catch(() => setReconnecting(false));
+        void syncNowRef.current({ immediate: true })
+          .then(() => setReconnecting(false))
+          .catch(() => setReconnecting(false))
+          .finally(() => setReconnecting(false));
       }
     };
     const onOffline = () => {
@@ -325,12 +335,16 @@ export default function App() {
     };
   }, []);
 
-  const handleInstallApp = () => {
+  const handleInstallApp = async () => {
     if (!installPromptEvent) return;
-    installPromptEvent.prompt();
-    installPromptEvent.userChoice.then(() => {
+    try {
+      await installPromptEvent.prompt();
+      await installPromptEvent.userChoice;
+    } catch {
+      // User dismissed or browser blocked the prompt — treat as rejected.
+    } finally {
       setInstallPromptEvent(null);
-    });
+    }
   };
 
   useEffect(() => {
@@ -461,6 +475,7 @@ export default function App() {
     setSyncState('idle');
     setShowProfileMenu(false);
     clearToasts();
+    clearUndoTransaction();
     try {
       localStorage.removeItem('taskmanager_session_expired');
     } catch {
@@ -488,8 +503,9 @@ export default function App() {
     setSyncState('idle');
     setShowProfileMenu(false);
     clearToasts();
+    clearUndoTransaction();
     // Keep ACTIVE_PROFILE_STORAGE_KEY so the last workspace can be restored on re-login.
-  }, [clearToasts]);
+  }, [clearToasts, clearUndoTransaction]);
 
   useEffect(() => {
     if (!authenticated) return undefined;
@@ -1015,24 +1031,27 @@ export default function App() {
   };
 
   const del = (id) => {
-    let blockedByOpenChildren = false;
-    let blockedChildrenCount = 0;
-    let deletedTaskName = '';
-    let savedPreviousTasks = null;
+    // Use a result object to safely communicate state from inside the React
+    // updater function without relying on mutation of outer-scope variables,
+    // which is not guaranteed to be observed synchronously in Concurrent Mode.
+    const result = { blocked: false, blockedCount: 0, taskName: '', snapshot: null };
+
     setTasks((previousTasks) => {
       const targetTask = previousTasks.find((task) => task.id === id);
       if (!targetTask) return previousTasks;
+
       const openChildTasks = previousTasks.filter((task) => (
         (targetTask.dependencyTaskIds || []).includes(task.id) &&
         task.status !== 'done'
       ));
       if (openChildTasks.length > 0) {
-        blockedByOpenChildren = true;
-        blockedChildrenCount = openChildTasks.length;
+        result.blocked = true;
+        result.blockedCount = openChildTasks.length;
         return previousTasks;
       }
-      deletedTaskName = targetTask.name || 'Tarea';
-      savedPreviousTasks = previousTasks;
+
+      result.taskName = targetTask.name || 'Tarea';
+      result.snapshot = previousTasks;
       return previousTasks
         .filter((task) => task.id !== id)
         .map((task) => ({
@@ -1040,14 +1059,18 @@ export default function App() {
           dependencyTaskIds: (task.dependencyTaskIds || []).filter((dependencyId) => dependencyId !== id)
         }));
     });
-    if (blockedByOpenChildren) {
-      showParentBlockedMessage('eliminar', blockedChildrenCount || 1);
+
+    // React guarantees that the updater runs synchronously during the same
+    // event before any effects or paint; reading `result` here is safe.
+    if (result.blocked) {
+      showParentBlockedMessage('eliminar', result.blockedCount || 1);
       return;
     }
-    if (savedPreviousTasks) {
+    if (result.snapshot) {
+      const snapshot = result.snapshot;
       pushUndoTransaction({
-        description: `Tarea "${deletedTaskName}" eliminada`,
-        rollbackFn: () => setTasks(savedPreviousTasks),
+        description: `Tarea "${result.taskName}" eliminada`,
+        rollbackFn: () => setTasks(snapshot),
       });
     }
     setModal(null);
@@ -1837,7 +1860,7 @@ export default function App() {
             />
           : view === 'tasks'
           ? <TasksView
-              allTasks={focusTasks}
+              allTasks={tasks}
               tasks={sorted} total={totalVisible} filter={filter} setFilter={setFilter}
               searchQuery={searchQuery} setSearchQuery={setSearchQuery}
               categoryFilter={categoryFilter} setCategoryFilter={setCategoryFilter}
@@ -1855,7 +1878,7 @@ export default function App() {
             ? <KanbanView
                 key={activeProfileId || 'default'}
                 tasks={focusTasks}
-                allTasks={focusTasks}
+                allTasks={tasks}
                 kanbanColumnsStorageKey={`taskmanager_kanban_visible_columns_${activeProfileId || 'default'}`}
                 kanbanDoneRangeStorageKey={`taskmanager_kanban_done_range_${activeProfileId || 'default'}`}
                 onOpenTaskPreview={(t) => setTaskPreviewId(t.id)}

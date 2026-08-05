@@ -115,10 +115,10 @@ export default function TaskTrashDropZone({
             }}>
               <strong style={{ color: 'var(--color-text-primary)', display: 'block', marginBottom: 2 }}>⚠️ Impacto de la eliminación:</strong>
               {taskToDelete?.subtasks?.length > 0 && (
-                <span>• Se eliminarán permanentemente las <strong>{taskToDelete.subtasks.length} subtareas</strong> asociadas.</span>
+                <span>• Se eliminarán permanentemente las <strong>{taskToDelete.subtasks.length} subtarea{taskToDelete.subtasks.length !== 1 ? 's' : ''}</strong> del checklist.</span>
               )}
               {taskToDelete?.dependencyTaskIds?.length > 0 && (
-                <span>• Se desvincularán las dependencias/tareas relacionadas.</span>
+                <span>• Se desvincularán las <strong>{taskToDelete.dependencyTaskIds.length} tarea{taskToDelete.dependencyTaskIds.length !== 1 ? 's' : ''} hija{taskToDelete.dependencyTaskIds.length !== 1 ? 's' : ''}</strong> asociadas (no se eliminarán).</span>
               )}
             </div>
           )}
