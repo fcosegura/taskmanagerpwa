@@ -44,6 +44,8 @@ export default function SettingsModal({
     { key: 'semanticSearch', label: 'Búsqueda semántica' },
     { key: 'duplicates', label: 'Detección de duplicados' },
     { key: 'organizeBoard', label: 'Organizar tablero' },
+    { key: 'graph', label: 'Vista grafo de notas' },
+    { key: 'ragChat', label: 'Chat contextual de notas' },
   ];
 
   return (

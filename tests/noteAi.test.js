@@ -152,3 +152,12 @@ test('normalizeNoteAiPrefs includes phase-2 toggles', () => {
   assert.equal(off.duplicates, false);
   assert.equal(off.organizeBoard, false);
 });
+
+test('normalizeNoteAiPrefs includes phase-3 graph and ragChat', () => {
+  const prefs = normalizeNoteAiPrefs({});
+  assert.equal(prefs.graph, true);
+  assert.equal(prefs.ragChat, true);
+  const off = normalizeNoteAiPrefs({ graph: false, ragChat: false });
+  assert.equal(off.graph, false);
+  assert.equal(off.ragChat, false);
+});

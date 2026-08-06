@@ -9,6 +9,8 @@ import {
   NOTE_AI_CLUSTER_QUERY_TOP_K,
   NOTE_AI_DUPLICATE_MIN_SCORE,
   NOTE_AI_CLUSTER_MAX_NOTES,
+  NOTE_AI_RAG_TOP_K,
+  NOTE_AI_RAG_MIN_SCORE,
 } from './constants.js';
 import { createNoteAiServices } from './adapters.js';
 import { analyzeNoteFallback, sanitizeAnalysisResult } from './fallbacks.js';
@@ -19,6 +21,12 @@ import {
   findDuplicateGroups,
   layoutClusters,
 } from './clustering.js';
+import {
+  answerFromNotesFallback,
+  buildRagContextFromResults,
+  sanitizeRagAnswer,
+  sanitizeRagQuestion,
+} from './rag.js';
 import {
   decryptField,
   encryptField,
@@ -720,6 +728,69 @@ export async function organizeNotesLayout(env, dataKey, userId, profileId, prefs
     source,
     edgeCount: edges.length,
   };
+}
+
+/**
+ * Phase 3: contextual RAG chat — retrieve top-K notes for this profile, then answer
+ * strictly from that context (no generic chatbot memory).
+ */
+export async function answerNotesRagChat(env, dataKey, userId, profileId, questionInput, prefsInput) {
+  const prefs = normalizeNoteAiPrefs(prefsInput);
+  if (prefs.ragChat === false) {
+    return {
+      answer: 'El chat de notas está desactivado en Ajustes.',
+      source: 'disabled',
+      citedNoteIds: [],
+      context: [],
+    };
+  }
+
+  const question = sanitizeRagQuestion(questionInput);
+  if (!question) {
+    return {
+      answer: 'Escribe una pregunta sobre tus notas.',
+      source: 'empty',
+      citedNoteIds: [],
+      context: [],
+    };
+  }
+
+  // Force semantic retrieval on (chat is profile-scoped; ignore search toggle for retrieve).
+  const search = await semanticSearchNotes(env, dataKey, userId, profileId, question, {
+    ...prefs,
+    semanticSearch: true,
+  });
+  const filtered = (search.results || []).filter((r) => (r.score ?? 0) >= NOTE_AI_RAG_MIN_SCORE);
+  const context = buildRagContextFromResults(filtered.length ? filtered : search.results, NOTE_AI_RAG_TOP_K);
+
+  if (!context.length) {
+    return {
+      answer: 'No encuentro eso en tus notas.',
+      source: search.source || 'empty',
+      citedNoteIds: [],
+      context: [],
+    };
+  }
+
+  const services = createNoteAiServices(env);
+  try {
+    const result = await services.rag.answer({ question, contextNotes: context });
+    return {
+      answer: sanitizeRagAnswer(result?.answer) || answerFromNotesFallback(question, context).answer,
+      source: result?.source === 'ai' ? 'ai' : 'fallback',
+      citedNoteIds: Array.isArray(result?.citedNoteIds) ? result.citedNoteIds : context.map((c) => c.noteId),
+      context,
+      retrieveSource: search.source,
+    };
+  } catch (err) {
+    console.error('[noteAi] rag chat failed', err?.message || err);
+    const fallback = answerFromNotesFallback(question, context);
+    return {
+      ...fallback,
+      context,
+      retrieveSource: search.source,
+    };
+  }
 }
 
 export { markPending, scopedNoteId, unscopedNoteId, vectorIdForNote, vectorNamespace };
