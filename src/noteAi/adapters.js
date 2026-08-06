@@ -18,9 +18,15 @@ export function createWorkersAiEmbeddingProvider(ai) {
         .map((t) => (t.length ? t.slice(0, 8000) : ' '));
       if (!ai?.run) throw new Error('AI binding missing');
       const result = await ai.run(NOTE_EMBEDDING_MODEL, { text: list });
-      const data = result?.data;
-      if (!Array.isArray(data) || data.length === 0) throw new Error('Empty embedding response');
-      return data;
+      const data = result?.data ?? result?.result?.data;
+      if (!Array.isArray(data) || data.length === 0) {
+        throw new Error('Empty embedding response');
+      }
+      return data.map((row) => {
+        if (Array.isArray(row)) return row;
+        if (row && Array.isArray(row.embedding)) return row.embedding;
+        throw new Error('Unexpected embedding shape');
+      });
     },
   };
 }

@@ -14,6 +14,7 @@ import { partitionDailyStatusActivities, statusChangesForDailyReport } from './d
 import {
   dismissNoteAiSuggestion,
   enqueueNoteAiJobs,
+  enqueueStaleNoteAiReindex,
   ensureNoteAiSchema,
   getNoteAiMeta,
   listNoteAiMeta,
@@ -1191,6 +1192,8 @@ export default {
 
         if (request.method === 'GET' && path === '/notes/ai') {
           const meta = await listNoteAiMeta(env, dataKey, userId, profileId);
+          // Re-embed notes indexed with the old Vectorize filter scheme (non-blocking).
+          await enqueueStaleNoteAiReindex(env, ctx, userId, profileId);
           return json({ meta });
         }
 

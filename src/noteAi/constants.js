@@ -27,8 +27,11 @@ export const NOTE_AI_PREFS_STORAGE_KEY = 'taskmanager_note_ai_prefs';
 
 export const NOTE_AI_RELATED_TOP_K = 6;
 export const NOTE_AI_SEARCH_TOP_K = 12;
-export const NOTE_AI_RELATED_MIN_SCORE = 0.55;
-export const NOTE_AI_SEARCH_MIN_SCORE = 0.35;
+export const NOTE_AI_RELATED_MIN_SCORE = 0.45;
+export const NOTE_AI_SEARCH_MIN_SCORE = 0.22;
+
+/** Bump when vector id / namespace scheme changes to force re-embed. */
+export const NOTE_AI_VECTOR_SCHEMA = 2;
 
 export const NOTE_AI_RATE_WINDOW_SEC = 60;
 export const NOTE_AI_RATE_MAX_PER_WINDOW = 30;

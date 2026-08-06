@@ -106,6 +106,7 @@ CREATE TABLE IF NOT EXISTS note_ai_meta (
   related_ids TEXT,
   dismissed TEXT,
   error_message TEXT,
+  vector_schema INTEGER DEFAULT 0,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (note_id, profile_id)
 );

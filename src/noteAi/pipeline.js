@@ -3,10 +3,11 @@ import {
   NOTE_AI_RELATED_TOP_K,
   NOTE_AI_SEARCH_MIN_SCORE,
   NOTE_AI_SEARCH_TOP_K,
+  NOTE_AI_VECTOR_SCHEMA,
+  DEFAULT_NOTE_AI_PREFS,
 } from './constants.js';
 import { createNoteAiServices } from './adapters.js';
 import { analyzeNoteFallback, sanitizeAnalysisResult } from './fallbacks.js';
-import { DEFAULT_NOTE_AI_PREFS } from './constants.js';
 import { normalizeNoteAiPrefs } from './prefs.js';
 import {
   decryptField,
@@ -26,8 +27,18 @@ function noteTextForEmbed(title, text) {
   return t || ' ';
 }
 
-function vectorId(profileId, noteId) {
-  return `${profileId}::${noteId}`;
+/**
+ * Vectorize vector IDs max 64 bytes. Scoped profile ids are often longer, so hash.
+ * Isolation uses Vectorize `namespace` (no metadata index required).
+ */
+async function vectorNamespace(userId, profileId) {
+  const hex = await sha256HexOfUtf8(`${userId}\n${profileId}`);
+  return hex.slice(0, 48);
+}
+
+async function vectorIdForNote(userId, profileId, noteId) {
+  const hex = await sha256HexOfUtf8(`${userId}\n${profileId}\n${noteId}`);
+  return hex.slice(0, 32);
 }
 
 export async function ensureNoteAiSchema(env) {
@@ -59,6 +70,7 @@ export async function ensureNoteAiSchema(env) {
   `);
   await safeExec('CREATE INDEX IF NOT EXISTS idx_note_ai_meta_user_profile ON note_ai_meta(user_id, profile_id)');
   await safeExec('CREATE INDEX IF NOT EXISTS idx_note_ai_meta_status ON note_ai_meta(user_id, profile_id, status)');
+  await safeExec('ALTER TABLE note_ai_meta ADD COLUMN vector_schema INTEGER DEFAULT 0');
 }
 
 function scopedNoteId(profileId, noteId) {
@@ -109,8 +121,8 @@ async function saveAnalysis(env, dataKey, {
   await env.DB.prepare(
     `INSERT INTO note_ai_meta (
       note_id, user_id, profile_id, content_hash, status,
-      summary, tags, entities, classification, task_suggestions, related_ids, error_message, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+      summary, tags, entities, classification, task_suggestions, related_ids, error_message, vector_schema, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
     ON CONFLICT(note_id, profile_id) DO UPDATE SET
       content_hash = excluded.content_hash,
       status = excluded.status,
@@ -121,6 +133,7 @@ async function saveAnalysis(env, dataKey, {
       task_suggestions = excluded.task_suggestions,
       related_ids = excluded.related_ids,
       error_message = excluded.error_message,
+      vector_schema = excluded.vector_schema,
       updated_at = CURRENT_TIMESTAMP
     WHERE note_ai_meta.user_id = excluded.user_id`
   ).bind(
@@ -135,7 +148,8 @@ async function saveAnalysis(env, dataKey, {
     encClass,
     encTasks,
     encRelated,
-    errorMessage
+    errorMessage,
+    NOTE_AI_VECTOR_SCHEMA
   ).run();
 }
 
@@ -185,7 +199,8 @@ export async function processNoteAiJob(env, dataKey, job, prefsInput = DEFAULT_N
       'DELETE FROM note_ai_meta WHERE user_id = ? AND profile_id = ? AND note_id = ?'
     ).bind(userId, profileId, scoped).run();
     try {
-      await services.vectors.deleteByIds([vectorId(profileId, noteId)]);
+      const vid = await vectorIdForNote(userId, profileId, noteId);
+      await services.vectors.deleteByIds([vid]);
     } catch {
       // vector delete best-effort
     }
@@ -202,10 +217,14 @@ export async function processNoteAiJob(env, dataKey, job, prefsInput = DEFAULT_N
 
   const contentHash = await hashNoteAiContent(note.title, note.text);
   const existing = await env.DB.prepare(
-    'SELECT content_hash, status FROM note_ai_meta WHERE user_id = ? AND profile_id = ? AND note_id = ?'
+    'SELECT content_hash, status, vector_schema FROM note_ai_meta WHERE user_id = ? AND profile_id = ? AND note_id = ?'
   ).bind(userId, profileId, scopedNoteId(profileId, noteId)).first();
 
-  if (existing?.content_hash === contentHash && existing?.status === 'ready') {
+  if (
+    existing?.content_hash === contentHash
+    && existing?.status === 'ready'
+    && Number(existing?.vector_schema) >= NOTE_AI_VECTOR_SCHEMA
+  ) {
     return { ok: true, skipped: true, reason: 'unchanged' };
   }
 
@@ -227,27 +246,31 @@ export async function processNoteAiJob(env, dataKey, job, prefsInput = DEFAULT_N
   try {
     const [embedding] = await services.embeddings.embed([noteTextForEmbed(note.title, note.text)]);
     if (embedding) {
+      const ns = await vectorNamespace(userId, profileId);
+      const vid = await vectorIdForNote(userId, profileId, noteId);
       await services.vectors.upsert([{
-        id: vectorId(profileId, noteId),
+        id: vid,
         values: embedding,
-        metadata: { userId, profileId, noteId },
+        namespace: ns,
+        metadata: { noteId },
       }]);
 
       if (prefs.related !== false) {
         const query = await services.vectors.query(embedding, {
           topK: NOTE_AI_RELATED_TOP_K + 1,
           returnMetadata: 'all',
-          filter: { profileId, userId },
+          namespace: ns,
         });
         relatedIds = (query?.matches || [])
-          .filter((m) => m.id !== vectorId(profileId, noteId) && (m.score ?? 0) >= NOTE_AI_RELATED_MIN_SCORE)
+          .filter((m) => m.id !== vid && (m.score ?? 0) >= NOTE_AI_RELATED_MIN_SCORE)
           .slice(0, NOTE_AI_RELATED_TOP_K)
-          .map((m) => m.metadata?.noteId || unscopedNoteId(profileId, m.id))
+          .map((m) => m.metadata?.noteId)
           .filter(Boolean);
       }
     }
   } catch (err) {
     // Embeddings/vector optional: still persist LLM/fallback analysis.
+    console.error('[noteAi] embed/upsert failed', err?.message || err);
     await saveAnalysis(env, dataKey, {
       userId,
       profileId,
@@ -318,11 +341,15 @@ export async function semanticSearchNotes(env, dataKey, userId, profileId, query
 
   const services = createNoteAiServices(env);
   try {
+    if (!env?.VECTORIZE?.query) {
+      throw new Error('VECTORIZE binding missing');
+    }
     const [embedding] = await services.embeddings.embed([q.slice(0, 2000)]);
+    const ns = await vectorNamespace(userId, profileId);
     const query = await services.vectors.query(embedding, {
       topK: NOTE_AI_SEARCH_TOP_K,
       returnMetadata: 'all',
-      filter: { profileId, userId },
+      namespace: ns,
     });
     const matches = (query?.matches || [])
       .filter((m) => (m.score ?? 0) >= NOTE_AI_SEARCH_MIN_SCORE)
@@ -330,7 +357,8 @@ export async function semanticSearchNotes(env, dataKey, userId, profileId, query
 
     const results = [];
     for (const m of matches) {
-      const noteId = m.metadata?.noteId || unscopedNoteId(profileId, m.id);
+      const noteId = m.metadata?.noteId;
+      if (!noteId) continue;
       const note = await loadNotePlain(env, dataKey, userId, profileId, noteId);
       if (!note) continue;
       const meta = await getNoteAiMeta(env, dataKey, userId, profileId, noteId);
@@ -344,32 +372,81 @@ export async function semanticSearchNotes(env, dataKey, userId, profileId, query
         classification: meta?.classification || null,
       });
     }
-    return { results, source: 'vector' };
-  } catch {
-    // Keyword fallback over decrypted notes of the profile (bounded).
+    if (results.length > 0) {
+      return { results, source: 'vector', matchCount: matches.length };
+    }
+    // Empty vector hits: still try keyword fallback below.
+    throw new Error('no_vector_matches');
+  } catch (err) {
+    if (err?.message !== 'no_vector_matches') {
+      console.error('[noteAi] semantic search failed', err?.message || err);
+    }
+    // Keyword fallback: any token match (not only full phrase).
     const { results: rows } = await env.DB.prepare(
       'SELECT id, title, text FROM notes WHERE user_id = ? AND profile_id = ? LIMIT 200'
     ).bind(userId, profileId).all();
-    const needle = q.toLowerCase();
-    const results = [];
+    const tokens = q.toLowerCase().split(/[^a-záéíóúüñ0-9#+-]+/i).filter((t) => t.length >= 3);
+    const needles = tokens.length ? tokens : [q.toLowerCase()];
+    const scored = [];
     for (const row of rows || []) {
       const title = (await decryptField(dataKey, row.title)) || '';
       const text = (await decryptField(dataKey, row.text)) || '';
       const hay = `${title}\n${text}`.toLowerCase();
-      if (!hay.includes(needle)) continue;
-      results.push({
+      let hits = 0;
+      for (const n of needles) {
+        if (hay.includes(n)) hits += 1;
+      }
+      if (hits === 0) continue;
+      scored.push({
         noteId: unscopedNoteId(profileId, row.id),
-        score: 0.5,
+        score: hits / needles.length,
         title,
         text,
         summary: '',
         tags: [],
         classification: null,
       });
-      if (results.length >= NOTE_AI_SEARCH_TOP_K) break;
     }
-    return { results, source: 'keyword_fallback' };
+    scored.sort((a, b) => b.score - a.score);
+    return {
+      results: scored.slice(0, NOTE_AI_SEARCH_TOP_K),
+      source: 'keyword_fallback',
+    };
   }
+}
+
+/**
+ * Re-queue notes whose vectors still use the old id/filter scheme.
+ */
+export async function enqueueStaleNoteAiReindex(env, ctx, userId, profileId) {
+  await ensureNoteAiSchema(env);
+  const { results: noteRows } = await env.DB.prepare(
+    'SELECT id FROM notes WHERE user_id = ? AND profile_id = ? LIMIT 200'
+  ).bind(userId, profileId).all();
+  const { results: metaRows } = await env.DB.prepare(
+    'SELECT note_id, vector_schema FROM note_ai_meta WHERE user_id = ? AND profile_id = ?'
+  ).bind(userId, profileId).all();
+
+  const schemaByScopedId = new Map();
+  for (const row of metaRows || []) {
+    schemaByScopedId.set(row.note_id, Number(row.vector_schema) || 0);
+  }
+
+  const jobs = [];
+  for (const row of noteRows || []) {
+    const schema = schemaByScopedId.has(row.id) ? schemaByScopedId.get(row.id) : -1;
+    if (schema >= NOTE_AI_VECTOR_SCHEMA) continue;
+    jobs.push({
+      type: 'analyze',
+      userId,
+      profileId,
+      noteId: unscopedNoteId(profileId, row.id),
+    });
+    if (jobs.length >= 80) break;
+  }
+  if (!jobs.length) return { enqueued: 0 };
+  await enqueueNoteAiJobs(env, ctx, jobs);
+  return { enqueued: jobs.length };
 }
 
 export async function enqueueNoteAiJobs(env, ctx, jobs) {
@@ -403,4 +480,4 @@ export async function enqueueNoteAiJobs(env, ctx, jobs) {
   else await run();
 }
 
-export { markPending, scopedNoteId, unscopedNoteId, vectorId };
+export { markPending, scopedNoteId, unscopedNoteId, vectorIdForNote, vectorNamespace };
