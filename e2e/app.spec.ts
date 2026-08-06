@@ -377,3 +377,25 @@ test.describe('Siguiente Foco Recomendado y Cambio Rápido de Estado', () => {
   });
 });
 
+test.describe('Notas AI Fase 3 — Grafo y chat RAG', () => {
+  test('abre la vista Grafo y permite usar el chat de notas', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.getByRole('heading', { name: /Prioriza lo importante/i })).toBeVisible({
+      timeout: 30_000,
+    });
+
+    await page.locator('.desktop-tabs').getByRole('button', { name: 'Notas' }).click();
+    await expect(page.locator('.subview-pills').getByRole('button', { name: 'Grafo' })).toBeVisible();
+
+    await page.locator('.subview-pills').getByRole('button', { name: 'Grafo' }).click();
+    await expect(page.getByRole('heading', { name: /Explora conexiones entre notas/i })).toBeVisible();
+    await expect(page.locator('.graph-view')).toBeVisible();
+
+    await page.getByRole('button', { name: 'Chat notas' }).click();
+    await expect(page.locator('#notes-rag-chat-panel')).toBeVisible();
+    await page.getByLabel('Pregunta sobre tus notas').fill('¿qué anoté?');
+    await page.locator('.graph-chat-form').getByRole('button', { name: 'Enviar' }).click();
+    await expect(page.locator('.graph-chat-msg--assistant').first()).toBeVisible({ timeout: 10_000 });
+  });
+});
+

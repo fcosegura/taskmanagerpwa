@@ -4,6 +4,7 @@ import {
   NOTE_EMBEDDING_MODEL,
 } from './constants.js';
 import { analyzeNoteFallback, sanitizeAnalysisResult } from './fallbacks.js';
+import { buildRagPrompt, sanitizeRagAnswer, answerFromNotesFallback } from './rag.js';
 
 /**
  * Adapter layer: swap model implementations without touching pipeline/business logic.
@@ -70,6 +71,49 @@ export function createWorkersAiNoteAnalyzer(ai) {
   };
 }
 
+/**
+ * Grounded Q&A over retrieved note snippets (no chat memory).
+ */
+export function createWorkersAiRagAnswerer(ai) {
+  return {
+    id: NOTE_ANALYZER_MODEL,
+    async answer({ question, contextNotes }) {
+      const fallback = answerFromNotesFallback(question, contextNotes);
+      if (!ai?.run) return fallback;
+      if (!contextNotes?.length) {
+        return {
+          answer: 'No encuentro eso en tus notas.',
+          source: 'fallback',
+          citedNoteIds: [],
+        };
+      }
+      const { system, user } = buildRagPrompt(question, contextNotes);
+      try {
+        const result = await ai.run(NOTE_ANALYZER_MODEL, {
+          messages: [
+            { role: 'system', content: system },
+            { role: 'user', content: user },
+          ],
+          max_tokens: 500,
+          temperature: 0.1,
+        });
+        const rawText = typeof result?.response === 'string'
+          ? result.response
+          : (typeof result?.result?.response === 'string' ? result.result.response : '');
+        const answer = sanitizeRagAnswer(rawText);
+        if (!answer) return fallback;
+        return {
+          answer,
+          source: 'ai',
+          citedNoteIds: contextNotes.map((n) => n.noteId).filter(Boolean),
+        };
+      } catch {
+        return fallback;
+      }
+    },
+  };
+}
+
 export function createVectorizeStore(vectorize) {
   return {
     async upsert(vectors) {
@@ -91,6 +135,7 @@ export function createNoteAiServices(env) {
   return {
     embeddings: createWorkersAiEmbeddingProvider(env?.AI),
     analyzer: createWorkersAiNoteAnalyzer(env?.AI),
+    rag: createWorkersAiRagAnswerer(env?.AI),
     vectors: createVectorizeStore(env?.VECTORIZE),
   };
 }

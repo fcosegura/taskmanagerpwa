@@ -33,6 +33,7 @@ const KanbanView = lazy(() => import('./components/KanbanView.jsx'));
 const CalendarView = lazy(() => import('./components/CalendarView.jsx'));
 const DailyAgendaView = lazy(() => import('./components/DailyAgendaView.jsx'));
 const TimelineView = lazy(() => import('./components/TimelineView.jsx'));
+const GraphView = lazy(() => import('./components/GraphView.jsx'));
 const CommandMenu = lazy(() => import('./components/CommandMenu.jsx'));
 const TaskSheetDrawer = lazy(() => import('./components/TaskSheetDrawer.jsx'));
 
@@ -1196,7 +1197,7 @@ export default function App() {
   };
 
   useEffect(() => {
-    if (view !== 'board' || !activeProfileId || !authenticated) return undefined;
+    if ((view !== 'board' && view !== 'graph') || !activeProfileId || !authenticated) return undefined;
     let cancelled = false;
     const load = async () => {
       try {
@@ -1764,6 +1765,8 @@ export default function App() {
         return 'bg-context-agenda';
       case 'board':
         return 'bg-context-notes';
+      case 'graph':
+        return 'bg-context-notes';
       case 'timeline':
         return 'bg-context-focus';
       default:
@@ -1864,7 +1867,7 @@ export default function App() {
           </div>
           <div className="brand-copy">
             <span className="brand-title">
-              {view === 'today' ? 'Hoy' : view === 'kanban' || view === 'tasks' ? 'Tareas' : view === 'calendar' || view === 'daily' ? 'Calendario' : view === 'board' || view === 'timeline' ? 'Notas' : 'Tareas'}
+              {view === 'today' ? 'Hoy' : view === 'kanban' || view === 'tasks' ? 'Tareas' : view === 'calendar' || view === 'daily' ? 'Calendario' : view === 'board' || view === 'timeline' || view === 'graph' ? 'Notas' : 'Tareas'}
             </span>
             <span className="brand-subtitle hide-mobile">
               {activeProfileName}
@@ -1898,8 +1901,10 @@ export default function App() {
             </button>
             <button
               type="button"
-              className={view === 'board' || view === 'timeline' ? 'active' : ''}
-              onClick={() => navigateToView(view === 'timeline' ? 'timeline' : 'board')}
+              className={view === 'board' || view === 'timeline' || view === 'graph' ? 'active' : ''}
+              onClick={() => navigateToView(
+                view === 'timeline' || view === 'graph' || view === 'board' ? view : 'board'
+              )}
             >
               Notas
             </button>
@@ -1918,9 +1923,10 @@ export default function App() {
               <button type="button" className={view === 'daily' ? 'active' : ''} onClick={() => navigateToView('daily')}>Agenda</button>
             </div>
           )}
-          {(view === 'board' || view === 'timeline') && (
+          {(view === 'board' || view === 'timeline' || view === 'graph') && (
             <div className="subview-pills">
               <button type="button" className={view === 'board' ? 'active' : ''} onClick={() => navigateToView('board')}>Tablero</button>
+              <button type="button" className={view === 'graph' ? 'active' : ''} onClick={() => navigateToView('graph')}>Grafo</button>
               <button type="button" className={view === 'timeline' ? 'active' : ''} onClick={() => navigateToView('timeline')}>Cronología</button>
             </div>
           )}
@@ -2027,6 +2033,8 @@ export default function App() {
                   ? 'Planifica la semana'
                   : view === 'board'
                   ? 'Ordena tus ideas'
+                  : view === 'graph'
+                  ? 'Explora conexiones entre notas'
                   : view === 'daily'
                   ? 'Agenda y bloques de 30 min'
                   : view === 'timeline'
@@ -2176,6 +2184,15 @@ export default function App() {
                   statuses={statuses}
                   onOpenTaskPreview={(t) => setTaskPreviewId(t.id)}
                 />
+              : view === 'graph'
+                ? <GraphView
+                    notes={boardNotes}
+                    noteAiMetaById={noteAiMetaById}
+                    noteAiPrefs={noteAiPrefs}
+                    isOnline={isOnline}
+                    activeProfileId={activeProfileId}
+                    onSelectNote={setSelectedBoardNoteId}
+                  />
               : <BoardView
                   notes={boardNotes}
                   noteAiMetaById={noteAiMetaById}

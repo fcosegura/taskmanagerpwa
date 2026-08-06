@@ -591,6 +591,31 @@ export async function fetchNotesOrganizeLayout(profileId, prefs, layout) {
   return await resp.json();
 }
 
+export async function chatNotesRag(question, profileId, prefs) {
+  const resp = await fetch('/api/notes/chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
+    body: JSON.stringify({ question, profileId, prefs }),
+  });
+  if (!resp.ok) {
+    let message = 'No se pudo consultar el chat de notas.';
+    try {
+      const data = await resp.json();
+      if (typeof data?.error === 'string') message = data.error;
+    } catch {
+      // keep default
+    }
+    if (resp.status === 429) {
+      message = message.includes('chat') || message.includes('IA')
+        ? message
+        : 'Demasiadas preguntas. Espera un momento.';
+    }
+    throw new Error(message);
+  }
+  return await resp.json();
+}
+
 export async function fetchWorkspaceData(profileId) {
   if (!profileId) throw new Error('profileId es requerido para fetchWorkspaceData.');
   const resp = await fetch(`/api/data?profileId=${encodeURIComponent(profileId)}`, { credentials: 'same-origin' });

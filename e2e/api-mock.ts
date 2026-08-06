@@ -204,6 +204,20 @@ export async function installApiMocks(page: Page): Promise<void> {
     });
   });
 
+  await page.route((url) => url.pathname === '/api/notes/chat', (route) => {
+    if (route.request().method() !== 'POST') return route.continue();
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        answer: 'No encuentro eso en tus notas.',
+        source: 'mock',
+        citedNoteIds: [],
+        context: [],
+      }),
+    });
+  });
+
   await page.route((url) => url.pathname === '/api/logout', (route) => respondOk(route));
 }
 

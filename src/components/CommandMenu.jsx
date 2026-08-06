@@ -30,6 +30,7 @@ export default function CommandMenu({
     { id: 'nav-calendar', label: 'Ir a Calendario', icon: '📅', action: () => onNavigateToView('calendar') },
     { id: 'nav-daily', label: 'Ir a Agenda Diaria', icon: '⏱️', action: () => onNavigateToView('daily') },
     { id: 'nav-board', label: 'Ir a Tablero de Notas', icon: '📝', action: () => onNavigateToView('board') },
+    { id: 'nav-graph', label: 'Ir a Grafo de Notas', icon: '🕸', action: () => onNavigateToView('graph') },
     { id: 'nav-timeline', label: 'Ir a Cronología', icon: '📈', action: () => onNavigateToView('timeline') }
   ], [onNavigateToView]);
 

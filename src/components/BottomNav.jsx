@@ -12,7 +12,7 @@ export default function BottomNav({ currentView, setView, onOpenCreateTask, onOp
     if (tabId === 'today' && currentView === 'today') return true;
     if (tabId === 'tasks' && (currentView === 'tasks' || currentView === 'kanban')) return true;
     if (tabId === 'calendar' && (currentView === 'calendar' || currentView === 'daily')) return true;
-    if (tabId === 'board' && (currentView === 'board' || currentView === 'timeline')) return true;
+    if (tabId === 'board' && (currentView === 'board' || currentView === 'timeline' || currentView === 'graph')) return true;
     return false;
   };
 

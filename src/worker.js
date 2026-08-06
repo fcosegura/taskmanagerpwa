@@ -22,9 +22,16 @@ import {
   semanticSearchNotes,
   detectNoteDuplicates,
   organizeNotesLayout,
+  answerNotesRagChat,
 } from './noteAi/pipeline.js';
 import { normalizeNoteAiPrefs } from './noteAi/prefs.js';
-import { NOTE_AI_RATE_MAX_PER_WINDOW, NOTE_AI_RATE_WINDOW_SEC } from './noteAi/constants.js';
+import {
+  NOTE_AI_RATE_MAX_PER_WINDOW,
+  NOTE_AI_RATE_WINDOW_SEC,
+  NOTE_AI_RAG_RATE_MAX_PER_WINDOW,
+  NOTE_AI_RAG_RATE_WINDOW_SEC,
+  NOTE_AI_RAG_MAX_QUESTION_CHARS,
+} from './noteAi/constants.js';
 
 const VALID_PRIORITY = new Set(['low', 'medium', 'high', 'critical']);
 const SESSION_COOKIE = '__Host-taskmanager_session';
@@ -192,6 +199,35 @@ async function consumeNoteAiRateLimit(env, userId) {
   if (row.request_count >= NOTE_AI_RATE_MAX_PER_WINDOW) {
     return json(
       { error: 'Demasiadas solicitudes de IA de notas. Prueba de nuevo en un minuto.' },
+      { status: 429 }
+    );
+  }
+
+  await env.DB.prepare(
+    'UPDATE ai_rate_limits SET request_count = request_count + 1 WHERE user_id = ?'
+  ).bind(key).run();
+  return null;
+}
+
+async function consumeNoteRagRateLimit(env, userId) {
+  const key = `note-rag:${userId}`;
+  const now = Math.floor(Date.now() / 1000);
+  const windowStart = Math.floor(now / NOTE_AI_RAG_RATE_WINDOW_SEC) * NOTE_AI_RAG_RATE_WINDOW_SEC;
+  const row = await env.DB.prepare(
+    'SELECT window_start, request_count FROM ai_rate_limits WHERE user_id = ?'
+  ).bind(key).first();
+
+  if (!row || row.window_start < windowStart) {
+    await env.DB.prepare(
+      'INSERT INTO ai_rate_limits (user_id, window_start, request_count) VALUES (?, ?, 1) ' +
+        'ON CONFLICT(user_id) DO UPDATE SET window_start = excluded.window_start, request_count = 1'
+    ).bind(key, windowStart).run();
+    return null;
+  }
+
+  if (row.request_count >= NOTE_AI_RAG_RATE_MAX_PER_WINDOW) {
+    return json(
+      { error: 'Demasiadas preguntas al chat de notas. Prueba de nuevo en un minuto.' },
       { status: 429 }
     );
   }
@@ -1275,6 +1311,33 @@ export default {
           const layoutOptions = body?.layout && typeof body.layout === 'object' ? body.layout : {};
           const result = await organizeNotesLayout(
             env, dataKey, userId, orgProfileId, prefs, layoutOptions
+          );
+          return json(result);
+        }
+
+        if (request.method === 'POST' && path === '/notes/chat') {
+          let body = null;
+          try {
+            body = await request.json();
+          } catch {
+            return json({ error: 'Body inválido' }, { status: 400 });
+          }
+          const question = typeof body?.question === 'string' ? body.question.trim() : '';
+          if (!question) return json({ error: 'question es requerido' }, { status: 400 });
+          if (question.length > NOTE_AI_RAG_MAX_QUESTION_CHARS) {
+            return json(
+              { error: `question demasiado largo (max ${NOTE_AI_RAG_MAX_QUESTION_CHARS})` },
+              { status: 400 }
+            );
+          }
+          const rateLimited = await consumeNoteRagRateLimit(env, userId);
+          if (rateLimited) return rateLimited;
+          const prefs = normalizeNoteAiPrefs(body?.prefs);
+          const chatProfileId = typeof body?.profileId === 'string' && body.profileId
+            ? await resolveProfileId(env, userId, body.profileId, dataKey)
+            : profileId;
+          const result = await answerNotesRagChat(
+            env, dataKey, userId, chatProfileId, question, prefs
           );
           return json(result);
         }

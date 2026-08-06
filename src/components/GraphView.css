@@ -1,0 +1,324 @@
+.graph-view {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: min(70vh, 640px);
+  width: 100%;
+}
+
+.graph-view--disabled {
+  padding: 24px;
+  text-align: center;
+  color: var(--color-text-secondary);
+}
+
+.graph-view-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--border-radius-lg, 14px);
+}
+
+.graph-view-toolbar-meta {
+  display: flex;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  font-weight: 600;
+}
+
+.graph-view-toolbar-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.graph-tool-btn {
+  border: 1px solid var(--color-border-tertiary);
+  background: var(--color-background-secondary);
+  color: var(--color-text-secondary);
+  border-radius: 10px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.graph-tool-btn.active,
+.graph-tool-btn:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.graph-view-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+  flex: 1;
+  min-height: 0;
+}
+
+.graph-view-body:has(.graph-chat) {
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 320px);
+}
+
+@media (max-width: 860px) {
+  .graph-view-body:has(.graph-chat) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.graph-canvas-wrap {
+  position: relative;
+  min-height: 420px;
+  border-radius: var(--border-radius-lg, 14px);
+  overflow: hidden;
+  touch-action: none;
+}
+
+.graph-svg {
+  width: 100%;
+  height: 100%;
+  min-height: 420px;
+  display: block;
+  cursor: grab;
+  background:
+    radial-gradient(circle at 20% 10%, color-mix(in srgb, var(--color-accent) 12%, transparent), transparent 42%),
+    radial-gradient(circle at 80% 90%, color-mix(in srgb, var(--color-accent) 8%, transparent), transparent 40%),
+    var(--color-background-secondary, #f4f7fb);
+}
+
+.graph-svg:active {
+  cursor: grabbing;
+}
+
+.graph-edge {
+  stroke: color-mix(in srgb, var(--color-accent) 45%, var(--color-border-tertiary));
+  stroke-width: 1.5;
+  opacity: 0.75;
+}
+
+.graph-node {
+  cursor: pointer;
+  outline: none;
+}
+
+.graph-node-circle {
+  fill: var(--color-background-primary, #fff);
+  stroke: var(--color-accent);
+  stroke-width: 2;
+  filter: drop-shadow(0 2px 4px rgba(15, 23, 42, 0.12));
+}
+
+.graph-node.is-selected .graph-node-circle {
+  fill: color-mix(in srgb, var(--color-accent) 18%, white);
+  stroke-width: 2.5;
+}
+
+.graph-node-label {
+  font-size: 11px;
+  font-weight: 600;
+  fill: var(--color-text-primary);
+  pointer-events: none;
+}
+
+.graph-empty {
+  display: grid;
+  place-content: center;
+  min-height: 420px;
+  padding: 24px;
+  text-align: center;
+  color: var(--color-text-secondary);
+  gap: 6px;
+}
+
+.graph-empty-hint {
+  font-size: 12px;
+  opacity: 0.85;
+}
+
+.graph-detail {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  width: min(280px, calc(100% - 24px));
+  padding: 12px;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 2;
+}
+
+.graph-detail-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.graph-detail-chip {
+  align-self: flex-start;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-accent) 14%, transparent);
+  color: var(--color-accent);
+}
+
+.graph-detail-summary {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--color-text-secondary);
+  max-height: 120px;
+  overflow: auto;
+}
+
+.graph-detail-summary--muted {
+  opacity: 0.9;
+}
+
+.graph-detail-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.graph-detail-tag {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: var(--color-background-secondary);
+  color: var(--color-text-secondary);
+}
+
+.graph-chat {
+  display: flex;
+  flex-direction: column;
+  min-height: 420px;
+  max-height: 560px;
+  border-radius: var(--border-radius-lg, 14px);
+  padding: 12px;
+  gap: 8px;
+}
+
+.graph-chat-header h2 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.graph-chat-header p {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: var(--color-text-secondary);
+}
+
+.graph-chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 2px;
+  min-height: 180px;
+}
+
+.graph-chat-placeholder,
+.graph-chat-busy,
+.graph-chat-offline {
+  margin: 0;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.graph-chat-error {
+  margin: 0;
+  font-size: 12px;
+  color: var(--color-danger, #b91c1c);
+}
+
+.graph-chat-msg {
+  max-width: 100%;
+  padding: 8px 10px;
+  border-radius: 10px;
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.graph-chat-msg--user {
+  align-self: flex-end;
+  background: color-mix(in srgb, var(--color-accent) 16%, transparent);
+  color: var(--color-text-primary);
+}
+
+.graph-chat-msg--assistant {
+  align-self: flex-start;
+  background: var(--color-background-secondary);
+  color: var(--color-text-primary);
+}
+
+.graph-chat-cites {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.graph-cite-btn {
+  border: none;
+  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+  color: var(--color-accent);
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.graph-chat-form {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px;
+}
+
+.graph-chat-form input {
+  border: 1px solid var(--color-border-tertiary);
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 12px;
+  background: var(--color-background-primary, #fff);
+  color: var(--color-text-primary);
+}
+
+.graph-chat-form button {
+  border: none;
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  background: var(--color-accent);
+  color: #fff;
+  cursor: pointer;
+}
+
+.graph-chat-form button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+[data-theme="dark"] .graph-svg {
+  background:
+    radial-gradient(circle at 20% 10%, color-mix(in srgb, var(--color-accent) 18%, transparent), transparent 42%),
+    radial-gradient(circle at 80% 90%, color-mix(in srgb, var(--color-accent) 10%, transparent), transparent 40%),
+    #1a2233;
+}
+
+[data-theme="dark"] .graph-node-circle {
+  fill: #243044;
+}
