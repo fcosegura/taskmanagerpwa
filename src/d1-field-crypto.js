@@ -145,6 +145,14 @@ export function buildNotePlainSnapshot(note) {
   };
 }
 
+/** Content-only hash input — position changes must not re-trigger note AI. */
+export function buildNoteAiContentHashInput(title, text) {
+  return {
+    text: typeof text === 'string' ? text : '',
+    title: typeof title === 'string' ? title : '',
+  };
+}
+
 export function buildEventPlainSnapshot(event, normalized) {
   return {
     allDay: normalized.allDay,

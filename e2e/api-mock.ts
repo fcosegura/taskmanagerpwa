@@ -150,6 +150,42 @@ export async function installApiMocks(page: Page): Promise<void> {
     });
   });
 
+  await page.route((url) => url.pathname === '/api/notes/ai', (route) => {
+    if (route.request().method() !== 'GET') return route.continue();
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ meta: [] }),
+    });
+  });
+
+  await page.route((url) => url.pathname === '/api/notes/search', (route) => {
+    if (route.request().method() !== 'POST') return route.continue();
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ results: [], source: 'mock' }),
+    });
+  });
+
+  await page.route((url) => /\/api\/notes\/[^/]+\/related$/.test(url.pathname), (route) => {
+    if (route.request().method() !== 'GET') return route.continue();
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ related: [], status: null }),
+    });
+  });
+
+  await page.route((url) => url.pathname === '/api/notes/ai/dismiss', (route) => {
+    if (route.request().method() !== 'POST') return route.continue();
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ meta: { dismissed: [] } }),
+    });
+  });
+
   await page.route((url) => url.pathname === '/api/logout', (route) => respondOk(route));
 }
 

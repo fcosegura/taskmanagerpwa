@@ -90,3 +90,24 @@ CREATE TABLE IF NOT EXISTS ai_rate_limits (
   window_start INTEGER NOT NULL,
   request_count INTEGER NOT NULL DEFAULT 0
 );
+
+-- AI metadata for board notes (field-level encrypted payloads)
+CREATE TABLE IF NOT EXISTS note_ai_meta (
+  note_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  profile_id TEXT NOT NULL,
+  content_hash TEXT,
+  status TEXT NOT NULL DEFAULT 'pending',
+  summary TEXT,
+  tags TEXT,
+  entities TEXT,
+  classification TEXT,
+  task_suggestions TEXT,
+  related_ids TEXT,
+  dismissed TEXT,
+  error_message TEXT,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (note_id, profile_id)
+);
+CREATE INDEX IF NOT EXISTS idx_note_ai_meta_user_profile ON note_ai_meta(user_id, profile_id);
+CREATE INDEX IF NOT EXISTS idx_note_ai_meta_status ON note_ai_meta(user_id, profile_id, status);
