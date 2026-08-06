@@ -6,7 +6,7 @@
 
 ## 1. Visión General
 
-**Task Manager PWA** es una aplicación de gestión de tareas de tipo Progressive Web App (PWA) con soporte offline, sincronización en la nube, y funcionalidades de IA. Permite gestionar tareas, eventos de calendario y notas adhesivas con múltiples vistas (lista, Kanban, calendario, timeline, tablero de notas, vista hoy, agenda diaria).
+**Task Manager PWA** es una aplicación de gestión de tareas de tipo Progressive Web App (PWA) con soporte offline, sincronización en la nube, y funcionalidades de IA. Permite gestionar tareas, eventos de calendario y notas adhesivas con múltiples vistas (lista, Kanban, calendario, timeline, tablero de notas, grafo de notas, vista hoy, agenda diaria). Incluye organización automática de notas (embeddings, clusters, duplicados) y chat contextual RAG sobre el tablero.
 
 ### Stack Tecnológico
 
@@ -14,9 +14,12 @@
 |---|---|
 | Frontend | React 19 (JSX, sin TypeScript) |
 | Build | Vite 8 |
-| Backend / API | Cloudflare Worker (`src/worker.js`) |
+| Backend / API | Cloudflare Worker (`src/worker.js` + `export default { fetch, queue }`) |
 | Base de datos | Cloudflare D1 (SQLite) |
-| IA | Cloudflare Workers AI (`@cf/meta/llama-3.1-8b-instruct`) |
+| IA (tareas / análisis / RAG) | Cloudflare Workers AI (`@cf/meta/llama-3.1-8b-instruct`) |
+| Embeddings (notas) | Cloudflare Workers AI (`@cf/baai/bge-m3`, 1024-dim) |
+| Vector store | Cloudflare Vectorize (`VECTORIZE` → índice `taskmanager-notes`) |
+| Jobs async (Note AI) | Cloudflare Queues (`NOTES_AI_QUEUE` → `taskmanager-notes-ai`) |
 | Autenticación | Google OAuth (Sign In with Google) + sesiones HttpOnly opacas |
 | Cifrado | AES-256-GCM field-level en el Worker (`d1-field-crypto.js` + Web Crypto API) |
 | PWA | Service Worker (`public/sw.js`) + `manifest.json` |
@@ -49,15 +52,15 @@ taskmanagerpwa/
 │
 ├── src/
 │   ├── main.jsx                # Entry point React + registro de Service Worker + detección de updates
-│   ├── App.jsx                 # ⭐ Componente raíz (~85KB). Todo el estado vive aquí.
+│   ├── App.jsx                 # ⭐ Componente raíz (~97KB). Todo el estado vive aquí.
 │   ├── App.css                 # Estilos específicos de App
 │   ├── index.css               # ⭐ Estilos globales (~79KB). Sistema de diseño completo.
 │   ├── ui-cleanup.css          # Estilos adicionales de limpieza UI
-│   ├── worker.js               # ⭐ Cloudflare Worker (~67KB). API completa + auth + sync + cifrado.
-│   ├── storage.js              # ⭐ Capa de persistencia (localStorage + sync cloud + AI + auth client)
+│   ├── worker.js               # ⭐ Cloudflare Worker (~76KB). API + auth + sync + cifrado + queue consumer.
+│   ├── storage.js              # ⭐ Capa de persistencia (localStorage + sync cloud + AI + Note AI + auth client)
 │   ├── constants.js            # Constantes: statuses, prioridades, categorías, normalización
 │   ├── utils.jsx               # Utilidades: IDs, fechas, parsing NLP, linkificación
-│   ├── d1-field-crypto.js      # Cifrado AES-256-GCM + hashing SHA-256 + snapshots (usado por el Worker)
+│   ├── d1-field-crypto.js      # Cifrado AES-256-GCM + hashing SHA-256 + snapshots (+ buildNoteAiContentHashInput)
 │   ├── focusRecommendation.js  # Algoritmo de recomendación de foco (scoring determinístico)
 │   ├── calendarEvents.js       # Expansión de eventos recurrentes + indexado por fecha
 │   ├── calendarTaskIndex.js    # Índice de tareas por fecha (indexTasksByDate)
@@ -74,6 +77,16 @@ taskmanagerpwa/
 │   ├── todayViewHelpers.js     # Sanitización de descripciones (oculta payloads cifrados)
 │   ├── taskTrashHelpers.js     # Helpers de papelera (conteo de hijos abiertos al borrar)
 │   │
+│   ├── noteAi/                 # ⭐ Organización automática de notas (Phases 1–3)
+│   │   ├── constants.js        # Modelos, prefs defaults, thresholds, rate limits, VECTOR_SCHEMA
+│   │   ├── prefs.js            # normalize/load/save prefs (localStorage `taskmanager_note_ai_prefs`)
+│   │   ├── adapters.js         # Workers AI + Vectorize adapters (embeddings, analyze, RAG)
+│   │   ├── fallbacks.js        # Fallbacks determinísticos (tags, summary, classify, entities, tasks)
+│   │   ├── clustering.js       # Union-Find clusters, duplicados, layout offline del tablero
+│   │   ├── pipeline.js         # ⭐ Core Worker: schema, jobs, meta CRUD, search, duplicates, organize, RAG
+│   │   ├── rag.js              # Prompt/contexto RAG + sanitize + fallback extractivo
+│   │   └── graphLayout.js      # Layout SVG del grafo desde related edges (offline)
+│   │
 │   ├── core/
 │   │   └── history/
 │   │       ├── undoManager.js  # Undo transaccional (una tx activa, auto-expire 6s)
@@ -86,7 +99,9 @@ taskmanagerpwa/
 │   │   ├── TodayView.jsx       # Vista de hoy con recomendación de foco y progreso
 │   │   ├── TimelineView.jsx    # Vista timeline/auditoría cronológica de status
 │   │   ├── DailyAgendaView.jsx # Vista agenda diaria/semanal con time slots (06:00-22:00)
-│   │   ├── BoardView.jsx       # Tablero de notas adhesivas con Pointer Events
+│   │   ├── BoardView.jsx       # Tablero de notas + UI Note AI (tags, related, search, organize, duplicates)
+│   │   ├── GraphView.jsx       # Grafo de relaciones entre notas + chat RAG contextual (Phase 3)
+│   │   ├── GraphView.css       # Estilos del grafo / panel de chat
 │   │   ├── TaskModal.jsx       # Modal crear/editar tarea (NLP dates, IA parsing, Jira)
 │   │   ├── EventModal.jsx      # Modal crear/editar evento (recurrencia, colores)
 │   │   ├── TaskRow.jsx         # Componente de fila de tarea reutilizable (lista y board)
@@ -96,7 +111,7 @@ taskmanagerpwa/
 │   │   ├── CommandMenu.jsx     # Paleta de comandos (Cmd+K) con navegación por teclado
 │   │   ├── Login.jsx           # Pantalla de login con Google Identity Services
 │   │   ├── BottomNav.jsx       # Navegación inferior mobile + botón Quick Add central
-│   │   ├── SettingsModal.jsx   # Focus Mode priorities + densidad visual
+│   │   ├── SettingsModal.jsx   # Focus Mode + densidad + toggles Note AI
 │   │   ├── StatusManagerModal.jsx # CRUD de statuses personalizados con kinds/themes
 │   │   ├── ExternalAppDrawer.jsx # Drawer con iframe de MyNotebook + postMessage
 │   │   ├── AgendaPlanModal.jsx  # Modal de time-blocking para asignar planned slots
@@ -125,11 +140,11 @@ taskmanagerpwa/
 │   └── icons.svg               # Sprite SVG de iconos de la app
 │
 ├── tests/                      # Tests unitarios (node --test)
-│   └── *.test.js               # 21 archivos de test
+│   └── *.test.js               # 23 archivos de test (incluye noteAi + noteAi-phase3)
 │
 ├── e2e/                        # Tests E2E (Playwright)
 │   ├── app.spec.ts             # Escenarios completos de la app
-│   └── api-mock.ts             # Mock stateful in-memory de API
+│   └── api-mock.ts             # Mock stateful in-memory de API (incluye /api/notes/*)
 │
 ├── scripts/
 │   └── debounced-vite-build.mjs # Watcher src/ con debounce 4s (evita SQLITE_BUSY)
@@ -167,12 +182,13 @@ taskmanagerpwa/
 │  │  Sync incremental (ops: upserts/deletes)     │  │
 │  │  Auth client (login/logout/checkSession)     │  │
 │  │  AI client (parse/generate/dailyStatus)      │  │
+│  │  Note AI client (meta/search/related/chat…)  │  │
 │  └──────────┬───────────────────────────────────┘  │
 │             │ fetch /api/* (con HttpOnly cookie)    │
 └─────────────┼──────────────────────────────────────┘
               │
 ┌─────────────▼──────────────────────────────────────┐
-│         Cloudflare Worker (worker.js)               │
+│   Cloudflare Worker (worker.js: fetch + queue)      │
 │  ┌──────────────────────────────────────────────┐  │
 │  │  Router manual (pathname + method)           │  │
 │  │  Auth dual: session token + Google ID token  │  │
@@ -180,12 +196,15 @@ taskmanagerpwa/
 │  │  AES-GCM field encryption/decryption         │  │
 │  │  Entity ID scoping (profileId::entityId)     │  │
 │  │  Auto-migration de schema                    │  │
+│  │  Note AI pipeline (analyze/embed/RAG)        │  │
 │  └──────────┬───────────────────────────────────┘  │
 │             │                                       │
-│  ┌──────────▼──────────┐  ┌─────────────────────┐  │
-│  │   Cloudflare D1     │  │  Workers AI         │  │
-│  │   (SQLite)          │  │  Llama 3.1 8B       │  │
-│  └─────────────────────┘  └─────────────────────┘  │
+│  ┌──────────▼──┐ ┌────────────┐ ┌────────────────┐ │
+│  │ Cloudflare  │ │ Workers AI │ │ Vectorize +    │ │
+│  │ D1 (SQLite) │ │ Llama 3.1  │ │ Queues         │ │
+│  │ + note_ai_  │ │ + bge-m3   │ │ (notes index)  │ │
+│  │   meta      │ │            │ │                │ │
+│  └─────────────┘ └────────────┘ └────────────────┘ │
 └─────────────────────────────────────────────────────┘
 ```
 
@@ -200,9 +219,9 @@ La app **no usa** React Router ni ningún router. Es un **SPA de una sola ruta**
 | **Hoy** | `today` |
 | **Tareas** | `tasks` (lista), `kanban` |
 | **Calendario** | `calendar` (mes), `daily` (agenda) |
-| **Notas** | `board` (tablero), `timeline` (cronología) |
+| **Notas** | `board` (tablero), `graph` (grafo + chat RAG), `timeline` (cronología) |
 
-**Navegación mobile**: `<BottomNav>` con tabs Hoy, Tareas, Calendario, Notas + botón central Quick Add.
+**Navegación mobile**: `<BottomNav>` con tabs Hoy, Tareas, Calendario, Notas + botón central Quick Add. El tab Notas queda activo para `board | graph | timeline`. Command Menu incluye `nav-graph` → “Ir a Grafo de Notas”.
 
 ### 3.3 State Management
 
@@ -215,7 +234,7 @@ Estado principal en `App.jsx`:
 | `tasks` | `Task[]` | Todas las tareas del perfil actual |
 | `boardNotes` | `Note[]` | Notas adhesivas del perfil actual |
 | `events` | `Event[]` | Eventos de calendario del perfil actual |
-| `view` | `string` | Vista activa (`'today'`, `'tasks'`, `'kanban'`, `'calendar'`, `'daily'`, `'board'`, `'timeline'`) |
+| `view` | `string` | Vista activa (`'today'`, `'tasks'`, `'kanban'`, `'calendar'`, `'daily'`, `'board'`, `'graph'`, `'timeline'`) |
 | `authenticated` | `null\|boolean` | `null` = verificando, `false` = no auth, `true` = logueado |
 | `authVersion` | `number` | Trigger para recargar datos del cloud |
 | `profiles` | `Profile[]` | Todos los workspaces del usuario |
@@ -231,6 +250,13 @@ Estado principal en `App.jsx`:
 | `installPromptEvent` | `Event\|null` | Evento `beforeinstallprompt` para instalar PWA |
 | `sessionExpiredLoggedOut` | `boolean` | Muestra aviso en Login tras logout forzado por sesión expirada |
 | `swUpdateAvailable` | `boolean` | Indica update del SW disponible |
+| `noteAiPrefs` | `object` | Toggles Note AI (localStorage `taskmanager_note_ai_prefs`) |
+| `noteAiMetaById` | `Record<id, meta>` | Metadata IA de notas (`summary`, `tags`, `relatedIds`, `status`, …) |
+| `selectedBoardNoteId` | `string\|null` | Nota seleccionada (related panel / grafo) |
+| `relatedNotesFetch` | `object\|null` | Resultado live de `GET /api/notes/:id/related` |
+| `noteSearchQuery` / `noteSearchResults` / `noteSearchBusy` | — | Búsqueda semántica en el tablero |
+| `noteDuplicateGroups` / `dismissedDuplicateGroupIds` | — | Grupos de duplicados detectados |
+| `noteOrganizeBusy` / `boardLayoutAnimating` | `boolean` | UX de “Organizar tablero” + transición CSS |
 
 **Fuera de React state (módulos dedicados)**:
 - **Toasts**: `useToasts()` en `App.jsx` → cola de mensajes (`ToastContainer`)
@@ -335,10 +361,34 @@ expires_at INTEGER NOT NULL    -- Unix timestamp (1 hora)
 
 #### Tabla `ai_rate_limits`
 ```sql
-user_id TEXT PRIMARY KEY,
+user_id TEXT PRIMARY KEY,     -- puede ser userId plano o prefijado (`note-ai:…`, `note-rag:…`)
 window_start INTEGER NOT NULL,
 request_count INTEGER NOT NULL DEFAULT 0
 ```
+
+#### Tabla `note_ai_meta` (Note AI — metadata cifrada por nota)
+```sql
+note_id TEXT NOT NULL,             -- scoped: profileId::entityId
+user_id TEXT NOT NULL,
+profile_id TEXT NOT NULL,
+content_hash TEXT,                 -- SHA-256 de {title, text} (via buildNoteAiContentHashInput)
+status TEXT NOT NULL DEFAULT 'pending',  -- pending | ready
+summary TEXT,                      -- ⚠ Cifrado AES-GCM
+tags TEXT,                         -- ⚠ Cifrado (JSON array)
+entities TEXT,                     -- ⚠ Cifrado (JSON object)
+classification TEXT,               -- ⚠ Cifrado
+task_suggestions TEXT,             -- ⚠ Cifrado (JSON array)
+related_ids TEXT,                  -- ⚠ Cifrado (JSON array de ids unscoped)
+dismissed TEXT,                    -- ⚠ Cifrado (JSON ["kind:value", …], max 50)
+error_message TEXT,                -- No cifrado (truncado)
+vector_schema INTEGER DEFAULT 0,   -- bump de NOTE_AI_VECTOR_SCHEMA fuerza re-embed
+updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+PRIMARY KEY (note_id, profile_id)
+```
+
+Índices: `idx_note_ai_meta_user_profile`, `idx_note_ai_meta_status`.
+
+**Nota**: Los embeddings **no** viven en D1; están en Vectorize. Los jobs async son mensajes de Queue (`analyze` | `delete`), no filas de tabla. Al borrar un perfil o hacer sync full-reset se limpia `note_ai_meta` del perfil.
 
 ### 4.2 Statuses
 
@@ -432,7 +482,9 @@ Todas las respuestas incluyen **security headers** (CSP, COOP, X-Frame-Options: 
 
 **Límites de payload** (`checkSyncLimits`): Max 8,000 tasks, 2,000 notes, 4,000 events por sync request.
 
-### 5.4 IA
+**Hook Note AI en sync**: tras upserts de notes → encola jobs `analyze`; tras deletes → jobs `delete`. Full-reset (`payload` mode) borra `note_ai_meta` del perfil y re-analiza todas las notes. Si la Queue no está disponible (local), el worker usa `waitUntil` / procesamiento inline.
+
+### 5.4 IA (tareas / daily status)
 
 | Método | Ruta | Descripción |
 |---|---|---|
@@ -442,19 +494,48 @@ Todas las respuestas incluyen **security headers** (CSP, COOP, X-Frame-Options: 
 
 **Modelo**: `@cf/meta/llama-3.1-8b-instruct` via Cloudflare Workers AI (`env.AI.run`).
 
-**Rate limit**: **48 requests por ventana de 60 segundos** por usuario (tabla `ai_rate_limits`). Retorna 429 si excede.
+**Rate limit**: **48 requests por ventana de 60 segundos** por usuario (tabla `ai_rate_limits`, key = `userId`). Retorna 429 si excede.
 
 **Fallbacks**: Cada endpoint de IA tiene un parser/generador determinístico de fallback que se activa si Workers AI falla, timeout, o retorna JSON inválido:
 - `parseTaskFallback` — regex para extraer datos de texto
 - `generateTaskPlanFallback` — generador basado en reglas
 - `buildDailyStatusFallbackReport` — report markdown sin IA
 
-### 5.5 Schema Auto-migration
+### 5.5 Note AI (organización de notas / RAG)
 
-El worker ejecuta auto-migraciones al recibir requests:
+Auth requerida + `DATA_ENCRYPTION_KEY`. Lógica en `src/noteAi/pipeline.js`.
+
+| Método | Ruta | Rate limit | Descripción |
+|---|---|---|---|
+| `GET` | `/api/notes/ai?profileId=` | — | Lista meta descifrada del perfil; puede encolar reindex si `vector_schema` está stale |
+| `GET` | `/api/notes/:noteId/related?profileId=` | — | Notas relacionadas (meta forward + reverse + query live Vectorize) |
+| `POST` | `/api/notes/search` | note-ai 30/60s | Body: `{ query, profileId?, prefs? }` — búsqueda semántica (query max 500) |
+| `POST` | `/api/notes/ai/dismiss` | — | Body: `{ noteId, kind, value }` — descarta sugerencia (`kind:value` en `dismissed`) |
+| `POST` | `/api/notes/duplicates` | note-ai 30/60s | Body: `{ profileId?, prefs? }` → `{ groups, source }` |
+| `POST` | `/api/notes/organize` | note-ai 30/60s | Body: `{ profileId?, prefs?, layout? }` → `{ positions, clusters, source }` |
+| `POST` | `/api/notes/chat` | note-rag 20/60s | Body: `{ question, profileId?, prefs? }` — RAG grounded (question max 600) |
+
+**Modelos Note AI**:
+- Embeddings: `@cf/baai/bge-m3` (1024-dim) → Vectorize
+- Análisis / respuesta RAG: `@cf/meta/llama-3.1-8b-instruct`
+
+**Aislamiento Vectorize**: namespace = SHA-256(`userId\nprofileId`)[:48]; vector id = SHA-256(`userId\nprofileId\nnoteId`)[:32]. Metadata del vector: `{ noteId }`.
+
+**Rate limits Note AI** (misma tabla `ai_rate_limits`, keys prefijadas):
+- Search / duplicates / organize: **30 / 60s** (`note-ai:{userId}`)
+- RAG chat: **20 / 60s** (`note-rag:{userId}`)
+
+**Queue consumer**: `export default { fetch, queue }` — procesa `processNoteAiJob` por mensaje (`analyze` | `delete`); ack/retry según Wrangler (`max_batch_size=5`, `max_retries=3`).
+
+**Cliente** (`storage.js`): `fetchNoteAiMeta`, `searchNotesSemantic`, `fetchRelatedNotes`, `dismissNoteAiSuggestionClient`, `fetchNoteDuplicates`, `fetchNotesOrganizeLayout`, `chatNotesRag`, más cache local `taskmanager_note_ai_meta:{profileId}`.
+
+### 5.6 Schema Auto-migration
+
+El worker ejecuta auto-migraciones al recibir requests protegidos (y en el queue consumer):
 - `ensureSecuritySchema` — crea tablas `sessions` y `ai_rate_limits`
 - `ensureProfilesSchema` — crea tabla `profiles` y agrega columnas nuevas via `ALTER TABLE`
 - `ensureDefaultProfile` — crea perfil por defecto (`${userId}:work`, nombre "Trabajo") y migra filas legacy con `profile_id` NULL
+- `ensureNoteAiSchema` — crea `note_ai_meta` + índices + columna `vector_schema` via `ALTER TABLE` si falta
 
 ---
 
@@ -528,14 +609,18 @@ Implementa:
 4. **`stableStringify(obj)`** — JSON con claves ordenadas (determinístico)
 5. **`sha256HexOfUtf8(str)`** — SHA-256 hex digest para `content_hash`
 6. **`buildTaskPlainSnapshot(task)`** / **`buildNotePlainSnapshot`** / **`buildEventPlainSnapshot`** — constructores de snapshots normalizados
+7. **`buildNoteAiContentHashInput(title, text)`** — input estable para `content_hash` de `note_ai_meta`
 
 **Campos cifrados en D1** (los no-cifrados se mantienen para queries/indexes):
 - **Tasks**: `name`, `url`, `notes`, `ticket_number`, `completed_at`, `category`, `date`, `end_date`, `time`, `subtasks`, `dependencies`, `planned_slots`, `status_log`
 - **Notes**: `title`, `text`
 - **Events**: `title`, `startDate`, `endDate`, `color`, `startTime`, `endTime`, `recurrenceFrequency`, `recurrenceUntil`
 - **Profiles**: `name`, `custom_statuses`
+- **Note AI meta**: `summary`, `tags`, `entities`, `classification`, `task_suggestions`, `related_ids`, `dismissed`
 
-**No cifrados** (para indexación y queries): `id`, `user_id`, `profile_id`, `status`, `priority`, `hide_in_kanban_done`, `x`, `y`, `allDay`, `recurrenceInterval`, `recurrenceCount`, `content_hash`, timestamps.
+**No cifrados** (para indexación y queries): `id`, `user_id`, `profile_id`, `status`, `priority`, `hide_in_kanban_done`, `x`, `y`, `allDay`, `recurrenceInterval`, `recurrenceCount`, `content_hash`, `error_message` (note AI), `vector_schema`, timestamps.
+
+**Cliente Note AI**: el cliente **no cifra** meta; cachea plaintext en `localStorage` (`taskmanager_note_ai_meta:{profileId}`) tras `GET /api/notes/ai`. Los embeddings nunca salen del Worker/Vectorize.
 
 ---
 
@@ -550,7 +635,8 @@ Implementa:
 | `KanbanView` | `components/KanbanView.jsx` | Kanban con drag-and-drop para mover status o crear dependencias padre-hijo. Filtrado Epic vs Sub-task. Columnas colapsables. Papelera drag-and-drop. |
 | `CalendarView` | `components/CalendarView.jsx` | Calendario mensual con festivos españoles. Tasks/events por fecha. Panel lateral con detalle del día. |
 | `DailyAgendaView` | `components/DailyAgendaView.jsx` | Agenda 1-día o 7-días (06:00-22:00) con time slots, events, planned slots. Línea roja de hora actual. |
-| `BoardView` | `components/BoardView.jsx` | Canvas de notas adhesivas con drag via Pointer Events (`setPointerCapture`). Edición inline. |
+| `BoardView` | `components/BoardView.jsx` | Canvas de notas adhesivas (Pointer Events). UI Note AI: classification/tags/summary, related panel, búsqueda semántica, organizar tablero, duplicados, sugerencias → tarea. |
+| `GraphView` | `components/GraphView.jsx` | Grafo de relaciones entre notas (layout offline desde `relatedIds`). Pan/zoom/select + panel de detalle. Chat RAG contextual opcional (`POST /api/notes/chat`). |
 | `TimelineView` | `components/TimelineView.jsx` | Timeline de auditoría cronológica: creación, cambios de status, completados. Sidebar de selección. |
 
 ### 7.2 Modales y Drawers
@@ -561,9 +647,9 @@ Implementa:
 | `EventModal` | Crear/editar evento | Formulario con recurrencia (daily/weekly/monthly), colores, all-day toggle |
 | `TaskPreviewModal` | Click en tarea | Vista read-only con audit trail de statusLog y dependencias |
 | `TaskSheetDrawer` | Editar tarea (slide-over) | Drawer lateral para edición con focus trap |
-| `CommandMenu` | Cmd/Ctrl+K | Paleta de comandos: navegación, acciones, densidad, búsqueda de tareas |
+| `CommandMenu` | Cmd/Ctrl+K | Paleta de comandos: navegación (incl. grafo), acciones, densidad, búsqueda de tareas |
 | `StatusManagerModal` | Desde gestión de workspace | CRUD de statuses personalizados con kinds y themes |
-| `SettingsModal` | Configuración | Focus mode priority levels + densidad visual (cómodo/compacto) |
+| `SettingsModal` | Configuración | Focus mode + densidad + sección “Organización automática de notas” (prefs Note AI) |
 | `AgendaPlanModal` | Time-blocking | Asignar tareas a time slots en la agenda |
 | `StatusChangeCommentModal` | Cambio de status | Comentario obligatorio con shortcut Enter |
 | `PriorityPickerModal` | Click en prioridad | Selector visual rápido |
@@ -700,6 +786,23 @@ Usado al eliminar tareas/notas/eventos y al convertir nota → tarea.
 
 - `countOpenChildTasks(parentTask, allTasks)` — cuenta hijos abiertos (misma regla que parent blocking en `del()`)
 
+### 8.13 `noteAi/` — Organización automática de notas (Phases 1–3)
+
+| Módulo | Rol |
+|---|---|
+| `constants.js` | Modelos (`bge-m3`, Llama), prefs defaults, thresholds (related/search/cluster/duplicate/RAG), `NOTE_AI_VECTOR_SCHEMA`, rate limits |
+| `prefs.js` | `normalizeNoteAiPrefs`, `loadNoteAiPrefsFromStorage`, `saveNoteAiPrefsToStorage` |
+| `adapters.js` | Adapters swappeables: embeddings, analyzer, RAG answerer, Vectorize store (`createNoteAiServices`) |
+| `fallbacks.js` | Análisis determinístico si Workers AI falla (`analyzeNoteFallback`, tags, summary, classify, entities, tasks) |
+| `clustering.js` | Clusters Union-Find, `findDuplicateGroups`, `organizeNotesFromMeta` (layout offline) |
+| `pipeline.js` | Core Worker: `ensureNoteAiSchema`, `processNoteAiJob`, `listNoteAiMeta`, `semanticSearchNotes`, `detectNoteDuplicates`, `organizeNotesLayout`, `answerNotesRagChat`, enqueue |
+| `rag.js` | `sanitizeRagQuestion/Answer`, `buildRagContextFromResults`, `buildRagPrompt`, `answerFromNotesFallback` |
+| `graphLayout.js` | `buildNoteGraphModel` / `layoutNoteGraph` — grafo SVG offline desde related edges |
+
+**Prefs** (`DEFAULT_NOTE_AI_PREFS`, todas `true` por defecto): `autotag`, `summary`, `entities`, `classification`, `related`, `taskSuggestions`, `semanticSearch`, `duplicates`, `organizeBoard`, `graph`, `ragChat`.
+
+**Clasificaciones**: `Trabajo`, `Personal`, `Ideas`, `Investigación`, `Pendientes`, `Referencia`, `Otro`.
+
 ---
 
 ## 9. Funcionalidades Especiales
@@ -754,6 +857,28 @@ Usado al eliminar tareas/notas/eventos y al convertir nota → tarea.
 
 - Acciones destructivas registran snapshot + `rollbackFn` en `undoManager`
 - `clearUndoTransaction()` al cambiar workspace, importar o logout (evita rollbacks cruzados)
+- También usado al **organizar el tablero** (restaurar posiciones `{x,y}` de notes)
+
+### 9.10 Note AI — Organización automática de notas
+
+Pipeline async server-side (Queue / `waitUntil`) disparado por sync de notes.
+
+**Phase 1 — Enriquecimiento silencioso + related + search**
+- Analyze + embed en background; meta AES en `note_ai_meta`; upsert Vectorize
+- Summary, tags, entities, classification, task suggestions (convertibles a tareas)
+- Panel de related notes; búsqueda semántica (+ fallback keyword)
+- Prefs en Settings; dismiss de sugerencias (`kind:value`); cache local de meta
+- Poll de meta cada ~8s cuando `view` es `board` o `graph`
+
+**Phase 2 — Organizar tablero + duplicados**
+- `POST /api/notes/organize` y `/duplicates` (o layout offline via `organizeNotesFromMeta`)
+- Botón “Organizar tablero” con animación CSS + undo de posiciones
+- Banners de grupos casi-duplicados (cosine ≥ `NOTE_AI_DUPLICATE_MIN_SCORE` = 0.88)
+
+**Phase 3 — Grafo + chat RAG**
+- Vista `graph`: grafo de relaciones (layout radial/clusters offline)
+- Chat contextual `POST /api/notes/chat`: responde **solo** desde notas recuperadas (sin memoria de chat genérica)
+- Gateado por prefs `graph` y `ragChat`
 
 ---
 
@@ -767,6 +892,7 @@ Usado al eliminar tareas/notas/eventos y al convertir nota → tarea.
 | `src/App.css` | Estilos específicos del componente App | ~3KB |
 | `src/ui-cleanup.css` | Ajustes adicionales de limpieza visual | ~14KB |
 | `src/components/TimelineView.css` | Estilos del timeline | ~12KB |
+| `src/components/GraphView.css` | Estilos del grafo de notas + panel de chat RAG | ~6KB |
 | `src/components/ExternalAppDrawer.css` | Estilos del drawer de apps externas | ~4KB |
 
 ### 10.2 Convenciones CSS
@@ -849,9 +975,9 @@ En `main.jsx`:
 
 - **Runner**: Node.js built-in (`node --test`)
 - **Comando**: `npm test`
-- **Ubicación**: `tests/*.test.js` (21 archivos)
+- **Ubicación**: `tests/*.test.js` (23 archivos)
 - **Sin dependencias** de testing (no Jest, no Vitest, solo `node:assert` y `node:test`)
-- **Cobertura**: storage, focus recommendation, daily status, kanban helpers, task sorting, status cascade, today view, jira ticket, status log, calendar tasks, command menu, copy ticket, external app drawer, task sheet drawer, status change comment modal, density, task trash drop zone, undo manager
+- **Cobertura**: storage, focus recommendation, daily status, kanban helpers, task sorting, status cascade, today view, jira ticket, status log, calendar tasks, command menu, copy ticket, external app drawer, task sheet drawer, status change comment modal, density, task trash drop zone, undo manager, **noteAi** (fallbacks/prefs/clustering/duplicates/organize), **noteAi-phase3** (graph layout + RAG)
 
 ### 13.2 Tests E2E
 
@@ -865,7 +991,7 @@ En `main.jsx`:
 
 **API Mock** (`e2e/api-mock.ts`):
 - Backend in-memory stateful (`Map` para profiles y tasks por profile)
-- Mockea: `/api/session`, `/api/data`, `/api/sync`, `/api/profiles/*`, `/api/logout`
+- Mockea: `/api/session`, `/api/data`, `/api/sync`, `/api/profiles/*`, `/api/logout`, y rutas Note AI (`/api/notes/ai`, `/notes/:id/related`, `/search`, `/ai/dismiss`, `/duplicates`, `/organize`, `/chat`)
 - Deshabilita Service Worker via `page.addInitScript`
 - Soporte para `installUnauthorizedMocks` (simular sesión expirada)
 
@@ -934,10 +1060,17 @@ cp .env.example .env           # Configurar VITE_GOOGLE_CLIENT_ID
 
 1. `vite build` genera `dist/`
 2. `wrangler d1 execute task-manager-db --local --file=schema.sql` aplica schema
-3. Worker auto-migra tablas faltantes y columnas nuevas (`ALTER TABLE`)
+3. Worker auto-migra tablas faltantes y columnas nuevas (`ALTER TABLE`), incl. `note_ai_meta`
 4. `wrangler dev --local` inicia worker con Assets binding a `dist/` y D1 emulado (SQLite local)
+5. Note AI: sin Queue/Vectorize locales completos, el pipeline cae a `waitUntil` / inline y fallbacks; embeddings remotos usan `[ai] remote = true`
 
 **Nota**: El script `debounced-vite-build.mjs` observa `src/` y ejecuta `vite build` con debounce de 4s para evitar errores `SQLITE_BUSY` por recargas excesivas de Wrangler.
+
+**Recursos Cloudflare one-time (producción / remote):**
+```bash
+npx wrangler vectorize create taskmanager-notes --dimensions=1024 --metric=cosine
+npx wrangler queues create taskmanager-notes-ai
+```
 
 ---
 
@@ -951,6 +1084,8 @@ npm run deploy   # = vite build && wrangler deploy
 - **Assets**: `[assets]` binding desde `dist/`
 - **D1**: Base de datos con schema auto-migrado
 - **Workers AI**: Binding `[ai]` con `remote = true`
+- **Vectorize**: Binding `VECTORIZE` → índice `taskmanager-notes` (1024-dim, cosine)
+- **Queues**: Producer `NOTES_AI_QUEUE` + consumer `taskmanager-notes-ai`
 - **Secretos**: `DATA_ENCRYPTION_KEY` via `wrangler secret put`
 
 ---
@@ -1002,13 +1137,15 @@ npm run deploy   # = vite build && wrangler deploy
 
 ### 17.4 Backend
 
-- Worker como un solo archivo (`src/worker.js`).
+- Worker como un solo archivo (`src/worker.js`) con `export default { fetch, queue }`.
+- Lógica Note AI en `src/noteAi/` (pipeline importado por el worker); **no** dividir `pipeline.js` sin aprobación.
 - Router manual (switch sobre pathname y method).
 - Queries parametrizadas con `.bind(...)`.
 - `authenticate()` como middleware en rutas protegidas.
 - `withSecurityHeaders()` en todas las respuestas.
-- Field-level encryption AES-GCM en el worker.
-- Auto-migraciones de schema.
+- Field-level encryption AES-GCM en el worker (incl. `note_ai_meta`).
+- Auto-migraciones de schema (`ensureNoteAiSchema` incluido).
+- Vectorize namespace aislado por `userId+profileId`; nunca consultas cross-profile.
 
 ### 17.5 Testing
 
@@ -1028,7 +1165,7 @@ npm run deploy   # = vite build && wrangler deploy
 
 3. **No agregar dependencias** sin justificación. El proyecto es intencionalmente minimal (`react`, `react-dom`, `chrono-node`).
 
-4. **No dividir `worker.js`** en múltiples archivos sin aprobación. Es un solo archivo por diseño.
+4. **No dividir `worker.js`** en múltiples archivos sin aprobación. Es un solo archivo por diseño (`fetch` + `queue`). La lógica Note AI vive en `src/noteAi/` importada por el worker.
 
 5. **No dividir `App.jsx`** en múltiples archivos de estado sin aprobación.
 
@@ -1050,7 +1187,7 @@ npm run deploy   # = vite build && wrangler deploy
 
 14. **Queries SQL siempre parametrizadas** (`.bind(...)`). Nunca interpolar valores.
 
-15. **Endpoints de IA necesitan rate limit** (48/60s por usuario). Todo nuevo endpoint de IA debe verificar `consumeAiRateLimit`.
+15. **Endpoints de IA necesitan rate limit**. Task AI: 48/60s (`consumeAiRateLimit`). Note AI search/organize/duplicates: 30/60s (`note-ai:`). RAG chat: 20/60s (`note-rag:`). Todo nuevo endpoint de IA debe rate-limitarse.
 
 16. **Fallbacks para IA**: Todo endpoint de IA debe tener un fallback determinístico para cuando Workers AI falla.
 
@@ -1068,6 +1205,20 @@ npm run deploy   # = vite build && wrangler deploy
 
 23. **Logs anonimizados**: Usar `shortHashForLog` para user IDs en logs del worker. Nunca loguear emails en plaintext.
 
-24. **Feedback UX**: Usar `showToast` (`useToasts`) para mensajes al usuario. Acciones destructivas (borrar tarea/nota/evento, convertir nota→tarea) deben registrar undo via `pushUndoTransaction` y limpiar con `clearUndoTransaction` al cambiar workspace/import/logout.
+24. **Feedback UX**: Usar `showToast` (`useToasts`) para mensajes al usuario. Acciones destructivas (borrar tarea/nota/evento, convertir nota→tarea, organizar tablero) deben registrar undo via `pushUndoTransaction` y limpiar con `clearUndoTransaction` al cambiar workspace/import/logout.
 
-25. **Cifrado solo en Worker**: No cifrar en el cliente. `d1-field-crypto.js` se usa desde `worker.js`; localStorage guarda plaintext.
+25. **Cifrado solo en Worker**: No cifrar en el cliente. `d1-field-crypto.js` se usa desde `worker.js` / `noteAi/pipeline.js`; localStorage guarda plaintext (incl. cache de note AI meta).
+
+26. **Note AI crypto solo en Worker**: Campos sensibles de `note_ai_meta` se cifran server-side. El cliente cachea meta en plaintext tras `GET /api/notes/ai`.
+
+27. **Aislamiento Vectorize**: Siempre namespace por hash de `userId+profileId`. Nunca consultar vectores de otro perfil/usuario.
+
+28. **Jobs Note AI en sync**: upsert de note → job `analyze`; delete → job `delete`. Para forzar re-embed, subir `NOTE_AI_VECTOR_SCHEMA` en `noteAi/constants.js`.
+
+29. **Rate limits Note AI**: search/duplicates/organize usan 30/60s (`note-ai:`); RAG chat usa 20/60s (`note-rag:`). Mantener fallbacks determinísticos en `noteAi/fallbacks.js` y `noteAi/rag.js`.
+
+30. **No dividir `noteAi/pipeline.js`** sin aprobación. Es el módulo de pipeline del Worker junto al monolito `worker.js`.
+
+31. **Prefs Note AI son gates de UX**: desactivar un toggle oculta UI / salta paths de feature; el analyze de fondo puede seguir en cola de forma no bloqueante según el diseño actual.
+
+32. **Grafo es sub-vista de Notas**: `view === 'graph'` vive con `board` y `timeline`; no crear un área top-level nueva.
