@@ -47,6 +47,10 @@ function BoardNoteCard({
         padding: 14,
         minHeight: 180,
         width: noteWidth,
+        maxWidth: noteWidth,
+        boxSizing: 'border-box',
+        overflow: 'hidden',
+        minWidth: 0,
         display: 'flex',
         flexDirection: 'column',
         gap: 8,
@@ -154,6 +158,11 @@ function BoardNoteCard({
           color: 'var(--color-text-primary)',
           outline: 'none',
           width: '100%',
+          maxWidth: '100%',
+          minWidth: 0,
+          boxSizing: 'border-box',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
         }}
       />
       <textarea
@@ -170,13 +179,27 @@ function BoardNoteCard({
           color: 'var(--color-text-primary)',
           outline: 'none',
           width: '100%',
+          maxWidth: '100%',
+          minWidth: 0,
           minHeight: 72,
           fontFamily: 'inherit',
+          boxSizing: 'border-box',
+          overflowWrap: 'anywhere',
+          wordBreak: 'break-word',
+          whiteSpace: 'pre-wrap',
+          overflowX: 'hidden',
         }}
       />
 
       {summary && (
-        <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', lineHeight: 1.35 }}>
+        <div style={{
+          fontSize: 11,
+          color: 'var(--color-text-secondary)',
+          lineHeight: 1.35,
+          overflowWrap: 'anywhere',
+          wordBreak: 'break-word',
+          maxWidth: '100%',
+        }}>
           {summary}
         </div>
       )}
