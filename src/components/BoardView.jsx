@@ -420,13 +420,7 @@ export default function BoardView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [notes]);
 
-  useEffect(() => {
-    if (!focusNoteId) return undefined;
-    if (!(notes || []).some((n) => n.id === focusNoteId)) {
-      setFocusNoteId(null);
-    }
-    return undefined;
-  }, [focusNoteId, notes]);
+  const activeFocusNoteId = (notes || []).some((n) => n.id === focusNoteId) ? focusNoteId : null;
 
   const canvasHeight = useMemo(() => {
     const viewportMin = typeof window !== 'undefined'
@@ -765,7 +759,7 @@ export default function BoardView({
                 isDragging={draggedId === note.id}
                 layoutAnimating={layoutAnimating && draggedId !== note.id}
                 noteWidth={noteWidth}
-                autoFocusTitle={focusNoteId === note.id}
+                autoFocusTitle={activeFocusNoteId === note.id}
               />
             );
           })}
