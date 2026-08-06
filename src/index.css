@@ -1578,6 +1578,33 @@ select:focus {
     linear-gradient(rgba(23, 107, 135, 0.08) 1px, transparent 1px),
     linear-gradient(90deg, rgba(23, 107, 135, 0.08) 1px, transparent 1px) !important;
   background-size: 32px 32px !important;
+  overflow: visible;
+}
+
+.board-sticky-anchor {
+  height: 0;
+  width: 0;
+  overflow: hidden;
+  scroll-margin-top: calc(78px + env(safe-area-inset-top, 0px));
+}
+
+.board-toolbar {
+  position: sticky;
+  top: calc(78px + env(safe-area-inset-top, 0px));
+  z-index: 45;
+  background: color-mix(in srgb, var(--material-base-bg) 92%, transparent);
+  backdrop-filter: blur(16px) saturate(160%);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+}
+
+@media (max-width: 768px) {
+  .board-sticky-anchor {
+    scroll-margin-top: calc(64px + env(safe-area-inset-top, 0px));
+  }
+
+  .board-toolbar {
+    top: calc(64px + env(safe-area-inset-top, 0px));
+  }
 }
 
 [data-theme="dark"] .board-canvas {

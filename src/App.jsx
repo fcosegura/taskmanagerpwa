@@ -2002,10 +2002,22 @@ export default function App() {
           {/* Persistent Action + Button */}
           <button
             type="button"
-            onClick={() => view === 'board'
-              ? addBoardNote({ id: uid(), title: '', text: '', createdAt: new Date().toISOString(), x: 20 + Math.random() * 40, y: 20 + Math.random() * 40 })
-              : open()
-            }
+            onClick={() => {
+              if (view === 'board') {
+                const id = uid();
+                addBoardNote({
+                  id,
+                  title: '',
+                  text: '',
+                  createdAt: new Date().toISOString(),
+                  x: 24,
+                  y: 20,
+                });
+                setSelectedBoardNoteId(id);
+              } else {
+                open();
+              }
+            }}
             aria-label={view === 'board' ? 'Crear nueva nota' : 'Crear nueva tarea'}
             className="primary-button persistent-add-btn"
           >

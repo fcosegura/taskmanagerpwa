@@ -5,6 +5,10 @@ function isDismissed(meta, kind, value) {
   return Array.isArray(meta?.dismissed) && meta.dismissed.includes(key);
 }
 
+const NOTE_CARD_MIN_HEIGHT = 180;
+const BOARD_BOTTOM_PAD = 420;
+const BOARD_MIN_HEIGHT_VH = 0.62;
+
 function BoardNoteCard({
   note,
   meta,
@@ -20,7 +24,9 @@ function BoardNoteCard({
   isDragging,
   layoutAnimating = false,
   noteWidth,
+  autoFocusTitle = false,
 }) {
+  const titleInputRef = useRef(null);
   const tags = prefs?.autotag !== false ? (meta?.tags || []).filter((t) => !isDismissed(meta, 'tag', t)) : [];
   const summary = prefs?.summary !== false ? (meta?.summary || '') : '';
   const classification = prefs?.classification !== false ? meta?.classification : null;
@@ -36,9 +42,21 @@ function BoardNoteCard({
       ].filter((e) => !isDismissed(meta, e.kind, e.v))
     : [];
 
+  useEffect(() => {
+    if (!autoFocusTitle) return undefined;
+    const input = titleInputRef.current;
+    if (!input) return undefined;
+    const frame = requestAnimationFrame(() => {
+      input.focus({ preventScroll: true });
+      input.select?.();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [autoFocusTitle, note.id]);
+
   return (
     <div
       className={`board-note material-elevated${selected ? ' board-note--selected' : ''}`}
+      data-note-id={note.id}
       onClick={() => onSelect?.(note.id)}
       style={{
         position: 'absolute', left: note.x ?? 0, top: note.y ?? 0,
@@ -46,7 +64,7 @@ function BoardNoteCard({
         cursor: 'default',
         borderRadius: 'var(--border-radius-lg)',
         padding: 14,
-        minHeight: 180,
+        minHeight: NOTE_CARD_MIN_HEIGHT,
         width: noteWidth,
         maxWidth: noteWidth,
         boxSizing: 'border-box',
@@ -151,6 +169,7 @@ function BoardNoteCard({
       </div>
 
       <input
+        ref={titleInputRef}
         value={note.title || ''}
         onChange={(e) => onUpdate(note.id, { title: e.target.value })}
         onClick={(e) => e.stopPropagation()}
@@ -344,8 +363,12 @@ export default function BoardView({
   onDismissSuggestion,
 }) {
   const boardRef = useRef(null);
+  const boardScrollAnchorRef = useRef(null);
+  const knownNoteIdsRef = useRef(new Set());
+  const notesSyncedRef = useRef(false);
   const [boardWidth, setBoardWidth] = useState(800);
   const [draggedId, setDraggedId] = useState(null);
+  const [focusNoteId, setFocusNoteId] = useState(null);
   const dragCaptureRef = useRef(null);
   const dragOffsetRef = useRef({ x: 0, y: 0 });
   const noteWidth = Math.min(Math.max(boardWidth - 24, 150), 220);
@@ -360,6 +383,55 @@ export default function BoardView({
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+
+  const bringNoteIntoFocus = (noteId, noteY = 20) => {
+    if (!noteId) return;
+    onSelectNote?.(noteId);
+    setFocusNoteId(noteId);
+    const scrollToTop = () => {
+      const anchor = boardScrollAnchorRef.current;
+      if (anchor && typeof anchor.scrollIntoView === 'function') {
+        anchor.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        return;
+      }
+      const boardTop = boardRef.current?.getBoundingClientRect?.()?.top;
+      if (typeof boardTop === 'number') {
+        const absoluteTop = window.scrollY + boardTop - 96;
+        window.scrollTo({ top: Math.max(absoluteTop + Math.max(noteY - 24, 0), 0), behavior: 'smooth' });
+      }
+    };
+    requestAnimationFrame(scrollToTop);
+  };
+
+  useEffect(() => {
+    const known = knownNoteIdsRef.current;
+    const currentIds = new Set((notes || []).map((n) => n.id).filter(Boolean));
+    if (!notesSyncedRef.current) {
+      notesSyncedRef.current = true;
+      knownNoteIdsRef.current = currentIds;
+      return;
+    }
+    const added = (notes || []).filter((n) => n?.id && !known.has(n.id));
+    knownNoteIdsRef.current = currentIds;
+    // Only focus when exactly one note was created (ignore bulk import / profile swap).
+    if (added.length !== 1) return;
+    bringNoteIntoFocus(added[0].id, added[0].y ?? 20);
+    // Only react to note list identity changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [notes]);
+
+  const activeFocusNoteId = (notes || []).some((n) => n.id === focusNoteId) ? focusNoteId : null;
+
+  const canvasHeight = useMemo(() => {
+    const viewportMin = typeof window !== 'undefined'
+      ? Math.round(window.innerHeight * BOARD_MIN_HEIGHT_VH)
+      : 480;
+    const contentBottom = (notes || []).reduce((max, note, index) => {
+      const y = Math.max(note?.y ?? Math.floor(index / 2) * 200 + 20, 8);
+      return Math.max(max, y + NOTE_CARD_MIN_HEIGHT);
+    }, 0);
+    return Math.max(viewportMin, contentBottom + BOARD_BOTTOM_PAD);
+  }, [notes]);
 
   const handlePointerDown = (e, note) => {
     e.stopPropagation();
@@ -405,9 +477,13 @@ export default function BoardView({
   const handleAddNote = () => {
     onAddNote({
       id: Date.now().toString(36) + Math.random().toString(36).slice(2),
-      title: '', text: '', createdAt: new Date().toISOString(),
-      x: 20 + Math.random() * 40, y: 20 + Math.random() * 40,
+      title: '',
+      text: '',
+      createdAt: new Date().toISOString(),
+      x: 24,
+      y: 20,
     });
+    // Focus/select is handled by the notes-change effect so header + board share one path.
   };
 
   const handleOrganizeClick = () => {
@@ -430,6 +506,7 @@ export default function BoardView({
 
   return (
     <div className="board-view" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div ref={boardScrollAnchorRef} className="board-sticky-anchor" aria-hidden="true" />
       <div className="board-toolbar material-base" style={{ display: 'flex', flexDirection: 'column', gap: 10, borderRadius: 'var(--border-radius-xl)', padding: '20px 24px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           <div>
@@ -641,13 +718,14 @@ export default function BoardView({
           onPointerCancel={handlePointerUp}
           style={{
             position: 'relative',
+            height: canvasHeight,
             minHeight: 'calc(100vh - 320px)',
             width: '100%',
             minWidth: 0,
             backgroundImage: 'radial-gradient(var(--color-border-tertiary) 1.5px, transparent 1.5px)',
             backgroundSize: '24px 24px',
             borderRadius: 'var(--border-radius-xl)',
-            overflow: 'hidden',
+            overflow: 'visible',
           }}
         >
           {notes.length === 0 ? (
@@ -681,6 +759,7 @@ export default function BoardView({
                 isDragging={draggedId === note.id}
                 layoutAnimating={layoutAnimating && draggedId !== note.id}
                 noteWidth={noteWidth}
+                autoFocusTitle={activeFocusNoteId === note.id}
               />
             );
           })}
