@@ -42,6 +42,8 @@ export default function SettingsModal({
     { key: 'related', label: 'Panel de notas relacionadas' },
     { key: 'taskSuggestions', label: 'Sugerencias de tareas' },
     { key: 'semanticSearch', label: 'Búsqueda semántica' },
+    { key: 'duplicates', label: 'Detección de duplicados' },
+    { key: 'organizeBoard', label: 'Organizar tablero' },
   ];
 
   return (

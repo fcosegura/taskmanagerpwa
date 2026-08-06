@@ -551,6 +551,46 @@ export async function dismissNoteAiSuggestionClient(noteId, kind, value, profile
   return await resp.json();
 }
 
+export async function fetchNoteDuplicates(profileId, prefs) {
+  const resp = await fetch('/api/notes/duplicates', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
+    body: JSON.stringify({ profileId, prefs }),
+  });
+  if (!resp.ok) {
+    let message = 'No se pudieron detectar duplicados.';
+    try {
+      const data = await resp.json();
+      if (typeof data?.error === 'string') message = data.error;
+    } catch {
+      // keep default
+    }
+    throw new Error(message);
+  }
+  return await resp.json();
+}
+
+export async function fetchNotesOrganizeLayout(profileId, prefs, layout) {
+  const resp = await fetch('/api/notes/organize', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
+    body: JSON.stringify({ profileId, prefs, layout }),
+  });
+  if (!resp.ok) {
+    let message = 'No se pudo organizar el tablero.';
+    try {
+      const data = await resp.json();
+      if (typeof data?.error === 'string') message = data.error;
+    } catch {
+      // keep default
+    }
+    throw new Error(message);
+  }
+  return await resp.json();
+}
+
 export async function fetchWorkspaceData(profileId) {
   if (!profileId) throw new Error('profileId es requerido para fetchWorkspaceData.');
   const resp = await fetch(`/api/data?profileId=${encodeURIComponent(profileId)}`, { credentials: 'same-origin' });

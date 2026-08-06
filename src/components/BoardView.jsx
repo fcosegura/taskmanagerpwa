@@ -18,6 +18,7 @@ function BoardNoteCard({
   onDismissSuggestion,
   onDragHandlePointerDown,
   isDragging,
+  layoutAnimating = false,
   noteWidth,
 }) {
   const tags = prefs?.autotag !== false ? (meta?.tags || []).filter((t) => !isDismissed(meta, 'tag', t)) : [];
@@ -55,7 +56,11 @@ function BoardNoteCard({
         flexDirection: 'column',
         gap: 8,
         boxShadow: isDragging ? '0 20px 40px rgba(0,0,0,0.3)' : 'var(--shadow-card)',
-        transition: isDragging ? 'none' : 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+        transition: isDragging
+          ? 'none'
+          : layoutAnimating
+            ? 'left 0.45s cubic-bezier(0.22, 1, 0.36, 1), top 0.45s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.2s ease'
+            : 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
         touchAction: 'none',
         outline: selected ? '2px solid var(--color-accent)' : 'none',
       }}
@@ -324,6 +329,11 @@ export default function BoardView({
   onSearchChange,
   onSearchSubmit,
   onClearSearch,
+  duplicateGroups = [],
+  onDismissDuplicateGroup,
+  organizeBusy = false,
+  layoutAnimating = false,
+  onOrganizeBoard,
   selectedNoteId,
   onSelectNote,
   onAddNote,
@@ -400,12 +410,23 @@ export default function BoardView({
     });
   };
 
+  const handleOrganizeClick = () => {
+    onOrganizeBoard?.({
+      noteWidth,
+      boardWidth,
+      noteHeight: 200,
+      padding: 20,
+    });
+  };
+
   const pendingCount = useMemo(
     () => Object.values(noteAiMetaById).filter((m) => m?.status === 'pending').length,
     [noteAiMetaById]
   );
 
   const showRelated = noteAiPrefs?.related !== false && selectedNoteId;
+  const showOrganize = noteAiPrefs?.organizeBoard !== false;
+  const showDuplicates = noteAiPrefs?.duplicates !== false && duplicateGroups.length > 0;
 
   return (
     <div className="board-view" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -419,15 +440,115 @@ export default function BoardView({
                 : 'La IA organiza tus notas en silencio.'}
             </div>
           </div>
-          <button
-            type="button"
-            className="primary-button"
-            onClick={handleAddNote}
-            style={{ borderRadius: '999px', padding: '8px 16px', fontSize: 13, fontWeight: 700 }}
-          >
-            + Nueva Nota
-          </button>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {showOrganize && (
+              <button
+                type="button"
+                onClick={handleOrganizeClick}
+                disabled={organizeBusy || notes.length < 2}
+                aria-label="Organizar tablero por similitud"
+                title="Agrupar notas similares en el canvas"
+                style={{
+                  borderRadius: '999px',
+                  padding: '8px 14px',
+                  fontSize: 13,
+                  fontWeight: 700,
+                  border: '1px solid var(--color-border-tertiary)',
+                  background: 'var(--color-background-secondary)',
+                  color: 'var(--color-text-primary)',
+                  cursor: organizeBusy || notes.length < 2 ? 'not-allowed' : 'pointer',
+                  opacity: organizeBusy || notes.length < 2 ? 0.65 : 1,
+                }}
+              >
+                {organizeBusy ? 'Organizando…' : 'Organizar tablero'}
+              </button>
+            )}
+            <button
+              type="button"
+              className="primary-button"
+              onClick={handleAddNote}
+              style={{ borderRadius: '999px', padding: '8px 16px', fontSize: 13, fontWeight: 700 }}
+            >
+              + Nueva Nota
+            </button>
+          </div>
         </div>
+
+        {showDuplicates && (
+          <div
+            role="region"
+            aria-label="Posibles notas duplicadas"
+            style={{
+              display: 'grid',
+              gap: 8,
+              padding: 12,
+              borderRadius: 12,
+              border: '1px solid var(--color-border-tertiary)',
+              background: 'var(--color-background-secondary)',
+            }}
+          >
+            <div style={{ fontSize: 12, fontWeight: 750 }}>Posibles duplicados</div>
+            {duplicateGroups.slice(0, 4).map((group) => (
+              <div
+                key={group.id}
+                style={{
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  gap: 8,
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                }}
+              >
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, flex: 1, minWidth: 0 }}>
+                  {(group.notes || []).slice(0, 4).map((n) => (
+                    <button
+                      key={n.noteId}
+                      type="button"
+                      onClick={() => onSelectNote?.(n.noteId)}
+                      style={{
+                        border: selectedNoteId === n.noteId ? '1px solid var(--color-accent)' : '1px solid var(--color-border-tertiary)',
+                        borderRadius: 8,
+                        padding: '4px 8px',
+                        fontSize: 11,
+                        background: 'var(--color-background-primary, transparent)',
+                        color: 'var(--color-text-primary)',
+                        cursor: 'pointer',
+                        maxWidth: 160,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                      title={n.title || n.text || n.noteId}
+                    >
+                      {n.title || (n.text || '').slice(0, 40) || 'Sin título'}
+                    </button>
+                  ))}
+                  {typeof group.score === 'number' && group.score > 0 && (
+                    <span style={{ fontSize: 10, color: 'var(--color-text-secondary)', alignSelf: 'center' }}>
+                      {(group.score * 100).toFixed(0)}% similar
+                    </span>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onDismissDuplicateGroup?.(group.id)}
+                  aria-label="Descartar grupo de duplicados"
+                  style={{
+                    border: 'none',
+                    background: 'transparent',
+                    color: 'var(--color-text-secondary)',
+                    fontSize: 11,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    padding: '4px 6px',
+                  }}
+                >
+                  Descartar
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
 
         {noteAiPrefs?.semanticSearch !== false && (
           <form
@@ -558,6 +679,7 @@ export default function BoardView({
                 onDismissSuggestion={onDismissSuggestion}
                 onDragHandlePointerDown={(e) => handlePointerDown(e, displayNote)}
                 isDragging={draggedId === note.id}
+                layoutAnimating={layoutAnimating && draggedId !== note.id}
                 noteWidth={noteWidth}
               />
             );

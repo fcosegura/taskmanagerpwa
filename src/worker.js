@@ -20,6 +20,8 @@ import {
   listNoteAiMeta,
   processNoteAiJob,
   semanticSearchNotes,
+  detectNoteDuplicates,
+  organizeNotesLayout,
 } from './noteAi/pipeline.js';
 import { normalizeNoteAiPrefs } from './noteAi/prefs.js';
 import { NOTE_AI_RATE_MAX_PER_WINDOW, NOTE_AI_RATE_WINDOW_SEC } from './noteAi/constants.js';
@@ -1238,6 +1240,43 @@ export default {
           const meta = await dismissNoteAiSuggestion(env, dataKey, userId, profileId, noteId, kind, value);
           if (!meta) return json({ error: 'Meta no encontrada' }, { status: 404 });
           return json({ meta });
+        }
+
+        if (request.method === 'POST' && path === '/notes/duplicates') {
+          let body = null;
+          try {
+            body = await request.json();
+          } catch {
+            body = {};
+          }
+          const rateLimited = await consumeNoteAiRateLimit(env, userId);
+          if (rateLimited) return rateLimited;
+          const prefs = normalizeNoteAiPrefs(body?.prefs);
+          const dupProfileId = typeof body?.profileId === 'string' && body.profileId
+            ? await resolveProfileId(env, userId, body.profileId, dataKey)
+            : profileId;
+          const result = await detectNoteDuplicates(env, dataKey, userId, dupProfileId, prefs);
+          return json(result);
+        }
+
+        if (request.method === 'POST' && path === '/notes/organize') {
+          let body = null;
+          try {
+            body = await request.json();
+          } catch {
+            body = {};
+          }
+          const rateLimited = await consumeNoteAiRateLimit(env, userId);
+          if (rateLimited) return rateLimited;
+          const prefs = normalizeNoteAiPrefs(body?.prefs);
+          const orgProfileId = typeof body?.profileId === 'string' && body.profileId
+            ? await resolveProfileId(env, userId, body.profileId, dataKey)
+            : profileId;
+          const layoutOptions = body?.layout && typeof body.layout === 'object' ? body.layout : {};
+          const result = await organizeNotesLayout(
+            env, dataKey, userId, orgProfileId, prefs, layoutOptions
+          );
+          return json(result);
         }
 
         if (request.method === 'POST' && path === '/ai/parse-task') {

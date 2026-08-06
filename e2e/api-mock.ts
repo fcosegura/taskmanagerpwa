@@ -186,6 +186,24 @@ export async function installApiMocks(page: Page): Promise<void> {
     });
   });
 
+  await page.route((url) => url.pathname === '/api/notes/duplicates', (route) => {
+    if (route.request().method() !== 'POST') return route.continue();
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ groups: [], source: 'mock' }),
+    });
+  });
+
+  await page.route((url) => url.pathname === '/api/notes/organize', (route) => {
+    if (route.request().method() !== 'POST') return route.continue();
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ positions: {}, clusters: [], source: 'mock' }),
+    });
+  });
+
   await page.route((url) => url.pathname === '/api/logout', (route) => respondOk(route));
 }
 

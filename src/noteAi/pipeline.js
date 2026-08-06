@@ -5,10 +5,20 @@ import {
   NOTE_AI_SEARCH_TOP_K,
   NOTE_AI_VECTOR_SCHEMA,
   DEFAULT_NOTE_AI_PREFS,
+  NOTE_AI_CLUSTER_MIN_SCORE,
+  NOTE_AI_CLUSTER_QUERY_TOP_K,
+  NOTE_AI_DUPLICATE_MIN_SCORE,
+  NOTE_AI_CLUSTER_MAX_NOTES,
 } from './constants.js';
 import { createNoteAiServices } from './adapters.js';
 import { analyzeNoteFallback, sanitizeAnalysisResult } from './fallbacks.js';
 import { normalizeNoteAiPrefs } from './prefs.js';
+import {
+  buildSimilarityClusters,
+  edgesFromRelatedMeta,
+  findDuplicateGroups,
+  layoutClusters,
+} from './clustering.js';
 import {
   decryptField,
   encryptField,
@@ -554,6 +564,162 @@ export async function enqueueNoteAiJobs(env, ctx, jobs) {
   };
   if (ctx?.waitUntil) ctx.waitUntil(run());
   else await run();
+}
+
+/**
+ * Collect undirected similarity edges from Vectorize (or related_ids fallback).
+ * Scores are cosine from Vectorize when available.
+ * @param {{ relatedFallbackScore?: number|null }} [options]
+ *   When Vectorize yields no edges and relatedFallbackScore is a number, build edges
+ *   from stored relatedIds at that score (organize). Pass null to skip (duplicates).
+ */
+async function collectSimilarityEdges(env, dataKey, userId, profileId, noteIds, minScore, options = {}) {
+  const relatedFallbackScore = options.relatedFallbackScore;
+  const ids = (noteIds || []).slice(0, NOTE_AI_CLUSTER_MAX_NOTES);
+  const idSet = new Set(ids);
+  const edgeMap = new Map();
+  const pushEdge = (a, b, score) => {
+    if (!a || !b || a === b) return;
+    if (!idSet.has(a) || !idSet.has(b)) return;
+    if ((score ?? 0) < minScore) return;
+    const key = a < b ? `${a}|${b}` : `${b}|${a}`;
+    const prev = edgeMap.get(key);
+    if (!prev || (score ?? 0) > (prev.score ?? 0)) {
+      edgeMap.set(key, { a: a < b ? a : b, b: a < b ? b : a, score: score ?? 0 });
+    }
+  };
+
+  let source = 'empty';
+  try {
+    if (env?.VECTORIZE?.query && env?.AI?.run && ids.length) {
+      const services = createNoteAiServices(env);
+      const ns = await vectorNamespace(userId, profileId);
+      let vectorHits = 0;
+      for (const noteId of ids) {
+        const note = await loadNotePlain(env, dataKey, userId, profileId, noteId);
+        if (!note) continue;
+        const [embedding] = await services.embeddings.embed([noteTextForEmbed(note.title, note.text)]);
+        if (!embedding) continue;
+        const query = await services.vectors.query(embedding, {
+          topK: NOTE_AI_CLUSTER_QUERY_TOP_K + 1,
+          returnMetadata: 'all',
+          namespace: ns,
+        });
+        const selfVid = await vectorIdForNote(userId, profileId, noteId);
+        for (const m of query?.matches || []) {
+          if (m.id === selfVid) continue;
+          const otherId = m.metadata?.noteId;
+          if (!otherId) continue;
+          pushEdge(noteId, otherId, m.score ?? 0);
+          vectorHits += 1;
+        }
+      }
+      if (vectorHits > 0 || edgeMap.size > 0) source = 'vector';
+    }
+  } catch (err) {
+    console.error('[noteAi] collectSimilarityEdges vector failed', err?.message || err);
+  }
+
+  if (edgeMap.size === 0 && relatedFallbackScore != null && Number.isFinite(relatedFallbackScore)) {
+    const allMeta = await listNoteAiMeta(env, dataKey, userId, profileId);
+    const metaById = {};
+    for (const m of allMeta) {
+      if (m?.noteId) metaById[m.noteId] = m;
+    }
+    for (const e of edgesFromRelatedMeta(metaById, ids)) {
+      pushEdge(e.a, e.b, relatedFallbackScore);
+    }
+    if (edgeMap.size > 0) source = 'related_meta';
+  }
+
+  return { edges: [...edgeMap.values()], source };
+}
+
+async function listProfileNoteIds(env, userId, profileId) {
+  const { results } = await env.DB.prepare(
+    'SELECT id FROM notes WHERE user_id = ? AND profile_id = ? LIMIT ?'
+  ).bind(userId, profileId, NOTE_AI_CLUSTER_MAX_NOTES).all();
+  return (results || []).map((row) => unscopedNoteId(profileId, row.id)).filter(Boolean);
+}
+
+/**
+ * Near-duplicate groups via high cosine threshold (+ related_ids fallback).
+ */
+export async function detectNoteDuplicates(env, dataKey, userId, profileId, prefsInput) {
+  const prefs = normalizeNoteAiPrefs(prefsInput);
+  if (prefs.duplicates === false) return { groups: [], source: 'disabled' };
+
+  await ensureNoteAiSchema(env);
+  const noteIds = await listProfileNoteIds(env, userId, profileId);
+  if (noteIds.length < 2) return { groups: [], source: 'empty' };
+
+  const { edges, source } = await collectSimilarityEdges(
+    env, dataKey, userId, profileId, noteIds, NOTE_AI_DUPLICATE_MIN_SCORE, { relatedFallbackScore: null }
+  );
+  const groups = findDuplicateGroups(noteIds, edges, NOTE_AI_DUPLICATE_MIN_SCORE);
+
+  const hydrated = [];
+  for (const members of groups) {
+    const notes = [];
+    let maxScore = 0;
+    for (const edge of edges) {
+      if (members.includes(edge.a) && members.includes(edge.b)) {
+        maxScore = Math.max(maxScore, edge.score ?? 0);
+      }
+    }
+    for (const mid of members) {
+      const note = await loadNotePlain(env, dataKey, userId, profileId, mid);
+      if (!note) continue;
+      notes.push({
+        noteId: mid,
+        title: note.title || '',
+        text: (note.text || '').slice(0, 160),
+      });
+    }
+    if (notes.length >= 2) {
+      hydrated.push({
+        id: members.slice().sort().join('|'),
+        noteIds: members,
+        score: maxScore,
+        notes,
+      });
+    }
+  }
+
+  return { groups: hydrated, source, edgeCount: edges.length };
+}
+
+/**
+ * Suggest board x/y from similarity clusters (Vectorize or related meta).
+ */
+export async function organizeNotesLayout(env, dataKey, userId, profileId, prefsInput, layoutOptions = {}) {
+  const prefs = normalizeNoteAiPrefs(prefsInput);
+  if (prefs.organizeBoard === false) {
+    return { positions: {}, clusters: [], source: 'disabled' };
+  }
+
+  await ensureNoteAiSchema(env);
+  const noteIds = await listProfileNoteIds(env, userId, profileId);
+  if (!noteIds.length) return { positions: {}, clusters: [], source: 'empty' };
+
+  const { edges, source } = await collectSimilarityEdges(
+    env,
+    dataKey,
+    userId,
+    profileId,
+    noteIds,
+    NOTE_AI_CLUSTER_MIN_SCORE,
+    { relatedFallbackScore: NOTE_AI_CLUSTER_MIN_SCORE }
+  );
+  const clusters = buildSimilarityClusters(noteIds, edges);
+  const positions = layoutClusters(clusters, layoutOptions);
+
+  return {
+    positions,
+    clusters,
+    source,
+    edgeCount: edges.length,
+  };
 }
 
 export { markPending, scopedNoteId, unscopedNoteId, vectorIdForNote, vectorNamespace };
