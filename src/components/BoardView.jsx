@@ -205,10 +205,11 @@ function BoardNoteCard({
       )}
 
       {tags.length > 0 && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, maxWidth: '100%', minWidth: 0 }}>
           {tags.slice(0, 6).map((tag) => (
             <span
               key={tag}
+              title={tag}
               style={{
                 fontSize: 10,
                 fontWeight: 600,
@@ -216,6 +217,10 @@ function BoardNoteCard({
                 borderRadius: 6,
                 background: 'var(--color-background-secondary)',
                 color: 'var(--color-text-secondary)',
+                maxWidth: '100%',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
               }}
             >
               #{tag}
@@ -506,7 +511,7 @@ export default function BoardView({
         )}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: showRelated ? 'minmax(0, 1fr) 260px' : '1fr', gap: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: showRelated ? 'minmax(0, 1fr) 260px' : '1fr', gap: 12, minWidth: 0 }}>
         <div
           className="board-canvas material-base"
           ref={boardRef}
@@ -517,6 +522,7 @@ export default function BoardView({
             position: 'relative',
             minHeight: 'calc(100vh - 320px)',
             width: '100%',
+            minWidth: 0,
             backgroundImage: 'radial-gradient(var(--color-border-tertiary) 1.5px, transparent 1.5px)',
             backgroundSize: '24px 24px',
             borderRadius: 'var(--border-radius-xl)',
@@ -560,22 +566,32 @@ export default function BoardView({
 
         {showRelated && (
           <aside
-            className="material-base"
+            className="board-related-panel material-base"
             style={{
               borderRadius: 'var(--border-radius-xl)',
               padding: 14,
               alignSelf: 'start',
               position: 'sticky',
               top: 12,
+              width: 260,
+              maxWidth: 260,
+              minWidth: 0,
+              boxSizing: 'border-box',
+              overflow: 'hidden',
             }}
           >
             <div style={{ fontSize: 13, fontWeight: 750, marginBottom: 8 }}>Notas relacionadas</div>
             {relatedNotes.length === 0 ? (
-              <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>
+              <div style={{
+                fontSize: 12,
+                color: 'var(--color-text-secondary)',
+                overflowWrap: 'anywhere',
+                wordBreak: 'break-word',
+              }}>
                 Aún no hay notas cercanas para esta selección. Prueba otra o espera a que se organice.
               </div>
             ) : (
-              <div style={{ display: 'grid', gap: 8 }}>
+              <div style={{ display: 'grid', gap: 8, minWidth: 0 }}>
                 {relatedNotes.map((r) => (
                   <button
                     key={r.noteId}
@@ -589,11 +605,34 @@ export default function BoardView({
                       background: 'var(--color-background-secondary)',
                       cursor: 'pointer',
                       color: 'var(--color-text-primary)',
+                      width: '100%',
+                      maxWidth: '100%',
+                      minWidth: 0,
+                      boxSizing: 'border-box',
+                      overflow: 'hidden',
                     }}
                   >
-                    <div style={{ fontSize: 12, fontWeight: 650 }}>{r.title || 'Sin título'}</div>
-                    <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginTop: 4 }}>
-                      {(r.text || '').slice(0, 80)}
+                    <div style={{
+                      fontSize: 12,
+                      fontWeight: 650,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}>
+                      {r.title || 'Sin título'}
+                    </div>
+                    <div style={{
+                      fontSize: 11,
+                      color: 'var(--color-text-secondary)',
+                      marginTop: 4,
+                      overflowWrap: 'anywhere',
+                      wordBreak: 'break-word',
+                      display: '-webkit-box',
+                      WebkitLineClamp: 3,
+                      WebkitBoxOrient: 'vertical',
+                      overflow: 'hidden',
+                    }}>
+                      {r.text || ''}
                     </div>
                   </button>
                 ))}

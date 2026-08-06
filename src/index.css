@@ -1606,6 +1606,16 @@ select:focus {
   word-break: break-word;
 }
 
+.board-related-panel,
+.board-related-panel * {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.board-related-panel button {
+  overflow: hidden;
+}
+
 [data-theme="dark"] .board-note {
   background: #3f2b08 !important;
   border-color: #b45309 !important;
