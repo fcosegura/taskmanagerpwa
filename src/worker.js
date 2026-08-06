@@ -16,7 +16,7 @@ import {
   enqueueNoteAiJobs,
   enqueueStaleNoteAiReindex,
   ensureNoteAiSchema,
-  getNoteAiMeta,
+  getRelatedNotesForNote,
   listNoteAiMeta,
   processNoteAiJob,
   semanticSearchNotes,
@@ -1198,23 +1198,10 @@ export default {
         }
 
         if (request.method === 'GET' && path.startsWith('/notes/') && path.endsWith('/related')) {
-          const noteId = path.slice('/notes/'.length, -'/related'.length);
+          const noteId = decodeURIComponent(path.slice('/notes/'.length, -'/related'.length));
           if (!noteId) return json({ error: 'noteId inválido' }, { status: 400 });
-          const meta = await getNoteAiMeta(env, dataKey, userId, profileId, noteId);
-          const relatedIds = meta?.relatedIds || [];
-          const related = [];
-          for (const rid of relatedIds) {
-            const row = await env.DB.prepare(
-              'SELECT id, title, text FROM notes WHERE user_id = ? AND profile_id = ? AND id = ?'
-            ).bind(userId, profileId, `${profileId}::${rid}`).first();
-            if (!row) continue;
-            related.push({
-              noteId: rid,
-              title: (await decryptField(dataKey, row.title)) || '',
-              text: (await decryptField(dataKey, row.text)) || '',
-            });
-          }
-          return json({ noteId, related, status: meta?.status || null });
+          const result = await getRelatedNotesForNote(env, dataKey, userId, profileId, noteId);
+          return json(result);
         }
 
         if (request.method === 'POST' && path === '/notes/search') {

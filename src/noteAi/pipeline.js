@@ -318,6 +318,82 @@ export async function getNoteAiMeta(env, dataKey, userId, profileId, noteId) {
   return decryptMetaRow(dataKey, row, profileId);
 }
 
+/**
+ * Merge forward related ids, reverse links, and live vector matches.
+ * Relationships are otherwise one-way (only stored on the note that was analyzed last).
+ */
+export function mergeRelatedNoteIds(noteId, forwardIds, allMetaList, vectorIds = []) {
+  const out = [];
+  const seen = new Set();
+  const push = (id) => {
+    if (!id || id === noteId || seen.has(id)) return;
+    seen.add(id);
+    out.push(id);
+  };
+  for (const id of forwardIds || []) push(id);
+  for (const meta of allMetaList || []) {
+    if (!meta || meta.noteId === noteId) continue;
+    if ((meta.relatedIds || []).includes(noteId)) push(meta.noteId);
+  }
+  for (const id of vectorIds || []) push(id);
+  return out.slice(0, NOTE_AI_RELATED_TOP_K);
+}
+
+async function hydrateRelatedNotes(env, dataKey, userId, profileId, relatedIds) {
+  const related = [];
+  for (const rid of relatedIds) {
+    const note = await loadNotePlain(env, dataKey, userId, profileId, rid);
+    if (!note) continue;
+    related.push({
+      noteId: rid,
+      title: note.title || '',
+      text: note.text || '',
+    });
+  }
+  return related;
+}
+
+/**
+ * Related notes for a selection: stored + reverse + live Vectorize query.
+ */
+export async function getRelatedNotesForNote(env, dataKey, userId, profileId, noteId) {
+  await ensureNoteAiSchema(env);
+  const meta = await getNoteAiMeta(env, dataKey, userId, profileId, noteId);
+  const allMeta = await listNoteAiMeta(env, dataKey, userId, profileId);
+  const forwardIds = meta?.relatedIds || [];
+
+  let vectorIds = [];
+  try {
+    const note = await loadNotePlain(env, dataKey, userId, profileId, noteId);
+    if (note && env?.VECTORIZE?.query) {
+      const services = createNoteAiServices(env);
+      const [embedding] = await services.embeddings.embed([noteTextForEmbed(note.title, note.text)]);
+      const ns = await vectorNamespace(userId, profileId);
+      const vid = await vectorIdForNote(userId, profileId, noteId);
+      const query = await services.vectors.query(embedding, {
+        topK: NOTE_AI_RELATED_TOP_K + 1,
+        returnMetadata: 'all',
+        namespace: ns,
+      });
+      vectorIds = (query?.matches || [])
+        .filter((m) => m.id !== vid && (m.score ?? 0) >= NOTE_AI_RELATED_MIN_SCORE)
+        .map((m) => m.metadata?.noteId)
+        .filter(Boolean);
+    }
+  } catch (err) {
+    console.error('[noteAi] live related query failed', err?.message || err);
+  }
+
+  const relatedIds = mergeRelatedNoteIds(noteId, forwardIds, allMeta, vectorIds);
+  const related = await hydrateRelatedNotes(env, dataKey, userId, profileId, relatedIds);
+  return {
+    noteId,
+    related,
+    status: meta?.status || null,
+    source: vectorIds.length ? 'vector+meta' : 'meta',
+  };
+}
+
 export async function dismissNoteAiSuggestion(env, dataKey, userId, profileId, noteId, kind, value) {
   await ensureNoteAiSchema(env);
   const meta = await getNoteAiMeta(env, dataKey, userId, profileId, noteId);

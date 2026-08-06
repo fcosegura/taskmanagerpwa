@@ -8,6 +8,7 @@ import {
 } from '../src/noteAi/fallbacks.js';
 import { normalizeNoteAiPrefs } from '../src/noteAi/prefs.js';
 import { buildNoteAiContentHashInput, stableStringify } from '../src/d1-field-crypto.js';
+import { mergeRelatedNoteIds } from '../src/noteAi/pipeline.js';
 
 test('extractEntitiesFallback finds urls tickets and platforms', () => {
   const entities = extractEntitiesFallback(
@@ -65,4 +66,17 @@ test('note AI content hash ignores position fields', () => {
   const b = stableStringify(buildNoteAiContentHashInput('t', 'body'));
   assert.equal(a, b);
   assert.ok(!a.includes('"x"'));
+});
+
+test('mergeRelatedNoteIds includes reverse links and vector matches', () => {
+  const merged = mergeRelatedNoteIds(
+    'a',
+    ['b'],
+    [
+      { noteId: 'c', relatedIds: ['a'] },
+      { noteId: 'd', relatedIds: ['z'] },
+    ],
+    ['e', 'b', 'a']
+  );
+  assert.deepEqual(merged, ['b', 'c', 'e']);
 });

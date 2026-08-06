@@ -1239,12 +1239,32 @@ export default function App() {
 
   const relatedBoardNotes = useMemo(() => {
     if (!selectedBoardNoteId || noteAiPrefs.related === false) return [];
-    if (relatedNotesFetch?.noteId === selectedBoardNoteId) return relatedNotesFetch.related;
-    const fromMeta = noteAiMetaById[selectedBoardNoteId]?.relatedIds || [];
-    return fromMeta
+
+    const hydrateLocal = (ids) => ids
       .map((id) => boardNotes.find((n) => n.id === id))
       .filter(Boolean)
       .map((n) => ({ noteId: n.id, title: n.title, text: n.text }));
+
+    const forward = noteAiMetaById[selectedBoardNoteId]?.relatedIds || [];
+    const reverse = [];
+    for (const [id, meta] of Object.entries(noteAiMetaById)) {
+      if (id === selectedBoardNoteId) continue;
+      if ((meta?.relatedIds || []).includes(selectedBoardNoteId)) reverse.push(id);
+    }
+    const localIds = [...new Set([...forward, ...reverse])];
+    const localRelated = hydrateLocal(localIds);
+
+    if (relatedNotesFetch?.noteId === selectedBoardNoteId) {
+      const apiRelated = Array.isArray(relatedNotesFetch.related) ? relatedNotesFetch.related : [];
+      if (apiRelated.length === 0) return localRelated;
+      const seen = new Set(apiRelated.map((r) => r.noteId));
+      const merged = [...apiRelated];
+      for (const item of localRelated) {
+        if (!seen.has(item.noteId)) merged.push(item);
+      }
+      return merged;
+    }
+    return localRelated;
   }, [selectedBoardNoteId, noteAiPrefs.related, relatedNotesFetch, noteAiMetaById, boardNotes]);
 
   const handleNoteSearchSubmit = async () => {

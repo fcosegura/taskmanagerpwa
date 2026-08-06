@@ -572,7 +572,7 @@ export default function BoardView({
             <div style={{ fontSize: 13, fontWeight: 750, marginBottom: 8 }}>Notas relacionadas</div>
             {relatedNotes.length === 0 ? (
               <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>
-                Selecciona una nota; las relaciones aparecen al organizarse.
+                Aún no hay notas cercanas para esta selección. Prueba otra o espera a que se organice.
               </div>
             ) : (
               <div style={{ display: 'grid', gap: 8 }}>
