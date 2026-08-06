@@ -21,6 +21,8 @@ export const DEFAULT_NOTE_AI_PREFS = Object.freeze({
   related: true,
   taskSuggestions: true,
   semanticSearch: true,
+  duplicates: true,
+  organizeBoard: true,
 });
 
 export const NOTE_AI_PREFS_STORAGE_KEY = 'taskmanager_note_ai_prefs';
@@ -29,6 +31,14 @@ export const NOTE_AI_RELATED_TOP_K = 6;
 export const NOTE_AI_SEARCH_TOP_K = 12;
 export const NOTE_AI_RELATED_MIN_SCORE = 0.45;
 export const NOTE_AI_SEARCH_MIN_SCORE = 0.22;
+
+/** Phase 2: cluster / organize edges (cosine). */
+export const NOTE_AI_CLUSTER_MIN_SCORE = 0.55;
+export const NOTE_AI_CLUSTER_QUERY_TOP_K = 8;
+/** Near-duplicate threshold (cosine); higher = stricter. */
+export const NOTE_AI_DUPLICATE_MIN_SCORE = 0.88;
+/** Cap notes scanned per duplicates/organize Vectorize pass. */
+export const NOTE_AI_CLUSTER_MAX_NOTES = 80;
 
 /** Bump when vector id / namespace scheme changes to force re-embed. */
 export const NOTE_AI_VECTOR_SCHEMA = 2;

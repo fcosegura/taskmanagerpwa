@@ -1,10 +1,11 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, lazy, Suspense } from 'react';
 import { STATUS, normalizeStatuses } from './constants.js';
 import { uid, toDateStr, compareTasksForTaskList, parseDateTimeFromDescription, parseDescriptionDateResult, cleanDescriptionSegment, isJiraCategory, normalizeTicketNumber, applyTicketNumberToTaskName, inheritTicketFromParentTask, mergeTaskCompletionMeta } from './utils.jsx';
-import { loadData, saveData, validateBackupPayload, normalizeDataPayload, loginWithGoogleCredential, logoutSession, createProfile, deleteProfile, updateProfileStatuses, parseTaskWithAI, checkSession, generateTasksFromText, generateDailyStatus, fetchWorkspaceData, isMultiBackupPayload, validateMultiBackupPayload, normalizeMultiBackupPayload, fetchNoteAiMeta, loadCachedNoteAiMeta, searchNotesSemantic, fetchRelatedNotes, dismissNoteAiSuggestionClient } from './storage.js';
+import { loadData, saveData, validateBackupPayload, normalizeDataPayload, loginWithGoogleCredential, logoutSession, createProfile, deleteProfile, updateProfileStatuses, parseTaskWithAI, checkSession, generateTasksFromText, generateDailyStatus, fetchWorkspaceData, isMultiBackupPayload, validateMultiBackupPayload, normalizeMultiBackupPayload, fetchNoteAiMeta, loadCachedNoteAiMeta, searchNotesSemantic, fetchRelatedNotes, dismissNoteAiSuggestionClient, fetchNoteDuplicates, fetchNotesOrganizeLayout } from './storage.js';
 import { appendStatusLogEntry } from './statusLog.js';
 import { collectDailyStatusActivities } from './dailyStatusActivities.js';
 import { loadNoteAiPrefsFromStorage, saveNoteAiPrefsToStorage } from './noteAi/prefs.js';
+import { organizeNotesFromMeta } from './noteAi/clustering.js';
 import BoardView from './components/BoardView.jsx';
 import TaskModal from './components/TaskModal.jsx';
 import TaskPreviewModal from './components/TaskPreviewModal.jsx';
@@ -178,6 +179,10 @@ export default function App() {
   const [noteSearchQuery, setNoteSearchQuery] = useState('');
   const [noteSearchResults, setNoteSearchResults] = useState(null);
   const [noteSearchBusy, setNoteSearchBusy] = useState(false);
+  const [noteDuplicateGroups, setNoteDuplicateGroups] = useState([]);
+  const [dismissedDuplicateGroupIds, setDismissedDuplicateGroupIds] = useState(() => new Set());
+  const [noteOrganizeBusy, setNoteOrganizeBusy] = useState(false);
+  const [boardLayoutAnimating, setBoardLayoutAnimating] = useState(false);
   const [backupMessage, setBackupMessage] = useState('');
   const [syncState, setSyncState] = useState('idle');
   const [profiles, setProfiles] = useState([]);
@@ -1284,6 +1289,110 @@ export default function App() {
     }
   };
 
+  const applyBoardPositions = (positions) => {
+    if (!positions || typeof positions !== 'object') return 0;
+    const previousNotes = boardNotes.map((n) => ({ ...n }));
+    let moved = 0;
+    const nextNotes = boardNotes.map((note) => {
+      const next = positions[note.id];
+      if (!next || typeof next.x !== 'number' || typeof next.y !== 'number') return note;
+      if (note.x === next.x && note.y === next.y) return note;
+      moved += 1;
+      return { ...note, x: next.x, y: next.y };
+    });
+    if (moved === 0) return 0;
+    setBoardNotes(nextNotes);
+    setBoardLayoutAnimating(true);
+    window.setTimeout(() => setBoardLayoutAnimating(false), 520);
+    pushUndoTransaction({
+      description: 'Tablero organizado',
+      rollbackFn: () => setBoardNotes(previousNotes),
+    });
+    return moved;
+  };
+
+  const handleOrganizeBoard = async (layoutOptions = {}) => {
+    if (noteAiPrefs.organizeBoard === false) return;
+    if (!boardNotes.length) {
+      showToast('No hay notas para organizar.', { type: 'info' });
+      return;
+    }
+    setNoteOrganizeBusy(true);
+    try {
+      let positions = null;
+      if (authenticated && activeProfileId) {
+        try {
+          const data = await fetchNotesOrganizeLayout(activeProfileId, noteAiPrefs, layoutOptions);
+          positions = data?.positions || null;
+        } catch {
+          // fall through to local clustering
+        }
+      }
+      if (!positions || !Object.keys(positions).length) {
+        const local = organizeNotesFromMeta(
+          boardNotes.map((n) => n.id),
+          noteAiMetaById,
+          layoutOptions
+        );
+        positions = local.positions;
+      }
+      const moved = applyBoardPositions(positions);
+      if (moved > 0) {
+        showToast(`Tablero organizado (${moved} notas).`, { type: 'success' });
+      } else {
+        showToast('Las notas ya estaban organizadas.', { type: 'info' });
+      }
+    } catch (err) {
+      showToast(err?.message || 'No se pudo organizar el tablero.', { type: 'error' });
+    } finally {
+      setNoteOrganizeBusy(false);
+    }
+  };
+
+  const handleDismissDuplicateGroup = (groupId) => {
+    if (!groupId) return;
+    setDismissedDuplicateGroupIds((prev) => {
+      const next = new Set(prev);
+      next.add(groupId);
+      return next;
+    });
+  };
+
+  const visibleDuplicateGroups = useMemo(() => {
+    if (view !== 'board' || noteAiPrefs.duplicates === false) return [];
+    return (noteDuplicateGroups || []).filter((g) => g?.id && !dismissedDuplicateGroupIds.has(g.id));
+  }, [view, noteAiPrefs.duplicates, noteDuplicateGroups, dismissedDuplicateGroupIds]);
+
+  const noteAiReadyCount = useMemo(
+    () => Object.values(noteAiMetaById).filter((m) => m?.status === 'ready').length,
+    [noteAiMetaById]
+  );
+
+  useEffect(() => {
+    if (view !== 'board' || noteAiPrefs.duplicates === false || !authenticated || !activeProfileId) {
+      return undefined;
+    }
+    if (boardNotes.length < 2) {
+      return undefined;
+    }
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      fetchNoteDuplicates(activeProfileId, noteAiPrefs)
+        .then((data) => {
+          if (cancelled) return;
+          const groups = Array.isArray(data?.groups) ? data.groups : [];
+          setNoteDuplicateGroups(groups);
+        })
+        .catch(() => {
+          if (!cancelled) setNoteDuplicateGroups([]);
+        });
+    }, 1200);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [view, activeProfileId, authenticated, noteAiPrefs, boardNotes.length, noteAiReadyCount]);
+
 
   const upsertEvent = (event) => {
     const cleanEvent = { ...event };
@@ -2078,6 +2187,11 @@ export default function App() {
                   onSearchChange={setNoteSearchQuery}
                   onSearchSubmit={handleNoteSearchSubmit}
                   onClearSearch={() => setNoteSearchResults(null)}
+                  duplicateGroups={visibleDuplicateGroups}
+                  onDismissDuplicateGroup={handleDismissDuplicateGroup}
+                  organizeBusy={noteOrganizeBusy}
+                  layoutAnimating={boardLayoutAnimating}
+                  onOrganizeBoard={handleOrganizeBoard}
                   selectedNoteId={selectedBoardNoteId}
                   onSelectNote={setSelectedBoardNoteId}
                   onAddNote={addBoardNote}
