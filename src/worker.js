@@ -11,6 +11,18 @@ import {
 import { isPlannedSlotsArrayShape, normalizePlannedSlots } from './plannedSlots.js';
 import { buildDailyStatusFallbackReport } from './dailyStatusFallback.js';
 import { partitionDailyStatusActivities, statusChangesForDailyReport } from './dailyStatusActivities.js';
+import {
+  dismissNoteAiSuggestion,
+  enqueueNoteAiJobs,
+  enqueueStaleNoteAiReindex,
+  ensureNoteAiSchema,
+  getRelatedNotesForNote,
+  listNoteAiMeta,
+  processNoteAiJob,
+  semanticSearchNotes,
+} from './noteAi/pipeline.js';
+import { normalizeNoteAiPrefs } from './noteAi/prefs.js';
+import { NOTE_AI_RATE_MAX_PER_WINDOW, NOTE_AI_RATE_WINDOW_SEC } from './noteAi/constants.js';
 
 const VALID_PRIORITY = new Set(['low', 'medium', 'high', 'critical']);
 const SESSION_COOKIE = '__Host-taskmanager_session';
@@ -156,6 +168,35 @@ async function consumeAiRateLimit(env, userId) {
   await env.DB.prepare(
     'UPDATE ai_rate_limits SET request_count = request_count + 1 WHERE user_id = ?'
   ).bind(userId).run();
+  return null;
+}
+
+async function consumeNoteAiRateLimit(env, userId) {
+  const key = `note-ai:${userId}`;
+  const now = Math.floor(Date.now() / 1000);
+  const windowStart = Math.floor(now / NOTE_AI_RATE_WINDOW_SEC) * NOTE_AI_RATE_WINDOW_SEC;
+  const row = await env.DB.prepare(
+    'SELECT window_start, request_count FROM ai_rate_limits WHERE user_id = ?'
+  ).bind(key).first();
+
+  if (!row || row.window_start < windowStart) {
+    await env.DB.prepare(
+      'INSERT INTO ai_rate_limits (user_id, window_start, request_count) VALUES (?, ?, 1) ' +
+        'ON CONFLICT(user_id) DO UPDATE SET window_start = excluded.window_start, request_count = 1'
+    ).bind(key, windowStart).run();
+    return null;
+  }
+
+  if (row.request_count >= NOTE_AI_RATE_MAX_PER_WINDOW) {
+    return json(
+      { error: 'Demasiadas solicitudes de IA de notas. Prueba de nuevo en un minuto.' },
+      { status: 429 }
+    );
+  }
+
+  await env.DB.prepare(
+    'UPDATE ai_rate_limits SET request_count = request_count + 1 WHERE user_id = ?'
+  ).bind(key).run();
   return null;
 }
 
@@ -1089,8 +1130,8 @@ async function authenticate(request, env) {
 }
 
 export default {
-  // Worker Version: 2026.05.13.2
-  async fetch(request, env) {
+  // Worker Version: 2026.08.06.1
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
 
     if (url.pathname.startsWith('/api/')) {
@@ -1141,12 +1182,63 @@ export default {
           return json({ authenticated: true });
         }
         const taskSchema = await ensureProfilesSchema(env);
+        await ensureNoteAiSchema(env);
         const dataKey = await importDataEncryptionKey(env.DATA_ENCRYPTION_KEY);
         if (!dataKey) {
           return json({ error: 'data_encryption_misconfigured' }, { status: 500 });
         }
         const requestedProfileId = url.searchParams.get('profileId');
         const profileId = await resolveProfileId(env, userId, requestedProfileId, dataKey);
+
+        if (request.method === 'GET' && path === '/notes/ai') {
+          const meta = await listNoteAiMeta(env, dataKey, userId, profileId);
+          // Re-embed notes indexed with the old Vectorize filter scheme (non-blocking).
+          await enqueueStaleNoteAiReindex(env, ctx, userId, profileId);
+          return json({ meta });
+        }
+
+        if (request.method === 'GET' && path.startsWith('/notes/') && path.endsWith('/related')) {
+          const noteId = decodeURIComponent(path.slice('/notes/'.length, -'/related'.length));
+          if (!noteId) return json({ error: 'noteId inválido' }, { status: 400 });
+          const result = await getRelatedNotesForNote(env, dataKey, userId, profileId, noteId);
+          return json(result);
+        }
+
+        if (request.method === 'POST' && path === '/notes/search') {
+          let body = null;
+          try {
+            body = await request.json();
+          } catch {
+            return json({ error: 'Body inválido' }, { status: 400 });
+          }
+          const queryText = typeof body?.query === 'string' ? body.query.trim() : '';
+          if (!queryText) return json({ error: 'query es requerido' }, { status: 400 });
+          if (queryText.length > 500) return json({ error: 'query demasiado largo (max 500)' }, { status: 400 });
+          const rateLimited = await consumeNoteAiRateLimit(env, userId);
+          if (rateLimited) return rateLimited;
+          const prefs = normalizeNoteAiPrefs(body?.prefs);
+          const searchProfileId = typeof body?.profileId === 'string' && body.profileId
+            ? await resolveProfileId(env, userId, body.profileId, dataKey)
+            : profileId;
+          const result = await semanticSearchNotes(env, dataKey, userId, searchProfileId, queryText, prefs);
+          return json(result);
+        }
+
+        if (request.method === 'POST' && path === '/notes/ai/dismiss') {
+          let body = null;
+          try {
+            body = await request.json();
+          } catch {
+            return json({ error: 'Body inválido' }, { status: 400 });
+          }
+          const noteId = typeof body?.noteId === 'string' ? body.noteId : '';
+          const kind = typeof body?.kind === 'string' ? body.kind : '';
+          const value = typeof body?.value === 'string' ? body.value : '';
+          if (!noteId || !kind) return json({ error: 'noteId y kind son requeridos' }, { status: 400 });
+          const meta = await dismissNoteAiSuggestion(env, dataKey, userId, profileId, noteId, kind, value);
+          if (!meta) return json({ error: 'Meta no encontrada' }, { status: 404 });
+          return json({ meta });
+        }
 
         if (request.method === 'POST' && path === '/ai/parse-task') {
           let body = null;
@@ -1276,6 +1368,7 @@ export default {
             env.DB.prepare("DELETE FROM tasks WHERE user_id = ? AND profile_id = ?").bind(userId, targetProfileId),
             env.DB.prepare("DELETE FROM notes WHERE user_id = ? AND profile_id = ?").bind(userId, targetProfileId),
             env.DB.prepare("DELETE FROM events WHERE user_id = ? AND profile_id = ?").bind(userId, targetProfileId),
+            env.DB.prepare("DELETE FROM note_ai_meta WHERE user_id = ? AND profile_id = ?").bind(userId, targetProfileId),
             env.DB.prepare("DELETE FROM profiles WHERE user_id = ? AND id = ?").bind(userId, targetProfileId)
           ]);
 
@@ -1489,6 +1582,7 @@ export default {
           let taskCount = 0;
           let noteCount = 0;
           let eventCount = 0;
+          const noteAiJobs = [];
 
           if (normalizedBody.mode === 'payload') {
             const { tasks, boardNotes, events } = normalizedBody.payload;
@@ -1499,7 +1593,8 @@ export default {
             batch.push(
               env.DB.prepare("DELETE FROM tasks WHERE user_id = ? AND profile_id = ?").bind(userId, syncProfileId),
               env.DB.prepare("DELETE FROM notes WHERE user_id = ? AND profile_id = ?").bind(userId, syncProfileId),
-              env.DB.prepare("DELETE FROM events WHERE user_id = ? AND profile_id = ?").bind(userId, syncProfileId)
+              env.DB.prepare("DELETE FROM events WHERE user_id = ? AND profile_id = ?").bind(userId, syncProfileId),
+              env.DB.prepare("DELETE FROM note_ai_meta WHERE user_id = ? AND profile_id = ?").bind(userId, syncProfileId)
             );
 
             for (const t of tasks) {
@@ -1507,6 +1602,14 @@ export default {
             }
             for (const n of boardNotes) {
               batch.push(await prepareNoteUpsert(env, dataKey, syncProfileId, userId, n));
+              if (n?.id) {
+                noteAiJobs.push({
+                  type: 'analyze',
+                  userId,
+                  profileId: syncProfileId,
+                  noteId: n.id,
+                });
+              }
             }
             for (const e of events) {
               batch.push(await prepareEventUpsert(env, dataKey, syncProfileId, userId, e));
@@ -1528,6 +1631,12 @@ export default {
                 env.DB.prepare("DELETE FROM notes WHERE user_id = ? AND profile_id = ? AND id = ?")
                   .bind(userId, syncProfileId, scopedEntityId(syncProfileId, noteId))
               );
+              noteAiJobs.push({
+                type: 'delete',
+                userId,
+                profileId: syncProfileId,
+                noteId,
+              });
             }
             for (const eventId of events.deletes) {
               batch.push(
@@ -1541,6 +1650,14 @@ export default {
             }
             for (const n of notes.upserts) {
               batch.push(await prepareNoteUpsert(env, dataKey, syncProfileId, userId, n));
+              if (n?.id) {
+                noteAiJobs.push({
+                  type: 'analyze',
+                  userId,
+                  profileId: syncProfileId,
+                  noteId: n.id,
+                });
+              }
             }
             for (const e of events.upserts) {
               batch.push(await prepareEventUpsert(env, dataKey, syncProfileId, userId, e));
@@ -1548,6 +1665,7 @@ export default {
           }
 
           if (batch.length > 0) await env.DB.batch(batch);
+          await enqueueNoteAiJobs(env, ctx, noteAiJobs);
           const userIdHash = await shortHashForLog(userId);
           console.log('[sync] write batch completed', {
             userIdHash,
@@ -1556,6 +1674,7 @@ export default {
             taskCount,
             noteCount,
             eventCount,
+            noteAiJobs: noteAiJobs.length,
             statementCount: batch.length,
             elapsedMs: Date.now() - syncStartedAt
           });
@@ -1576,5 +1695,24 @@ export default {
       statusText: response.statusText,
       headers
     });
-  }
+  },
+
+  async queue(batch, env) {
+    const dataKey = await importDataEncryptionKey(env.DATA_ENCRYPTION_KEY);
+    if (!dataKey) {
+      console.error('[noteAi] queue: encryption key missing');
+      return;
+    }
+    await ensureNoteAiSchema(env);
+    for (const message of batch.messages) {
+      try {
+        const job = message.body;
+        await processNoteAiJob(env, dataKey, job);
+        message.ack?.();
+      } catch (err) {
+        console.error('[noteAi] queue job failed', err?.message || err);
+        message.retry?.();
+      }
+    }
+  },
 };

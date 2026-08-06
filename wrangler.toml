@@ -19,5 +19,23 @@ binding = "DB"
 database_name = "task-manager-db"
 database_id = "ab97960a-23e8-4ee6-b2f2-9821d33450d6"
 
+# Vector search for board notes (create once):
+# npx wrangler vectorize create taskmanager-notes --dimensions=1024 --metric=cosine
+[[vectorize]]
+binding = "VECTORIZE"
+index_name = "taskmanager-notes"
+
+# Async note AI pipeline (create once):
+# npx wrangler queues create taskmanager-notes-ai
+[[queues.producers]]
+binding = "NOTES_AI_QUEUE"
+queue = "taskmanager-notes-ai"
+
+[[queues.consumers]]
+queue = "taskmanager-notes-ai"
+max_batch_size = 5
+max_batch_timeout = 3
+max_retries = 3
+
 # Secreto requerido en producción: clave AES-256 (32 bytes) en hex de 64 caracteres o Base64 estándar.
 # wrangler secret put DATA_ENCRYPTION_KEY

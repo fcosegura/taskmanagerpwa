@@ -1,9 +1,10 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, lazy, Suspense } from 'react';
 import { STATUS, normalizeStatuses } from './constants.js';
 import { uid, toDateStr, compareTasksForTaskList, parseDateTimeFromDescription, parseDescriptionDateResult, cleanDescriptionSegment, isJiraCategory, normalizeTicketNumber, applyTicketNumberToTaskName, inheritTicketFromParentTask, mergeTaskCompletionMeta } from './utils.jsx';
-import { loadData, saveData, validateBackupPayload, normalizeDataPayload, loginWithGoogleCredential, logoutSession, createProfile, deleteProfile, updateProfileStatuses, parseTaskWithAI, checkSession, generateTasksFromText, generateDailyStatus, fetchWorkspaceData, isMultiBackupPayload, validateMultiBackupPayload, normalizeMultiBackupPayload } from './storage.js';
+import { loadData, saveData, validateBackupPayload, normalizeDataPayload, loginWithGoogleCredential, logoutSession, createProfile, deleteProfile, updateProfileStatuses, parseTaskWithAI, checkSession, generateTasksFromText, generateDailyStatus, fetchWorkspaceData, isMultiBackupPayload, validateMultiBackupPayload, normalizeMultiBackupPayload, fetchNoteAiMeta, loadCachedNoteAiMeta, searchNotesSemantic, fetchRelatedNotes, dismissNoteAiSuggestionClient } from './storage.js';
 import { appendStatusLogEntry } from './statusLog.js';
 import { collectDailyStatusActivities } from './dailyStatusActivities.js';
+import { loadNoteAiPrefsFromStorage, saveNoteAiPrefsToStorage } from './noteAi/prefs.js';
 import BoardView from './components/BoardView.jsx';
 import TaskModal from './components/TaskModal.jsx';
 import TaskPreviewModal from './components/TaskPreviewModal.jsx';
@@ -170,6 +171,13 @@ export default function App() {
     return stored ? JSON.parse(stored) : ['high', 'critical'];
   });
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [noteAiPrefs, setNoteAiPrefs] = useState(() => loadNoteAiPrefsFromStorage());
+  const [noteAiMetaById, setNoteAiMetaById] = useState({});
+  const [selectedBoardNoteId, setSelectedBoardNoteId] = useState(null);
+  const [relatedNotesFetch, setRelatedNotesFetch] = useState(null);
+  const [noteSearchQuery, setNoteSearchQuery] = useState('');
+  const [noteSearchResults, setNoteSearchResults] = useState(null);
+  const [noteSearchBusy, setNoteSearchBusy] = useState(false);
   const [backupMessage, setBackupMessage] = useState('');
   const [syncState, setSyncState] = useState('idle');
   const [profiles, setProfiles] = useState([]);
@@ -1140,6 +1148,142 @@ export default function App() {
     });
   };
 
+  const handleConvertNoteSuggestionToTask = (note, suggestion) => {
+    const name = String(suggestion || '').trim();
+    if (!name) return;
+    const previousTasks = tasks;
+    const newTask = {
+      id: uid(),
+      name,
+      notes: note?.title ? `Desde nota: ${note.title}` : '',
+      status: 'not_done',
+      priority: 'medium',
+      date: '',
+      time: '',
+      subtasks: [],
+      dependencyTaskIds: [],
+      category: '',
+      ticketNumber: '',
+      completedAt: '',
+      hideInKanbanDone: false,
+    };
+    setTasks((prev) => [...prev, newTask]);
+    pushUndoTransaction({
+      description: `Tarea creada desde sugerencia "${name}"`,
+      rollbackFn: () => setTasks(previousTasks),
+    });
+    showToast('Tarea creada desde la sugerencia.', { type: 'success' });
+  };
+
+  const handleDismissNoteAiSuggestion = async (noteId, kind, value) => {
+    setNoteAiMetaById((prev) => {
+      const current = prev[noteId] || {};
+      const entry = `${kind}:${value}`;
+      const dismissed = [...new Set([...(current.dismissed || []), entry])];
+      return { ...prev, [noteId]: { ...current, dismissed } };
+    });
+    if (!authenticated || !activeProfileId) return;
+    try {
+      await dismissNoteAiSuggestionClient(noteId, kind, value, activeProfileId);
+    } catch {
+      // optimistic local dismiss is enough offline
+    }
+  };
+
+  useEffect(() => {
+    if (view !== 'board' || !activeProfileId || !authenticated) return undefined;
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const meta = await fetchNoteAiMeta(activeProfileId);
+        if (cancelled) return;
+        const map = {};
+        for (const item of meta) {
+          if (item?.noteId) map[item.noteId] = item;
+        }
+        setNoteAiMetaById(map);
+      } catch {
+        if (cancelled) return;
+        const cached = loadCachedNoteAiMeta(activeProfileId);
+        if (!cached.length) return;
+        const map = {};
+        for (const item of cached) {
+          if (item?.noteId) map[item.noteId] = item;
+        }
+        setNoteAiMetaById(map);
+      }
+    };
+    load();
+    const timer = setInterval(load, 8000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [view, activeProfileId, authenticated, boardNotes.length, syncState]);
+
+  useEffect(() => {
+    if (!selectedBoardNoteId || noteAiPrefs.related === false || !authenticated || !activeProfileId) {
+      return undefined;
+    }
+    let cancelled = false;
+    fetchRelatedNotes(selectedBoardNoteId, activeProfileId)
+      .then((data) => {
+        if (cancelled) return;
+        if (Array.isArray(data?.related)) {
+          setRelatedNotesFetch({ noteId: selectedBoardNoteId, related: data.related });
+        }
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [selectedBoardNoteId, authenticated, activeProfileId, noteAiPrefs.related]);
+
+  const relatedBoardNotes = useMemo(() => {
+    if (!selectedBoardNoteId || noteAiPrefs.related === false) return [];
+
+    const hydrateLocal = (ids) => ids
+      .map((id) => boardNotes.find((n) => n.id === id))
+      .filter(Boolean)
+      .map((n) => ({ noteId: n.id, title: n.title, text: n.text }));
+
+    const forward = noteAiMetaById[selectedBoardNoteId]?.relatedIds || [];
+    const reverse = [];
+    for (const [id, meta] of Object.entries(noteAiMetaById)) {
+      if (id === selectedBoardNoteId) continue;
+      if ((meta?.relatedIds || []).includes(selectedBoardNoteId)) reverse.push(id);
+    }
+    const localIds = [...new Set([...forward, ...reverse])];
+    const localRelated = hydrateLocal(localIds);
+
+    if (relatedNotesFetch?.noteId === selectedBoardNoteId) {
+      const apiRelated = Array.isArray(relatedNotesFetch.related) ? relatedNotesFetch.related : [];
+      if (apiRelated.length === 0) return localRelated;
+      const seen = new Set(apiRelated.map((r) => r.noteId));
+      const merged = [...apiRelated];
+      for (const item of localRelated) {
+        if (!seen.has(item.noteId)) merged.push(item);
+      }
+      return merged;
+    }
+    return localRelated;
+  }, [selectedBoardNoteId, noteAiPrefs.related, relatedNotesFetch, noteAiMetaById, boardNotes]);
+
+  const handleNoteSearchSubmit = async () => {
+    const q = noteSearchQuery.trim();
+    if (!q || !authenticated || !activeProfileId) {
+      if (!authenticated) showToast('Inicia sesión para usar la búsqueda semántica.', { type: 'info' });
+      return;
+    }
+    setNoteSearchBusy(true);
+    try {
+      const data = await searchNotesSemantic(q, activeProfileId, noteAiPrefs);
+      setNoteSearchResults(Array.isArray(data?.results) ? data.results : []);
+    } catch (err) {
+      showToast(err?.message || 'No se pudo buscar.', { type: 'error' });
+    } finally {
+      setNoteSearchBusy(false);
+    }
+  };
+
 
   const upsertEvent = (event) => {
     const cleanEvent = { ...event };
@@ -1923,7 +2067,26 @@ export default function App() {
                   statuses={statuses}
                   onOpenTaskPreview={(t) => setTaskPreviewId(t.id)}
                 />
-              : <BoardView notes={boardNotes} onAddNote={addBoardNote} onUpdateNote={updateBoardNote} onDeleteNote={deleteBoardNote} onConvertToTask={handleConvertNoteToTask} />
+              : <BoardView
+                  notes={boardNotes}
+                  noteAiMetaById={noteAiMetaById}
+                  noteAiPrefs={noteAiPrefs}
+                  relatedNotes={relatedBoardNotes}
+                  searchResults={noteSearchResults}
+                  searchQuery={noteSearchQuery}
+                  searchBusy={noteSearchBusy}
+                  onSearchChange={setNoteSearchQuery}
+                  onSearchSubmit={handleNoteSearchSubmit}
+                  onClearSearch={() => setNoteSearchResults(null)}
+                  selectedNoteId={selectedBoardNoteId}
+                  onSelectNote={setSelectedBoardNoteId}
+                  onAddNote={addBoardNote}
+                  onUpdateNote={updateBoardNote}
+                  onDeleteNote={deleteBoardNote}
+                  onConvertToTask={handleConvertNoteToTask}
+                  onConvertSuggestion={handleConvertNoteSuggestionToTask}
+                  onDismissSuggestion={handleDismissNoteAiSuggestion}
+                />
         }
         </Suspense>
       </main>
@@ -2006,6 +2169,11 @@ export default function App() {
           }}
           density={density}
           onToggleDensity={toggleDensity}
+          noteAiPrefs={noteAiPrefs}
+          onSaveNoteAiPrefs={(prefs) => {
+            const next = saveNoteAiPrefsToStorage(prefs);
+            setNoteAiPrefs(next);
+          }}
           onClose={() => setShowSettingsModal(false)}
         />
       )}

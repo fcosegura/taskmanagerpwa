@@ -470,6 +470,87 @@ export async function generateDailyStatus(days, activities, profileId = null) {
   };
 }
 
+const NOTE_AI_META_CACHE_PREFIX = 'taskmanager_note_ai_meta:';
+
+export function cacheNoteAiMetaLocal(profileId, metaList) {
+  if (!profileId) return;
+  try {
+    localStorage.setItem(
+      `${NOTE_AI_META_CACHE_PREFIX}${profileId}`,
+      JSON.stringify({ at: Date.now(), meta: Array.isArray(metaList) ? metaList : [] })
+    );
+  } catch {
+    // ignore
+  }
+}
+
+export function loadCachedNoteAiMeta(profileId) {
+  if (!profileId) return [];
+  try {
+    const raw = localStorage.getItem(`${NOTE_AI_META_CACHE_PREFIX}${profileId}`);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed?.meta) ? parsed.meta : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchNoteAiMeta(profileId) {
+  const query = profileId ? `?profileId=${encodeURIComponent(profileId)}` : '';
+  const resp = await fetch(`/api/notes/ai${query}`, { credentials: 'same-origin' });
+  if (!resp.ok) {
+    if (resp.status === 401) throw new Error('Sesión expirada');
+    throw new Error(`No se pudo cargar metadatos de notas (${resp.status}).`);
+  }
+  const data = await resp.json();
+  const meta = Array.isArray(data?.meta) ? data.meta : [];
+  cacheNoteAiMetaLocal(profileId, meta);
+  return meta;
+}
+
+export async function searchNotesSemantic(query, profileId, prefs) {
+  const resp = await fetch('/api/notes/search', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
+    body: JSON.stringify({ query, profileId, prefs }),
+  });
+  if (!resp.ok) {
+    let message = 'No se pudo buscar en las notas.';
+    try {
+      const data = await resp.json();
+      if (typeof data?.error === 'string') message = data.error;
+    } catch {
+      // keep default
+    }
+    if (resp.status === 429) message = message.includes('IA') ? message : 'Demasiadas solicitudes. Espera un momento.';
+    throw new Error(message);
+  }
+  return await resp.json();
+}
+
+export async function fetchRelatedNotes(noteId, profileId) {
+  const query = profileId ? `?profileId=${encodeURIComponent(profileId)}` : '';
+  const resp = await fetch(`/api/notes/${encodeURIComponent(noteId)}/related${query}`, {
+    credentials: 'same-origin',
+  });
+  if (!resp.ok) throw new Error('No se pudieron cargar notas relacionadas.');
+  return await resp.json();
+}
+
+export async function dismissNoteAiSuggestionClient(noteId, kind, value, profileId) {
+  const query = profileId ? `?profileId=${encodeURIComponent(profileId)}` : '';
+  const resp = await fetch(`/api/notes/ai/dismiss${query}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
+    body: JSON.stringify({ noteId, kind, value }),
+  });
+  if (!resp.ok) throw new Error('No se pudo descartar la sugerencia.');
+  return await resp.json();
+}
+
 export async function fetchWorkspaceData(profileId) {
   if (!profileId) throw new Error('profileId es requerido para fetchWorkspaceData.');
   const resp = await fetch(`/api/data?profileId=${encodeURIComponent(profileId)}`, { credentials: 'same-origin' });

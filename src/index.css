@@ -1592,6 +1592,28 @@ select:focus {
   background: #fff1d6 !important;
   border-color: #f6c66f !important;
   transform: rotate(-0.4deg);
+  overflow: hidden;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.board-note input,
+.board-note textarea {
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.board-related-panel,
+.board-related-panel * {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.board-related-panel button {
+  overflow: hidden;
 }
 
 [data-theme="dark"] .board-note {
