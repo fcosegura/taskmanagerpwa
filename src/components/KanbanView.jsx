@@ -437,6 +437,7 @@ export default function KanbanView({
               {statuses.map((status) => {
                 const checked = visibleStatuses.includes(status.v);
                 const onlyOne = checked && visibleStatuses.length <= 1;
+                const count = (groupedTasks[status.v] || []).length;
                 return (
                   <label key={status.v} className="kanban-column-toggle">
                     <input
@@ -445,7 +446,10 @@ export default function KanbanView({
                       disabled={onlyOne}
                       onChange={() => toggleColumnVisibility(status.v)}
                     />
-                    <span>{status.label}</span>
+                    <span className="kanban-column-toggle-label">{status.label}</span>
+                    <strong className="kanban-badge" aria-label={`${count} tareas`}>
+                      {count}
+                    </strong>
                   </label>
                 );
               })}

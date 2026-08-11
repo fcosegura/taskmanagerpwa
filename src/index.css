@@ -1245,7 +1245,18 @@ select:focus {
 .kanban-columns-menu .kanban-column-toggle input {
   width: 16px;
   height: 16px;
+  flex-shrink: 0;
   accent-color: var(--color-accent, #2563eb);
+}
+
+.kanban-columns-menu .kanban-column-toggle-label {
+  flex: 1;
+  min-width: 0;
+}
+
+.kanban-columns-menu .kanban-column-toggle .kanban-badge {
+  margin-left: auto;
+  flex-shrink: 0;
 }
 
 .kanban-grid {
