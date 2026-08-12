@@ -3,8 +3,17 @@ import { STATUS, PRIORITY } from '../constants.js';
 import { fmtDate, isCompletedAtWithinKanbanRange } from '../utils.jsx';
 import { isChildTask, shouldShowTaskInKanbanDoneColumn } from '../kanbanTaskVisibility.js';
 import { getHiddenKanbanTaskCount, getVisibleKanbanTasks, sortKanbanTasksByRecency } from '../kanbanTaskLimit.js';
+import {
+  applyVisibleOrderToFullOrder,
+  insertStatusUsingFullOrder,
+  kanbanColumnOrderStorageKey,
+  organizeKanbanColumnOrder,
+  readColumnOrderFromStorage,
+  writeJsonToStorage,
+} from '../kanbanColumnOrganize.js';
 import CopyTicketButton from './CopyTicketButton.jsx';
 import { CategoryPill } from './shared/index.jsx';
+import { IconButton } from './ui/index.jsx';
 import TaskTrashDropZone from './TaskTrashDropZone.jsx';
 
 const KANBAN_DONE_RANGE_OPTIONS = [
@@ -218,7 +227,12 @@ export default function KanbanView({
   statuses = STATUS,
 }) {
   const statusValues = useMemo(() => statuses.map((s) => s.v), [statuses]);
+  const columnOrderKey = useMemo(
+    () => kanbanColumnOrderStorageKey(kanbanColumnsStorageKey),
+    [kanbanColumnsStorageKey],
+  );
   const [visibleStatuses, setVisibleStatuses] = useState(() => readVisibleFromStorage(kanbanColumnsStorageKey, statusValues));
+  const [columnOrder, setColumnOrder] = useState(() => readColumnOrderFromStorage(columnOrderKey, statusValues));
 
   const [prevStatusValues, setPrevStatusValues] = useState(statusValues);
 
@@ -228,6 +242,12 @@ export default function KanbanView({
       const allowed = new Set(statusValues);
       const filtered = prev.filter((v) => allowed.has(v));
       const newStatuses = statusValues.filter((v) => !prev.includes(v));
+      return [...filtered, ...newStatuses];
+    });
+    setColumnOrder((prev) => {
+      const allowed = new Set(statusValues);
+      const filtered = prev.filter((v) => allowed.has(v));
+      const newStatuses = statusValues.filter((v) => !filtered.includes(v));
       return [...filtered, ...newStatuses];
     });
   }
@@ -282,23 +302,33 @@ export default function KanbanView({
     return () => window.removeEventListener('pointerdown', onPointerDown);
   }, [showColumnsMenu]);
 
+  const persistVisibleStatuses = (nextVisible) => {
+    setVisibleStatuses(nextVisible);
+    writeJsonToStorage(kanbanColumnsStorageKey, nextVisible);
+  };
+
+  const persistColumnOrder = (nextOrder) => {
+    setColumnOrder(nextOrder);
+    writeJsonToStorage(columnOrderKey, nextOrder);
+  };
+
+  const persistVisibleAndOrder = (nextVisible, nextOrder) => {
+    persistVisibleStatuses(nextVisible);
+    persistColumnOrder(nextOrder);
+  };
+
+  const reorderVisibleColumns = (nextVisible) => {
+    const nextOrder = applyVisibleOrderToFullOrder(columnOrder, nextVisible);
+    persistVisibleAndOrder(nextVisible, nextOrder);
+  };
+
   const toggleColumnVisibility = (statusV) => {
-    setVisibleStatuses((prev) => {
-      const has = prev.includes(statusV);
-      if (has && prev.length <= 1) return prev;
-      let next;
-      if (has) {
-        next = prev.filter((v) => v !== statusV);
-      } else {
-        next = [...prev, statusV];
-      }
-      try {
-        localStorage.setItem(kanbanColumnsStorageKey, JSON.stringify(next));
-      } catch {
-        // ignore quota / private mode
-      }
-      return next;
-    });
+    const has = visibleStatuses.includes(statusV);
+    if (has && visibleStatuses.length <= 1) return;
+    const next = has
+      ? visibleStatuses.filter((v) => v !== statusV)
+      : insertStatusUsingFullOrder(visibleStatuses, statusV, columnOrder);
+    persistVisibleStatuses(next);
   };
 
   const visibleColumns = useMemo(() => {
@@ -343,6 +373,17 @@ export default function KanbanView({
       return accumulator;
     }, {})
   ), [roleFilteredTasks, allTasks, doneRange, statuses]);
+
+  const organizeColumns = () => {
+    const countByStatus = Object.fromEntries(
+      statuses.map((status) => [status.v, (groupedTasks[status.v] || []).length]),
+    );
+    const fullOrder = organizeKanbanColumnOrder(statuses, countByStatus);
+    const visibleSet = new Set(visibleStatuses);
+    const nextVisible = fullOrder.filter((statusV) => visibleSet.has(statusV));
+    if (nextVisible.length === 0) return;
+    persistVisibleAndOrder(nextVisible, fullOrder);
+  };
 
   const handleDropOnColumn = (status, targetIndex = null) => {
     if (!draggedTaskId) return;
@@ -422,39 +463,53 @@ export default function KanbanView({
           onDeleteTask={onDeleteTask}
         />
 
-        <div className="actions-menu-wrap" ref={columnsMenuRef}>
-          <button
-            type="button"
-            className="ghost-button"
-            onClick={() => setShowColumnsMenu((open) => !open)}
-            aria-haspopup="menu"
-            aria-expanded={showColumnsMenu}
+        <div className="kanban-columns-controls">
+          <div className="actions-menu-wrap" ref={columnsMenuRef}>
+            <button
+              type="button"
+              className="ghost-button"
+              onClick={() => setShowColumnsMenu((open) => !open)}
+              aria-haspopup="menu"
+              aria-expanded={showColumnsMenu}
+            >
+              Columnas
+            </button>
+            {showColumnsMenu && (
+              <div className="header-actions-menu kanban-columns-menu" role="menu">
+                {statuses.map((status) => {
+                  const checked = visibleStatuses.includes(status.v);
+                  const onlyOne = checked && visibleStatuses.length <= 1;
+                  const count = (groupedTasks[status.v] || []).length;
+                  return (
+                    <label key={status.v} className="kanban-column-toggle">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        disabled={onlyOne}
+                        onChange={() => toggleColumnVisibility(status.v)}
+                      />
+                      <span className="kanban-column-toggle-label">{status.label}</span>
+                      <strong className="kanban-badge" aria-label={`${count} tareas`}>
+                        {count}
+                      </strong>
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+          <IconButton
+            label="Organizar columnas"
+            title="Organizar columnas"
+            className="kanban-organize-columns-btn"
+            onClick={organizeColumns}
           >
-            Columnas
-          </button>
-          {showColumnsMenu && (
-            <div className="header-actions-menu kanban-columns-menu" role="menu">
-              {statuses.map((status) => {
-                const checked = visibleStatuses.includes(status.v);
-                const onlyOne = checked && visibleStatuses.length <= 1;
-                const count = (groupedTasks[status.v] || []).length;
-                return (
-                  <label key={status.v} className="kanban-column-toggle">
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      disabled={onlyOne}
-                      onChange={() => toggleColumnVisibility(status.v)}
-                    />
-                    <span className="kanban-column-toggle-label">{status.label}</span>
-                    <strong className="kanban-badge" aria-label={`${count} tareas`}>
-                      {count}
-                    </strong>
-                  </label>
-                );
-              })}
-            </div>
-          )}
+            <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+              <rect x="1" y="2" width="4" height="12" rx="1" fill="currentColor" opacity="0.45" />
+              <rect x="6" y="2" width="4" height="12" rx="1" fill="currentColor" opacity="0.7" />
+              <rect x="11" y="2" width="4" height="12" rx="1" fill="currentColor" />
+            </svg>
+          </IconButton>
         </div>
       </div>
 
@@ -516,12 +571,7 @@ export default function KanbanView({
                     const next = [...visibleStatuses];
                     next.splice(fromIndex, 1);
                     next.splice(toIndex, 0, draggedColumnStatus);
-                    setVisibleStatuses(next);
-                    try {
-                      localStorage.setItem(kanbanColumnsStorageKey, JSON.stringify(next));
-                    } catch {
-                      // ignore
-                    }
+                    reorderVisibleColumns(next);
                   }
                   setDraggedColumnStatus(null);
                   setHoverColumnStatus(null);
@@ -556,12 +606,7 @@ export default function KanbanView({
                       const next = [...visibleStatuses];
                       next.splice(fromIndex, 1);
                       next.splice(toIndex, 0, draggedColumnStatus);
-                      setVisibleStatuses(next);
-                      try {
-                        localStorage.setItem(kanbanColumnsStorageKey, JSON.stringify(next));
-                      } catch {
-                        // ignore
-                      }
+                      reorderVisibleColumns(next);
                     }
                     setDraggedColumnStatus(null);
                     setHoverColumnStatus(null);
