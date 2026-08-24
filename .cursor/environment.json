@@ -1,0 +1,10 @@
+{
+  "name": "Task Manager PWA",
+  "install": "npm ci && npx playwright install --with-deps chromium",
+  "terminals": [
+    {
+      "name": "vite-dev",
+      "command": "npm run dev"
+    }
+  ]
+}
