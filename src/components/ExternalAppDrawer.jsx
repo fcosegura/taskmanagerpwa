@@ -4,6 +4,12 @@ import {
   isCreateNotebookSuccess,
   isVaultLockedError
 } from '../externalAppNotebookMessages.js';
+import {
+  clampDrawerWidth,
+  DEFAULT_DRAWER_WIDTH,
+  getMaxDrawerWidth,
+  MIN_DRAWER_WIDTH
+} from '../externalAppDrawerLayout.js';
 import './ExternalAppDrawer.css';
 
 export const MY_NOTEBOOK_URL = 'https://mynotebook.fcovidalsegura.workers.dev/';
@@ -12,10 +18,6 @@ const CREATE_NOTEBOOK_MESSAGE_TYPE = 'taskmanager:create-notebook';
 const CREATE_NOTEBOOK_RESULT_MESSAGE_TYPE = 'mynotebook:create-notebook:result';
 
 const NOTEBOOK_REQUEST_TIMEOUT_MS = 6000;
-
-const MIN_DRAWER_WIDTH = 320;
-const DEFAULT_DRAWER_WIDTH = 1280;
-const MAX_DRAWER_WIDTH = 1280;
 const WIDTH_STEP = 32;
 
 function buildRequestId() {
@@ -27,13 +29,12 @@ function buildRequestId() {
 
 function clampWidth(width) {
   if (typeof window === 'undefined') return width;
-  const viewportWidth = window.innerWidth || DEFAULT_DRAWER_WIDTH;
-  const maxWidth = Math.max(MIN_DRAWER_WIDTH, Math.min(MAX_DRAWER_WIDTH, Math.floor(viewportWidth * 0.96)));
-  return Math.min(Math.max(width, MIN_DRAWER_WIDTH), maxWidth);
+  return clampDrawerWidth(width, window.innerWidth);
 }
 
 export default function ExternalAppDrawer({ isOpen, onClose }) {
   const [drawerWidth, setDrawerWidth] = useState(DEFAULT_DRAWER_WIDTH);
+  const [maxDrawerWidth, setMaxDrawerWidth] = useState(DEFAULT_DRAWER_WIDTH);
   const [notebookTitle, setNotebookTitle] = useState('');
   const [notebookRequest, setNotebookRequest] = useState({ status: 'idle', message: '' });
   const iframeRef = useRef(null);
@@ -71,7 +72,10 @@ export default function ExternalAppDrawer({ isOpen, onClose }) {
   useEffect(() => {
     if (!isOpen) return undefined;
 
-    const handleResize = () => setDrawerWidth((width) => clampWidth(width));
+    const handleResize = () => {
+      setMaxDrawerWidth(getMaxDrawerWidth(window.innerWidth));
+      setDrawerWidth((width) => clampWidth(width));
+    };
     window.addEventListener('resize', handleResize);
     handleResize();
 
@@ -195,7 +199,7 @@ export default function ExternalAppDrawer({ isOpen, onClose }) {
           className="external-app-resize-handle"
           aria-label="Redimensionar panel de MyNotebook"
           aria-valuemin={MIN_DRAWER_WIDTH}
-          aria-valuemax={MAX_DRAWER_WIDTH}
+          aria-valuemax={maxDrawerWidth}
           aria-valuenow={drawerWidth}
           tabIndex={isOpen ? 0 : -1}
           onPointerDown={isOpen ? startResize : undefined}
