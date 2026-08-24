@@ -1,4 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
+import {
+  getCreateNotebookErrorDetails,
+  isCreateNotebookSuccess,
+  isVaultLockedError
+} from '../externalAppNotebookMessages.js';
 import './ExternalAppDrawer.css';
 
 export const MY_NOTEBOOK_URL = 'https://mynotebook.fcovidalsegura.workers.dev/';
@@ -89,16 +94,17 @@ export default function ExternalAppDrawer({ isOpen, onClose }) {
       }
       pendingRequestIdRef.current = null;
 
-      if (data.success) {
+      if (isCreateNotebookSuccess(data)) {
         setNotebookTitle('');
-        setNotebookRequest({ status: 'success', message: data.message || 'Libreta creada en MyNotebook.' });
+        setNotebookRequest({ status: 'success', message: data.message || 'Espacio creado en MyNotebook.' });
         return;
       }
 
+      const { code, message } = getCreateNotebookErrorDetails(data);
       const lockedMessage = 'MyNotebook no está desbloqueada. Desbloquéala en el panel e inténtalo de nuevo.';
       setNotebookRequest({
         status: 'error',
-        message: data.error === 'locked' ? lockedMessage : (data.message || 'No se pudo crear la libreta en MyNotebook.')
+        message: isVaultLockedError(code) ? lockedMessage : (message || 'No se pudo crear el espacio en MyNotebook.')
       });
     };
 
@@ -130,7 +136,7 @@ export default function ExternalAppDrawer({ isOpen, onClose }) {
 
     const title = notebookTitle.trim();
     if (!title) {
-      setNotebookRequest({ status: 'error', message: 'Escribe un nombre para la libreta.' });
+      setNotebookRequest({ status: 'error', message: 'Escribe un nombre para el espacio.' });
       return;
     }
 
@@ -158,7 +164,7 @@ export default function ExternalAppDrawer({ isOpen, onClose }) {
       requestId,
       payload: { title }
     }, MY_NOTEBOOK_ORIGIN);
-    setNotebookRequest({ status: 'pending', message: 'Solicitando creación en MyNotebook...' });
+    setNotebookRequest({ status: 'pending', message: 'Solicitando creación del espacio en MyNotebook...' });
   };
 
   const handleResizeKeyDown = (event) => {
@@ -201,14 +207,14 @@ export default function ExternalAppDrawer({ isOpen, onClose }) {
             <h2>MyNotebook</h2>
           </div>
           <form className="external-app-create-form" onSubmit={createNotebook}>
-            <label className="external-app-create-label" htmlFor="mynotebook-title">Crear libreta</label>
+            <label className="external-app-create-label" htmlFor="mynotebook-title">Crear espacio</label>
             <div className="external-app-create-row">
               <input
                 id="mynotebook-title"
                 type="text"
                 value={notebookTitle}
                 onChange={(event) => setNotebookTitle(event.target.value)}
-                placeholder="Nombre de la libreta"
+                placeholder="Nombre del espacio"
                 maxLength={120}
                 disabled={!isOpen || notebookRequest.status === 'pending'}
               />
