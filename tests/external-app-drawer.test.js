@@ -1,10 +1,34 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import {
+  getCreateNotebookErrorDetails,
+  isCreateNotebookSuccess,
+  isVaultLockedError
+} from '../src/externalAppNotebookMessages.js';
 
 const drawerSource = readFileSync(new URL('../src/components/ExternalAppDrawer.jsx', import.meta.url), 'utf8');
 const appSource = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
 const bottomNavSource = readFileSync(new URL('../src/components/BottomNav.jsx', import.meta.url), 'utf8');
+
+test('ExternalAppDrawer interprets MyNotebook create-space result protocol', () => {
+  assert.equal(isCreateNotebookSuccess({ ok: true }), true);
+  assert.equal(isCreateNotebookSuccess({ success: true }), true);
+  assert.equal(isCreateNotebookSuccess({ ok: false }), false);
+
+  assert.deepEqual(getCreateNotebookErrorDetails({
+    error: { code: 'vault-locked', message: 'Desbloquea MyNotebook.' }
+  }), { code: 'vault-locked', message: 'Desbloquea MyNotebook.' });
+
+  assert.deepEqual(getCreateNotebookErrorDetails({
+    error: 'locked',
+    message: 'Legacy locked message'
+  }), { code: 'locked', message: 'Legacy locked message' });
+
+  assert.equal(isVaultLockedError('vault-locked'), true);
+  assert.equal(isVaultLockedError('locked'), true);
+  assert.equal(isVaultLockedError('create-failed'), false);
+});
 
 test('ExternalAppDrawer embeds MyNotebook in an iframe', () => {
   assert.match(drawerSource, /MY_NOTEBOOK_URL = 'https:\/\/mynotebook\.fcovidalsegura\.workers\.dev\/'/);
@@ -19,6 +43,7 @@ test('ExternalAppDrawer can request notebook creation through a trusted postMess
   assert.match(drawerSource, /const iframeRef = useRef\(null\)/);
   assert.match(drawerSource, /targetWindow\.postMessage\(\{[\s\S]*type: CREATE_NOTEBOOK_MESSAGE_TYPE[\s\S]*payload: \{ title \}[\s\S]*\}, MY_NOTEBOOK_ORIGIN\)/);
   assert.match(drawerSource, /event\.origin !== MY_NOTEBOOK_ORIGIN/);
+  assert.match(drawerSource, /from '\.\.\/externalAppNotebookMessages\.js'/);
   assert.doesNotMatch(drawerSource, /postMessage\([\s\S]*, ['"]\*['"]\)/);
 });
 
