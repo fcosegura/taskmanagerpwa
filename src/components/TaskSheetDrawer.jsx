@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { STATUS, PRIORITY } from '../constants.js';
-import { isJiraCategory, extractJiraTicketFromUrl, getJiraTaskDefaultsFromUrl } from '../jiraTicket.js';
+import { isJiraCategory, applyJiraAutofillFromUrl } from '../jiraTicket.js';
 import { useModalDialog } from '../hooks/useModalDialog.js';
 import { IconButton } from './ui/index.jsx';
 
@@ -45,14 +45,7 @@ export default function TaskSheetDrawer({
     setForm((prev) => {
       const next = { ...prev, [field]: value };
       if (field === 'url' && value) {
-        const ticketFromUrl = extractJiraTicketFromUrl(value);
-        if (ticketFromUrl && !next.ticketNumber) {
-          next.ticketNumber = ticketFromUrl;
-        }
-        const jiraDefaults = getJiraTaskDefaultsFromUrl(value);
-        if (jiraDefaults && !next.category) {
-          next.category = jiraDefaults.category;
-        }
+        return applyJiraAutofillFromUrl(next, value);
       }
       return next;
     });

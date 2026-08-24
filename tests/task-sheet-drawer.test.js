@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import { test, describe } from 'node:test';
+import { readFileSync } from 'node:fs';
 import { STATUS, PRIORITY } from '../src/constants.js';
+
+const taskSheetDrawerSource = readFileSync(new URL('../src/components/TaskSheetDrawer.jsx', import.meta.url), 'utf8');
 
 describe('TaskSheetDrawer data model preservation & options', () => {
   test('constants.js defines valid PRIORITY and STATUS arrays with value and label', () => {
@@ -25,6 +28,10 @@ describe('TaskSheetDrawer data model preservation & options', () => {
       STATUS.map((s) => s.label),
       ['Sin iniciar', 'En progreso', 'En pausa', 'Bloqueado', 'Completado']
     );
+  });
+
+  test('TaskSheetDrawer applies Jira autofill helper when URL changes', () => {
+    assert.match(taskSheetDrawerSource, /applyJiraAutofillFromUrl\(next, value\)/);
   });
 
   test('payload creation preserves all task metadata, id, date, time, subtasks, ticketNumber, and url', () => {
