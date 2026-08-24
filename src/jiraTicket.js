@@ -30,6 +30,28 @@ export function getJiraTaskDefaultsFromUrl(url) {
   };
 }
 
+export function applyJiraAutofillFromUrl(form, url) {
+  if (typeof url !== 'string' || !url.trim()) return form;
+
+  const next = { ...form };
+  const ticketFromUrl = extractJiraTicketFromUrl(url);
+  if (ticketFromUrl && !normalizeTicketNumber(next.ticketNumber || '')) {
+    next.ticketNumber = ticketFromUrl;
+  }
+
+  const jiraDefaults = getJiraTaskDefaultsFromUrl(url);
+  if (!jiraDefaults) return next;
+
+  if (!next.category) {
+    next.category = jiraDefaults.category;
+  }
+  if ((next.priority || 'medium') === 'medium') {
+    next.priority = jiraDefaults.priority;
+  }
+
+  return next;
+}
+
 export function applyTicketNumberToTaskName(name, ticketNumber) {
   const cleanName = typeof name === 'string' ? name.trim() : '';
   const cleanTicket = normalizeTicketNumber(ticketNumber);

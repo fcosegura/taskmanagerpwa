@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  applyJiraAutofillFromUrl,
   applyTicketNumberToTaskName,
   extractJiraTicketFromUrl,
   getJiraTaskDefaultsFromUrl,
@@ -54,4 +55,31 @@ test('getJiraTaskDefaultsFromUrl returns Jira Task defaults for MAPP tickets', (
     { category: 'Jira Task', priority: 'high' }
   );
   assert.equal(getJiraTaskDefaultsFromUrl('https://betssongroup.atlassian.net/browse/OTHER-1'), null);
+});
+
+test('applyJiraAutofillFromUrl fills ticket, category and priority for MAPP browse URLs', () => {
+  const url = 'https://betssongroup.atlassian.net/browse/MAPP-17394';
+  const result = applyJiraAutofillFromUrl(
+    { name: 'Nueva tarea', priority: 'medium', category: '', ticketNumber: '', url: '' },
+    url
+  );
+
+  assert.deepEqual(result, {
+    name: 'Nueva tarea',
+    priority: 'high',
+    category: 'Jira Task',
+    ticketNumber: 'MAPP-17394',
+    url: '',
+  });
+});
+
+test('applyJiraAutofillFromUrl keeps an explicit non-medium priority', () => {
+  const url = 'https://betssongroup.atlassian.net/browse/MAPP-17394';
+  const result = applyJiraAutofillFromUrl(
+    { priority: 'critical', category: '', ticketNumber: '' },
+    url
+  );
+
+  assert.equal(result.priority, 'critical');
+  assert.equal(result.category, 'Jira Task');
 });
