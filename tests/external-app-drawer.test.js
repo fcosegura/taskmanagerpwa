@@ -6,6 +6,13 @@ import {
   isCreateNotebookSuccess,
   isVaultLockedError
 } from '../src/externalAppNotebookMessages.js';
+import {
+  clampDrawerWidth,
+  DEFAULT_DRAWER_WIDTH,
+  getMaxDrawerWidth,
+  MAX_DRAWER_WIDTH_RATIO,
+  MIN_DRAWER_WIDTH
+} from '../src/externalAppDrawerLayout.js';
 
 const drawerSource = readFileSync(new URL('../src/components/ExternalAppDrawer.jsx', import.meta.url), 'utf8');
 const appSource = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
@@ -53,13 +60,20 @@ test('ExternalAppDrawer supports click-outside and Escape close interactions', (
   assert.match(drawerSource, /onClose\(\)/);
 });
 
-test('ExternalAppDrawer exposes horizontal resizing with min and max bounds', () => {
-  assert.match(drawerSource, /const MIN_DRAWER_WIDTH = 320/);
-  assert.match(drawerSource, /const DEFAULT_DRAWER_WIDTH = 1280/);
+test('ExternalAppDrawer exposes horizontal resizing with min and viewport-based max bounds', () => {
   assert.match(drawerSource, /pointermove/);
   assert.match(drawerSource, /window\.innerWidth - moveEvent\.clientX/);
-  assert.match(drawerSource, /const MAX_DRAWER_WIDTH = 1280/);
-  assert.match(drawerSource, /Math\.min\(MAX_DRAWER_WIDTH, Math\.floor\(viewportWidth \* 0\.96\)\)/);
+  assert.match(drawerSource, /from '\.\.\/externalAppDrawerLayout\.js'/);
+  assert.match(drawerSource, /aria-valuemax=\{maxDrawerWidth\}/);
+  assert.doesNotMatch(drawerSource, /const MAX_DRAWER_WIDTH = 1280/);
+
+  assert.equal(MIN_DRAWER_WIDTH, 320);
+  assert.equal(DEFAULT_DRAWER_WIDTH, 1280);
+  assert.equal(MAX_DRAWER_WIDTH_RATIO, 0.96);
+  assert.equal(getMaxDrawerWidth(1920), 1843);
+  assert.equal(getMaxDrawerWidth(2560), 2457);
+  assert.equal(clampDrawerWidth(3000, 2560), 2457);
+  assert.equal(clampDrawerWidth(900, 2560), 900);
 });
 
 test('App and BottomNav expose a Notebook action without changing the current view', () => {
