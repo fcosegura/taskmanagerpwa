@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { STATUS, normalizeStatuses } from '../constants.js';
-import { getDisplayDescription } from '../todayViewHelpers.js';
+import { getDisplayDescription, normalizeTaskUrl, formatTaskUrlLabel } from '../todayViewHelpers.js';
 import { recommendNextFocusTask } from '../focusRecommendation.js';
 
 export default function TodayView({
@@ -102,6 +102,26 @@ export default function TodayView({
   const recommendationReason = recommendation.reason;
   const displayDescription = useMemo(() => getDisplayDescription(nextRecommendedTask), [nextRecommendedTask]);
 
+  const renderTaskUrlLink = (task) => {
+    const href = normalizeTaskUrl(task?.url);
+    if (!href) return null;
+    const label = formatTaskUrlLabel(task.url);
+    return (
+      <a
+        href={href}
+        target="_blank"
+        rel="noreferrer"
+        className="task-url-link-pill"
+        title={href}
+        aria-label={`Abrir enlace: ${label}`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <span aria-hidden="true">🔗</span>
+        <span className="task-url-link-label">{label}</span>
+      </a>
+    );
+  };
+
   return (
     <div className="today-view-container fade-in">
       {/* Welcome & Productivity Overview */}
@@ -159,6 +179,7 @@ export default function TodayView({
                 {nextRecommendedTask.time && (
                   <span className="time-pill"><span aria-hidden="true">⏰ </span>{nextRecommendedTask.time}</span>
                 )}
+                {renderTaskUrlLink(nextRecommendedTask)}
               </div>
             </div>
 
@@ -256,6 +277,7 @@ export default function TodayView({
                         )}
                         {task.category && <span className="category-pill">{task.category}</span>}
                         {task.time && <span className="time-pill"><span aria-hidden="true">⏰ </span>{task.time}</span>}
+                        {renderTaskUrlLink(task)}
                       </span>
                     </button>
                   </div>
@@ -298,6 +320,7 @@ export default function TodayView({
                             </span>
                           )}
                           <span className="overdue-tag">Venció {task.date}</span>
+                          {renderTaskUrlLink(task)}
                         </span>
                       </button>
                     </div>

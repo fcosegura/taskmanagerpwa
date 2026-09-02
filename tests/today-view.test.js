@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test, describe } from 'node:test';
-import { getDisplayDescription } from '../src/todayViewHelpers.js';
+import { getDisplayDescription, normalizeTaskUrl, formatTaskUrlLabel } from '../src/todayViewHelpers.js';
 
 describe('TodayView task and event classification', () => {
   const todayStr = '2026-07-31';
@@ -80,6 +80,20 @@ describe('TodayView task and event classification', () => {
       assert.strictEqual(getDisplayDescription(null), '');
       assert.strictEqual(getDisplayDescription({ id: 't3' }), '');
       assert.strictEqual(getDisplayDescription({ id: 't4', notes: '   ' }), '');
+    });
+  });
+
+  describe('task URL helpers', () => {
+    test('normalizeTaskUrl adds https when missing and trims whitespace', () => {
+      assert.strictEqual(normalizeTaskUrl('  jira.example.com/browse/ABC-1  '), 'https://jira.example.com/browse/ABC-1');
+      assert.strictEqual(normalizeTaskUrl('https://docs.google.com/doc'), 'https://docs.google.com/doc');
+      assert.strictEqual(normalizeTaskUrl(''), '');
+      assert.strictEqual(normalizeTaskUrl(null), '');
+    });
+
+    test('formatTaskUrlLabel shows hostname without www', () => {
+      assert.strictEqual(formatTaskUrlLabel('https://www.jira.example.com/browse/ABC-1'), 'jira.example.com');
+      assert.strictEqual(formatTaskUrlLabel('docs.google.com/doc'), 'docs.google.com');
     });
   });
 });
