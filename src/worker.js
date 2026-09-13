@@ -106,7 +106,36 @@ function clearSessionCookie(request) {
   return isLocalRequest(request) ? localCookie : secureCookie;
 }
 
-async function ensureSecuritySchema(env) {
+const SCHEMA_CACHE_TTL_MS = 5 * 60 * 1000;
+
+/**
+ * Evita ejecutar las migraciones (decenas de DDL) en cada request, que dispara
+ * la carga sobre D1 (causa probable de 503 intermitentes). Revalida cada TTL.
+ */
+function createSchemaCache(runner) {
+  let cached = null;
+  return async function ensureSchema(env) {
+    const now = Date.now();
+    if (cached && now - cached.at < SCHEMA_CACHE_TTL_MS) {
+      return cached.value;
+    }
+    const entry = { at: now, value: null };
+    entry.value = (async () => {
+      const value = await runner(env);
+      entry.at = Date.now();
+      return value;
+    })();
+    cached = entry;
+    try {
+      return await entry.value;
+    } catch (error) {
+      if (cached === entry) cached = null;
+      throw error;
+    }
+  };
+}
+
+const ensureSecuritySchema = createSchemaCache(async (env) => {
   const safeExec = async (statement) => {
     try {
       await env.DB.prepare(statement).run();
@@ -122,7 +151,7 @@ async function ensureSecuritySchema(env) {
   await safeExec(
     'CREATE TABLE IF NOT EXISTS ai_rate_limits (user_id TEXT PRIMARY KEY, window_start INTEGER NOT NULL, request_count INTEGER NOT NULL DEFAULT 0)'
   );
-}
+});
 
 function countSyncEntities(normalizedBody) {
   if (normalizedBody.mode === 'payload') {
@@ -637,7 +666,7 @@ async function prepareEventUpsert(env, dataKey, profileId, userId, event) {
   );
 }
 
-async function ensureProfilesSchema(env) {
+const ensureProfilesSchema = createSchemaCache(async (env) => {
   const safeExec = async (statement, ...bindings) => {
     try {
       await env.DB.prepare(statement).bind(...bindings).run();
@@ -710,7 +739,7 @@ async function ensureProfilesSchema(env) {
     hasStatusLog: taskColumns.includes('status_log'),
     hasEndDate: taskColumns.includes('end_date')
   };
-}
+});
 
 async function ensureDefaultProfile(env, userId, dataKey) {
   const defaultProfileId = `${userId}:work`;

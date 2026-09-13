@@ -4,6 +4,42 @@ import { isValidStatusLogEntry, normalizeStatusLog } from './statusLog.js';
 
 const lastCloudSnapshotByProfile = new Map();
 
+const TRANSIENT_READ_STATUSES = new Set([502, 503, 504]);
+const CLOUD_READ_MAX_ATTEMPTS = 3;
+const CLOUD_READ_RETRY_BASE_DELAY_MS = 500;
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * GET idempotentes contra la nube: reintenta errores transitorios (502/503/504)
+ * antes de rendirse, para no alarmar al usuario por caídas momentáneas de D1.
+ */
+export async function fetchCloudReadWithRetry(url, init = {}, retry = {}) {
+  const attempts = Number.isFinite(retry.attempts) ? retry.attempts : CLOUD_READ_MAX_ATTEMPTS;
+  const baseDelayMs = Number.isFinite(retry.baseDelayMs) ? retry.baseDelayMs : CLOUD_READ_RETRY_BASE_DELAY_MS;
+  const wait = typeof retry.wait === 'function' ? retry.wait : delay;
+  const fetchImpl = typeof retry.fetchImpl === 'function' ? retry.fetchImpl : fetch;
+  let lastError = null;
+
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      const resp = await fetchImpl(url, init);
+      if (!TRANSIENT_READ_STATUSES.has(resp?.status) || attempt === attempts) {
+        return resp;
+      }
+    } catch (error) {
+      lastError = error;
+      if (attempt === attempts) throw error;
+    }
+    await wait(baseDelayMs * attempt);
+  }
+
+  if (lastError) throw lastError;
+  throw new Error('Cloud read failed');
+}
+
 function clonePayload(payload) {
   try {
     return JSON.parse(JSON.stringify({
@@ -618,7 +654,7 @@ export async function chatNotesRag(question, profileId, prefs) {
 
 export async function fetchWorkspaceData(profileId) {
   if (!profileId) throw new Error('profileId es requerido para fetchWorkspaceData.');
-  const resp = await fetch(`/api/data?profileId=${encodeURIComponent(profileId)}`, { credentials: 'same-origin' });
+  const resp = await fetchCloudReadWithRetry(`/api/data?profileId=${encodeURIComponent(profileId)}`, { credentials: 'same-origin' });
   if (!resp.ok) {
     throw new Error(`No se pudo leer el workspace (${resp.status}).`);
   }
@@ -644,7 +680,7 @@ export async function loadData(profileId = null) {
 
   try {
     const query = profileId ? `?profileId=${encodeURIComponent(profileId)}` : '';
-    const resp = await fetch(`/api/data${query}`, { credentials: 'same-origin' });
+    const resp = await fetchCloudReadWithRetry(`/api/data${query}`, { credentials: 'same-origin' });
     if (resp.ok) {
       const cloudData = await resp.json();
       const safeCloudData = normalizeDataPayload(cloudData);
@@ -680,6 +716,9 @@ export async function loadData(profileId = null) {
       if (typeof data?.error === 'string') cloudError = data.error;
     } catch {
       // ignore non-json body
+    }
+    if (cloudError === `Cloud sync read failed (${resp.status})` && TRANSIENT_READ_STATUSES.has(resp.status)) {
+      cloudError = 'la nube no está disponible temporalmente. Sigues trabajando en local y se reintentará automáticamente.';
     }
     return { ...localData, authenticated: true, profiles: null, activeProfileId: profileId, cloudError };
   } catch (e) {

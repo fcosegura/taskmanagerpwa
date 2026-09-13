@@ -59,7 +59,15 @@ async function vectorIdForNote(userId, profileId, noteId) {
   return hex.slice(0, 32);
 }
 
+const SCHEMA_CACHE_TTL_MS = 5 * 60 * 1000;
+
+let noteAiSchemaCache = null;
+
 export async function ensureNoteAiSchema(env) {
+  const now = Date.now();
+  if (noteAiSchemaCache && now - noteAiSchemaCache.at < SCHEMA_CACHE_TTL_MS) {
+    return;
+  }
   const safeExec = async (statement) => {
     try {
       await env.DB.prepare(statement).run();
@@ -89,6 +97,7 @@ export async function ensureNoteAiSchema(env) {
   await safeExec('CREATE INDEX IF NOT EXISTS idx_note_ai_meta_user_profile ON note_ai_meta(user_id, profile_id)');
   await safeExec('CREATE INDEX IF NOT EXISTS idx_note_ai_meta_status ON note_ai_meta(user_id, profile_id, status)');
   await safeExec('ALTER TABLE note_ai_meta ADD COLUMN vector_schema INTEGER DEFAULT 0');
+  noteAiSchemaCache = { at: Date.now() };
 }
 
 function scopedNoteId(profileId, noteId) {

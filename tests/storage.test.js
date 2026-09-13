@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { isValidTask, normalizeDataPayload, fetchWorkspaceData } from '../src/storage.js';
+import { isValidTask, normalizeDataPayload, fetchWorkspaceData, fetchCloudReadWithRetry } from '../src/storage.js';
 
 test('isValidTask validates standard task', () => {
   const task = {
@@ -198,4 +198,50 @@ test('fetchWorkspaceData lanza error si la respuesta no es ok', async () => {
       await assert.rejects(() => fetchWorkspaceData('p1'), /No se pudo leer el workspace/);
     }
   );
+});
+
+test('fetchCloudReadWithRetry no reintenta respuestas no transitorias', async () => {
+  let calls = 0;
+  const fetchImpl = async () => {
+    calls += 1;
+    return { ok: false, status: 500 };
+  };
+  const resp = await fetchCloudReadWithRetry('/api/data', {}, { fetchImpl, wait: async () => {} });
+  assert.equal(resp.status, 500);
+  assert.equal(calls, 1);
+});
+
+test('fetchCloudReadWithRetry reintenta un 503 transitorio y devuelve el éxito', async () => {
+  let calls = 0;
+  const fetchImpl = async () => {
+    calls += 1;
+    return calls < 3 ? { ok: false, status: 503 } : { ok: true, status: 200 };
+  };
+  const resp = await fetchCloudReadWithRetry('/api/data', {}, { fetchImpl, wait: async () => {} });
+  assert.equal(resp.status, 200);
+  assert.equal(calls, 3);
+});
+
+test('fetchCloudReadWithRetry devuelve el último 503 tras agotar los intentos', async () => {
+  let calls = 0;
+  const fetchImpl = async () => {
+    calls += 1;
+    return { ok: false, status: 503 };
+  };
+  const resp = await fetchCloudReadWithRetry('/api/data', {}, { fetchImpl, wait: async () => {} });
+  assert.equal(resp.status, 503);
+  assert.equal(calls, 3);
+});
+
+test('fetchCloudReadWithRetry reintenta errores de red y propaga el último', async () => {
+  let calls = 0;
+  const fetchImpl = async () => {
+    calls += 1;
+    throw new Error('network down');
+  };
+  await assert.rejects(
+    () => fetchCloudReadWithRetry('/api/data', {}, { fetchImpl, wait: async () => {} }),
+    /network down/
+  );
+  assert.equal(calls, 3);
 });
