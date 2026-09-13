@@ -42,27 +42,43 @@ describe('TaskSheetDrawer data model preservation & options', () => {
     assert.doesNotMatch(taskSheetDrawerSource, /handleRemoveSubtask/);
   });
 
-  test('TaskSheetDrawer uses pendingChildTitles and unlinkedChildIds state', () => {
-    assert.match(taskSheetDrawerSource, /pendingChildTitles/);
-    assert.match(taskSheetDrawerSource, /unlinkedChildIds/);
-    assert.match(taskSheetDrawerSource, /handleAddPendingChild/);
-    assert.match(taskSheetDrawerSource, /handleUnlinkChild/);
+  test('TaskSheetDrawer no longer manages pending child titles or unlinked child ids', () => {
+    assert.doesNotMatch(taskSheetDrawerSource, /newChildTitle/);
+    assert.doesNotMatch(taskSheetDrawerSource, /pendingChildTitles/);
+    assert.doesNotMatch(taskSheetDrawerSource, /unlinkedChildIds/);
+    assert.doesNotMatch(taskSheetDrawerSource, /handleAddPendingChild/);
+    assert.doesNotMatch(taskSheetDrawerSource, /handleRemovePendingChild/);
+    assert.doesNotMatch(taskSheetDrawerSource, /handleUnlinkChild/);
   });
 
-  test('TaskSheetDrawer displays existing children from dependencyTaskIds via allTasks', () => {
+  test('TaskSheetDrawer selects existing child tasks via dependencyTaskIds checkboxes', () => {
     assert.match(taskSheetDrawerSource, /allTasks/);
-    assert.match(taskSheetDrawerSource, /existingChildren/);
+    assert.match(taskSheetDrawerSource, /availableChildTasks/);
     assert.match(taskSheetDrawerSource, /form\.dependencyTaskIds/);
+    assert.match(taskSheetDrawerSource, /toggleChildTask/);
+    assert.match(taskSheetDrawerSource, /type="checkbox"/);
   });
 
-  test('TaskSheetDrawer preserves legacy subtasks as read-only', () => {
-    assert.match(taskSheetDrawerSource, /legacySubtasks/);
-    assert.match(taskSheetDrawerSource, /legacy-subtasks/);
-    assert.match(taskSheetDrawerSource, /Solo lectura/);
+  test('TaskSheetDrawer excludes done tasks and parent tasks from candidates', () => {
+    assert.match(taskSheetDrawerSource, /candidate\.status !== 'done'/);
+    assert.match(taskSheetDrawerSource, /parentTasks/);
   });
 
-  test('TaskSheetDrawer payload includes pendingChildTitles and unlinkedChildIds', () => {
-    assert.match(taskSheetDrawerSource, /onSave\(\{[\s\S]*?taskPayload[\s\S]*?pendingChildTitles[\s\S]*?unlinkedChildIds/);
+  test('TaskSheetDrawer no longer renders legacy subtasks as read-only', () => {
+    assert.doesNotMatch(taskSheetDrawerSource, /legacySubtasks/);
+    assert.doesNotMatch(taskSheetDrawerSource, /legacy-subtasks/);
+    assert.doesNotMatch(taskSheetDrawerSource, /Sub-tareas legacy/);
+    assert.doesNotMatch(taskSheetDrawerSource, /Solo lectura/);
+  });
+
+  test('TaskSheetDrawer no longer states that children will be created on save', () => {
+    assert.doesNotMatch(taskSheetDrawerSource, /se crearán al guardar/);
+    assert.match(taskSheetDrawerSource, /Elige tareas ya creadas/);
+  });
+
+  test('TaskSheetDrawer payload only carries the task payload', () => {
+    assert.match(taskSheetDrawerSource, /onSave\(\{\s*taskPayload:\s*payload\s*\}\)/);
+    assert.doesNotMatch(taskSheetDrawerSource, /onSave\(\{[\s\S]*?pendingChildTitles/);
   });
 });
 
@@ -71,22 +87,23 @@ describe('handleTaskSheetSave in App.jsx', () => {
     assert.match(appSource, /const handleTaskSheetSave/);
   });
 
-  test('handleTaskSheetSave creates child tasks from pendingChildTitles', () => {
-    assert.match(appSource, /pendingChildTitles[\s\S]*?\.map/);
-    assert.match(appSource, /newChildren/);
+  test('handleTaskSheetSave no longer creates child tasks from pending titles', () => {
+    assert.doesNotMatch(appSource, /pendingChildTitles/);
+    assert.doesNotMatch(appSource, /newChildren/);
+    assert.doesNotMatch(appSource, /newChildIds/);
+    assert.doesNotMatch(appSource, /finalChildIds/);
+    assert.doesNotMatch(appSource, /unlinkedChildIds/);
   });
 
-  test('handleTaskSheetSave updates parent dependencyTaskIds with new child IDs', () => {
-    assert.match(appSource, /newChildIds/);
-    assert.match(appSource, /finalChildIds/);
+  test('handleTaskSheetSave normalizes and saves dependencyTaskIds directly', () => {
+    assert.match(appSource, /const dependencyTaskIds = Array\.isArray\(normalizedParent\.dependencyTaskIds\)/);
+    assert.match(appSource, /normalizedParentWithId = \{ \.\.\.normalizedParent, id: parentId, dependencyTaskIds \}/);
+    assert.match(appSource, /applyTaskUpdate\(parentForSave\)/);
   });
 
-  test('handleTaskSheetSave removes unlinked child IDs from parent', () => {
-    assert.match(appSource, /unlinked\.includes/);
-  });
-
-  test('handleTaskSheetSave creates parent and children atomically for new tasks', () => {
-    assert.match(appSource, /\[\.\.\.prev,\s*parentForSave,\s*\.\.\.newChildren\]/);
+  test('handleTaskSheetSave creates a single parent task for new tasks', () => {
+    assert.match(appSource, /mergeTaskCompletionMeta\(null, normalizedParentWithId\)/);
+    assert.match(appSource, /setTasks\(\(prev\) => \[\.\.\.prev, parentForSave\]\)/);
   });
 
   test('handleTaskSheetSave passes allTasks and handler to TaskSheetDrawer', () => {
@@ -96,7 +113,7 @@ describe('handleTaskSheetSave in App.jsx', () => {
 });
 
 describe('TaskSheetDrawer save payload contract', () => {
-  test('edit payload preserves dependencyTaskIds and includes pending/unlinked arrays', () => {
+  test('edit payload preserves dependencyTaskIds selection directly', () => {
     const existingTask = {
       id: 'task-123',
       name: 'Tarea Test Jira',
@@ -118,28 +135,25 @@ describe('TaskSheetDrawer save payload contract', () => {
     const formEdit = {
       ...existingTask,
       name: 'Tarea Test Jira Actualizada',
-      notes: 'Notas editadas'
+      notes: 'Notas editadas',
+      dependencyTaskIds: ['task-100', 'task-200']
     };
 
     const taskPayload = existingTask?.id
       ? { ...existingTask, ...formEdit, id: existingTask.id }
       : { ...formEdit };
 
-    const savePayload = {
-      taskPayload,
-      pendingChildTitles: ['Nueva hija 1', 'Nueva hija 2'],
-      unlinkedChildIds: ['task-100'],
-    };
+    const savePayload = { taskPayload };
 
     assert.strictEqual(savePayload.taskPayload.id, 'task-123');
     assert.strictEqual(savePayload.taskPayload.name, 'Tarea Test Jira Actualizada');
-    assert.deepStrictEqual(savePayload.taskPayload.dependencyTaskIds, ['task-100']);
+    assert.deepStrictEqual(savePayload.taskPayload.dependencyTaskIds, ['task-100', 'task-200']);
     assert.deepStrictEqual(savePayload.taskPayload.subtasks, [{ id: 1, title: 'Sub 1', completed: false }]);
-    assert.deepStrictEqual(savePayload.pendingChildTitles, ['Nueva hija 1', 'Nueva hija 2']);
-    assert.deepStrictEqual(savePayload.unlinkedChildIds, ['task-100']);
+    assert.strictEqual('pendingChildTitles' in savePayload, false);
+    assert.strictEqual('unlinkedChildIds' in savePayload, false);
   });
 
-  test('legacy subtasks are preserved untouched in the payload', () => {
+  test('payload preserves task.subtasks untouched without displaying them', () => {
     const legacySubtasks = [
       { id: 1, title: 'Legacy 1', completed: false },
       { id: 2, title: 'Legacy 2', completed: true },
@@ -153,12 +167,16 @@ describe('TaskSheetDrawer save payload contract', () => {
       dependencyTaskIds: [],
     };
 
+    const form = {
+      ...task,
+      subtasks: Array.isArray(task?.subtasks) ? task.subtasks : []
+    };
+
     const savePayload = {
-      taskPayload: { ...task },
-      pendingChildTitles: [],
-      unlinkedChildIds: [],
+      taskPayload: task?.id ? { ...task, ...form, id: task.id } : { ...form }
     };
 
     assert.deepStrictEqual(savePayload.taskPayload.subtasks, legacySubtasks);
+    assert.doesNotMatch(taskSheetDrawerSource, /Sub-tareas legacy/);
   });
 });

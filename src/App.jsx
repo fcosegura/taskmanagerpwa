@@ -1034,58 +1034,26 @@ export default function App() {
     setModal(null);
   };
 
-  const handleTaskSheetSave = ({ taskPayload, pendingChildTitles = [], unlinkedChildIds = [] }) => {
+  const handleTaskSheetSave = ({ taskPayload }) => {
     const normalizedParent = normalizeTaskWithTicket(taskPayload);
+    const dependencyTaskIds = Array.isArray(normalizedParent.dependencyTaskIds)
+      ? [...new Set(normalizedParent.dependencyTaskIds.filter((id) => typeof id === 'string' && id))]
+      : [];
     const parentId = normalizedParent.id || uid();
-    const normalizedParentWithId = { ...normalizedParent, id: parentId };
-    const titles = Array.isArray(pendingChildTitles) ? pendingChildTitles.filter((t) => typeof t === 'string' && t.trim()) : [];
-    const unlinked = Array.isArray(unlinkedChildIds) ? unlinkedChildIds.filter((id) => typeof id === 'string') : [];
-
-    const newChildren = titles.map((title) => ({
-      id: uid(),
-      name: title.trim(),
-      status: 'not_done',
-      priority: normalizedParent.priority || 'medium',
-      category: normalizedParent.category || '',
-      date: '',
-      time: '',
-      endDate: '',
-      url: '',
-      notes: '',
-      ticketNumber: '',
-      completedAt: '',
-      hideInKanbanDone: false,
-      subtasks: [],
-      dependencyTaskIds: [],
-    }));
-
-    const newChildIds = newChildren.map((c) => c.id);
+    const normalizedParentWithId = { ...normalizedParent, id: parentId, dependencyTaskIds };
 
     if (!normalizedParent.id) {
-      const existing = null;
-      const parentForSave = mergeTaskCompletionMeta(existing, {
-        ...normalizedParentWithId,
-        dependencyTaskIds: [...new Set([...(normalizedParentWithId.dependencyTaskIds || []), ...newChildIds])],
-      });
-      setTasks((prev) => [...prev, parentForSave, ...newChildren]);
+      const parentForSave = mergeTaskCompletionMeta(null, normalizedParentWithId);
+      setTasks((prev) => [...prev, parentForSave]);
       return;
     }
 
     const existingParent = tasks.find((item) => item.id === parentId);
-    const currentChildIds = Array.isArray(existingParent?.dependencyTaskIds) ? existingParent.dependencyTaskIds : [];
-    const finalChildIds = [...new Set([
-      ...currentChildIds.filter((id) => !unlinked.includes(id)),
-      ...newChildIds,
-    ])];
-
-    const parentForSave = mergeTaskCompletionMeta(existingParent, {
-      ...normalizedParentWithId,
-      dependencyTaskIds: finalChildIds,
-    });
+    const parentForSave = mergeTaskCompletionMeta(existingParent, normalizedParentWithId);
 
     if (existingParent && existingParent.status !== parentForSave.status) {
       const openChildrenAfterSave = tasks.filter((t) => (
-        finalChildIds.includes(t.id) && t.status !== 'done'
+        dependencyTaskIds.includes(t.id) && t.status !== 'done'
       ));
       if (parentForSave.status === 'done' && openChildrenAfterSave.length > 0) {
         setPendingModalUpsert(parentForSave);
@@ -1100,14 +1068,7 @@ export default function App() {
       }
     }
 
-    if (newChildren.length > 0) {
-      setTasks((prev) => {
-        const withoutParent = prev.filter((t) => t.id !== parentId);
-        return [...withoutParent, parentForSave, ...newChildren];
-      });
-    } else {
-      applyTaskUpdate(parentForSave);
-    }
+    applyTaskUpdate(parentForSave);
   };
 
   const saveTaskPlannedSlots = (taskId, plannedSlots) => {

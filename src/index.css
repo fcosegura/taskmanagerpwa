@@ -2598,6 +2598,23 @@ nav.show-mobile button.active {
   opacity: 0.6;
 }
 
+.dependency-task-item {
+  cursor: pointer;
+}
+
+.dependency-task-item input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  flex-shrink: 0;
+}
+
+.dependency-task-item span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .subtask-delete {
   margin-left: auto;
   border: none;
