@@ -20,6 +20,14 @@ test('applyTicketNumberToTaskName appends suffix once', () => {
   assert.equal(applyTicketNumberToTaskName('Implementar login [ABC-123]', 'ABC-123'), 'Implementar login [ABC-123]');
 });
 
+test('applyTicketNumberToTaskName replaces an existing ticket token', () => {
+  assert.equal(applyTicketNumberToTaskName('Tarea [OLD-1]', 'NEW-2'), 'Tarea [NEW-2]');
+});
+
+test('applyTicketNumberToTaskName uses the ticket as title when name is empty', () => {
+  assert.equal(applyTicketNumberToTaskName('', 'MAPP-1'), '[MAPP-1]');
+});
+
 test('inheritTicketFromParentTask copies missing child ticket and appends name', () => {
   const child = { id: 'child-1', name: 'Sub tarea', ticketNumber: '' };
   const parent = { id: 'parent-1', name: 'Padre', ticketNumber: 'XYZ-7' };

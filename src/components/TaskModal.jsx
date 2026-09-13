@@ -61,22 +61,31 @@ export default function TaskModal({ task, categories, allTasks = [], onSave, onD
   };
 
   const withAutoJiraTicket = (nextForm, categoryOverride = newCategory) => {
-    const category = categoryOverride.trim() || nextForm.category || '';
-    if (!isJiraCategory(category) || normalizeTicketNumber(nextForm.ticketNumber || '')) {
-      return withAutoJiraDefaults(nextForm, categoryOverride);
+    const withDefaults = withAutoJiraDefaults(nextForm, categoryOverride);
+    const category = categoryOverride.trim() || withDefaults.category || '';
+    if (!isJiraCategory(category) || normalizeTicketNumber(withDefaults.ticketNumber || '')) {
+      return withDefaults;
     }
-    const ticketFromUrl = extractJiraTicketFromUrl(nextForm.url || '');
-    const nextFormWithTicket = ticketFromUrl ? { ...nextForm, ticketNumber: ticketFromUrl } : nextForm;
-    return withAutoJiraDefaults(nextFormWithTicket, categoryOverride);
+    const ticketFromUrl = extractJiraTicketFromUrl(withDefaults.url || '');
+    return ticketFromUrl ? { ...withDefaults, ticketNumber: ticketFromUrl } : withDefaults;
+  };
+
+  const withTicketInName = (nextForm, field) => {
+    if (field === 'name') return nextForm;
+    const ticket = normalizeTicketNumber(nextForm.ticketNumber || '');
+    if (!ticket) return nextForm;
+    const nextName = applyTicketNumberToTaskName(nextForm.name || '', ticket);
+    if (nextName === (nextForm.name || '').trim()) return nextForm;
+    return { ...nextForm, name: nextName };
   };
 
   const handleChange = (field, value) => {
-    setForm((prev) => withAutoJiraTicket({ ...prev, [field]: value }));
+    setForm((prev) => withTicketInName(withAutoJiraTicket({ ...prev, [field]: value }), field));
   };
 
   const handleNewCategoryChange = (value) => {
     setNewCategory(value);
-    setForm((prev) => withAutoJiraTicket(prev, value));
+    setForm((prev) => withTicketInName(withAutoJiraTicket(prev, value), 'newCategory'));
   };
   const toggleDependency = (dependencyId) => {
     setForm((prev) => {

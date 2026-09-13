@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { STATUS, PRIORITY } from '../constants.js';
-import { isJiraCategory, applyJiraAutofillFromUrl } from '../jiraTicket.js';
+import { isJiraCategory, applyJiraAutofillFromUrl, normalizeTicketNumber, applyTicketNumberToTaskName } from '../jiraTicket.js';
 import { useModalDialog } from '../hooks/useModalDialog.js';
 import { IconButton } from './ui/index.jsx';
 
@@ -53,9 +53,16 @@ export default function TaskSheetDrawer({
 
   const handleChange = (field, value) => {
     setForm((prev) => {
-      const next = { ...prev, [field]: value };
+      let next = { ...prev, [field]: value };
       if (field === 'url' && value) {
-        return applyJiraAutofillFromUrl(next, value);
+        next = applyJiraAutofillFromUrl(next, value);
+      }
+      if (field !== 'name') {
+        const ticket = normalizeTicketNumber(next.ticketNumber || '');
+        if (ticket) {
+          const nextName = applyTicketNumberToTaskName(next.name || '', ticket);
+          if (nextName !== (next.name || '').trim()) next = { ...next, name: nextName };
+        }
       }
       return next;
     });
