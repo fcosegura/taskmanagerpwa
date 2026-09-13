@@ -109,21 +109,31 @@ export function findDuplicateGroups(noteIds, edges, minScore) {
 }
 
 /**
+ * Clamp a numeric layout option to a sane range so hostile/legacy payloads
+ * cannot produce negative, NaN, or absurd coordinates.
+ */
+function clampOption(value, fallback, min, max) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(max, Math.max(min, n));
+}
+
+/**
  * Compact grid layout for clusters on the board canvas.
  * @param {string[][]} clusters
  * @param {{ noteWidth?: number, boardWidth?: number, noteHeight?: number, gapX?: number, gapY?: number, clusterGapX?: number, clusterGapY?: number, padding?: number, maxPerRow?: number }} [options]
  * @returns {Record<string, { x: number, y: number }>}
  */
 export function layoutClusters(clusters, options = {}) {
-  const noteWidth = Math.max(120, Number(options.noteWidth) || 200);
-  const boardWidth = Math.max(noteWidth + 32, Number(options.boardWidth) || 800);
-  const noteHeight = Math.max(120, Number(options.noteHeight) || 200);
-  const gapX = Number.isFinite(options.gapX) ? options.gapX : 16;
-  const gapY = Number.isFinite(options.gapY) ? options.gapY : 16;
-  const clusterGapX = Number.isFinite(options.clusterGapX) ? options.clusterGapX : 36;
-  const clusterGapY = Number.isFinite(options.clusterGapY) ? options.clusterGapY : 40;
-  const padding = Number.isFinite(options.padding) ? options.padding : 20;
-  const maxPerRow = Math.max(1, Number(options.maxPerRow) || 3);
+  const noteWidth = clampOption(options.noteWidth, 200, 120, 2000);
+  const boardWidth = clampOption(options.boardWidth, 800, noteWidth + 32, 20000);
+  const noteHeight = clampOption(options.noteHeight, 200, 120, 2000);
+  const gapX = clampOption(options.gapX, 16, 0, 400);
+  const gapY = clampOption(options.gapY, 16, 0, 400);
+  const clusterGapX = clampOption(options.clusterGapX, 36, 0, 1000);
+  const clusterGapY = clampOption(options.clusterGapY, 40, 0, 1000);
+  const padding = clampOption(options.padding, 20, 0, 2000);
+  const maxPerRow = Math.round(clampOption(options.maxPerRow, 3, 1, 50));
 
   const positions = {};
   let cursorX = padding;

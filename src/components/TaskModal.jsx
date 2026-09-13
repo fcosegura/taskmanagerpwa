@@ -1,16 +1,18 @@
 import { useState } from 'react';
-import { STATUS, PRIORITY } from '../constants.js';
+import { STATUS, PRIORITY, isTerminalStatus } from '../constants.js';
 import { fmtDate, parseDateTimeFromDescription, parseDescriptionDateResult, cleanDescriptionSegment } from '../utils.jsx';
 import { isJiraCategory, normalizeTicketNumber, applyTicketNumberToTaskName, extractJiraTicketFromUrl, getJiraTaskDefaultsFromUrl } from '../jiraTicket.js';
 import { parseTaskWithAI } from '../storage.js';
+import { useModalDialog } from '../hooks/useModalDialog.js';
 
 export default function TaskModal({ task, categories, allTasks = [], onSave, onDelete, onClose, statuses = STATUS }) {
+  const dialogRef = useModalDialog({ isOpen: true, onClose });
   const { _taskModalInitialAdvanced, ...taskRest } = task;
   const parentTasks = allTasks.filter((candidate) => (candidate.dependencyTaskIds || []).includes(taskRest.id));
   const isChildTask = parentTasks.length > 0;
   const availableDependencyTasks = allTasks.filter((candidate) => (
     candidate.id !== taskRest.id &&
-    candidate.status !== 'done' &&
+    !isTerminalStatus(candidate.status, statuses) &&
     !parentTasks.some((parentTask) => parentTask.id === candidate.id)
   ));
   const [form, setForm] = useState({
@@ -172,7 +174,7 @@ export default function TaskModal({ task, categories, allTasks = [], onSave, onD
   const showTicketNumberField = isJiraCategory(effectiveCategory);
 
   return (
-    <form className="liquid-glass-modal" onSubmit={onSubmit} style={{ width: 'min(420px, 100%)', maxWidth: 'calc(100% - 32px)', borderRadius: 'var(--border-radius-lg)', padding: 24, color: 'var(--color-text-primary)' }}>
+    <form ref={dialogRef} className="liquid-glass-modal" onSubmit={onSubmit} style={{ width: 'min(420px, 100%)', maxWidth: 'calc(100% - 32px)', borderRadius: 'var(--border-radius-lg)', padding: 24, color: 'var(--color-text-primary)' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, gap: 12, flexWrap: 'wrap' }}>
         <div>
           <div style={{ fontSize: 18, fontWeight: 700 }}>{taskRest.id ? 'Editar tarea' : 'Nueva tarea'}</div>
@@ -299,7 +301,7 @@ export default function TaskModal({ task, categories, allTasks = [], onSave, onD
           {statuses.map((option) => <option key={option.v} value={option.v}>{option.label}</option>)}
         </select>
       </label>
-      {form.status === 'done' && (
+      {isTerminalStatus(form.status, statuses) && (
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 18, fontSize: 12, color: 'var(--color-text-secondary)', userSelect: 'none', cursor: 'pointer' }}>
           <input
             type="checkbox"

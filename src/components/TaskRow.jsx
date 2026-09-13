@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { STATUS, PRIORITY } from '../constants.js';
+import { STATUS, PRIORITY, isTerminalStatus } from '../constants.js';
 import { fmtDate, linkifyText } from '../utils.jsx';
 import { Pill, CategoryPill } from './shared/index.jsx';
 import CopyTicketButton from './CopyTicketButton.jsx';
@@ -26,6 +26,7 @@ export default function TaskRow({
 
   const s = statuses.find((x) => x.v === task.status) || statuses[0];
   const p = PRIORITY.find((x) => x.v === task.priority) || PRIORITY[1];
+  const isDone = isTerminalStatus(task.status, statuses);
 
   const openPriority = (e) => {
     e.stopPropagation();
@@ -44,7 +45,7 @@ export default function TaskRow({
   const showCollapseControl = collapsible && childTaskCount > 0;
 
   const subtasks = task.subtasks || [];
-  const completedSubtasks = subtasks.filter((st) => st.completed).length;
+  const completedSubtasks = subtasks.filter((st) => st.done).length;
   const totalSubtasks = subtasks.length;
 
   const dependencyRailColor = hasChildTasks && hasParentTask
@@ -67,7 +68,7 @@ export default function TaskRow({
         display: 'flex',
         flexDirection: 'column',
         gap: 8,
-        opacity: task.status === 'done' ? 0.75 : 1,
+        opacity: isDone ? 0.75 : 1,
         transition: 'all 0.2s ease',
         border: isDragOver ? (dragMode === 'link' ? '1px dashed var(--color-accent)' : '1px dashed var(--color-border-secondary)') : undefined,
       }}
@@ -182,7 +183,7 @@ export default function TaskRow({
               overflow: 'hidden',
               textOverflow: 'ellipsis',
               whiteSpace: 'nowrap',
-              textDecoration: task.status === 'done' ? 'line-through' : 'none'
+              textDecoration: isDone ? 'line-through' : 'none'
             }}
           >
             {linkifyText(task.name)}
@@ -273,16 +274,16 @@ export default function TaskRow({
             type="button"
             className="task-checkbox-animated"
             onClick={(e) => { e.stopPropagation(); onToggleDone?.(task.id); }}
-            aria-label={task.status === 'done' ? 'Marcar como no completada' : 'Marcar como completada'}
+            aria-label={isDone ? 'Marcar como no completada' : 'Marcar como completada'}
             style={{
               width: 28, height: 28, borderRadius: 999, border: 'var(--material-base-border)',
-              background: task.status === 'done' ? 'var(--color-background-success)' : 'var(--material-base-bg)',
-              color: task.status === 'done' ? 'var(--color-text-success)' : 'var(--color-text-secondary)',
+              background: isDone ? 'var(--color-background-success)' : 'var(--material-base-bg)',
+              color: isDone ? 'var(--color-text-success)' : 'var(--color-text-secondary)',
               cursor: 'pointer', fontSize: 12, fontWeight: 700,
               display: 'grid', placeItems: 'center',
             }}
           >
-            {task.status === 'done' ? '✓' : '○'}
+            {isDone ? '✓' : '○'}
           </button>
 
           {onOpenPriorityPicker ? (
@@ -329,14 +330,14 @@ export default function TaskRow({
                 alignItems: 'center',
                 gap: 8,
                 fontSize: 12,
-                color: st.completed ? 'var(--color-text-secondary)' : 'var(--color-text-primary)',
-                textDecoration: st.completed ? 'line-through' : 'none'
+                color: st.done ? 'var(--color-text-secondary)' : 'var(--color-text-primary)',
+                textDecoration: st.done ? 'line-through' : 'none'
               }}
             >
-              <span style={{ fontSize: 10, color: st.completed ? 'var(--color-text-success)' : 'var(--color-text-secondary)' }}>
-                {st.completed ? '✓' : '•'}
+              <span style={{ fontSize: 10, color: st.done ? 'var(--color-text-success)' : 'var(--color-text-secondary)' }}>
+                {st.done ? '✓' : '•'}
               </span>
-              <span>{st.title}</span>
+              <span>{st.text}</span>
             </div>
           ))}
         </div>

@@ -1,8 +1,20 @@
 import { STORAGE_KEY, PRIORITY, normalizeStatuses } from './constants.js';
 import { isPlannedSlotsArrayShape, normalizePlannedSlots } from './plannedSlots.js';
 import { isValidStatusLogEntry, normalizeStatusLog } from './statusLog.js';
+import { isDateOnlyString, isRequiredDateOnlyString, canonicalizeDateOnly } from './todayViewHelpers.js';
 
 const lastCloudSnapshotByProfile = new Map();
+
+/**
+ * Whether the most recent `loadData` kept local data because the cloud copy was
+ * empty/invalid. Consumers (App) can use this to avoid marking the kept payload
+ * as already synced and to re-push it to the cloud.
+ */
+let lastLoadPreferLocal = false;
+
+export function didLastLoadPreferLocal() {
+  return lastLoadPreferLocal;
+}
 
 const TRANSIENT_READ_STATUSES = new Set([502, 503, 504]);
 const CLOUD_READ_MAX_ATTEMPTS = 3;
@@ -68,6 +80,11 @@ function indexById(list = []) {
     }
   }
   return index;
+}
+
+/** Guards normalize* calls so a null/non-object array entry is dropped, not fatal. */
+function isPlainObject(value) {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
 function diffEntityOps(previousList = [], nextList = []) {
@@ -141,8 +158,8 @@ export function isValidTask(task) {
   if (typeof status !== 'string' || status.trim().length === 0) return false;
   if (typeof priority !== 'string' || !PRIORITY.some((p) => p.v === priority)) return false;
   if (category !== undefined && category !== null && typeof category !== 'string') return false;
-  if (date !== undefined && date !== null && typeof date !== 'string') return false;
-  if (task.endDate !== undefined && task.endDate !== null && typeof task.endDate !== 'string') return false;
+  if (!isDateOnlyString(date)) return false;
+  if (!isDateOnlyString(task.endDate)) return false;
   if (time !== undefined && time !== null && typeof time !== 'string') return false;
   if (url !== undefined && url !== null && typeof url !== 'string') return false;
   if (notes !== undefined && notes !== null && typeof notes !== 'string') return false;
@@ -160,19 +177,44 @@ export function isValidTask(task) {
   );
 }
 
+function legacySubtaskId() {
+  return `st-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function normalizeSubtask(st) {
+  if (!st || typeof st !== 'object') return null;
+  const text = st.text ?? st.title;
+  return {
+    id: String(st.id ?? legacySubtaskId()),
+    text: typeof text === 'string' ? text : '',
+    done: Boolean(st.done ?? st.completed ?? false),
+  };
+}
+
+const LEGACY_PRIORITY_MAP = { urgent: 'critical' };
+
+function normalizePriority(priority) {
+  if (typeof priority !== 'string') return priority;
+  return LEGACY_PRIORITY_MAP[priority] ?? priority;
+}
+
 function normalizeTask(task) {
   const rawDependencies = Array.isArray(task.dependencyTaskIds) ? task.dependencyTaskIds : [];
   const legacyName = typeof task.name === 'string' ? task.name : (typeof task.description === 'string' ? task.description : '');
   const normalizedStatus = task.status === 'started' ? 'in_progress' : task.status;
+  const normalizedSubtasks = (Array.isArray(task.subtasks) ? task.subtasks : [])
+    .map(normalizeSubtask)
+    .filter(Boolean);
   return {
     ...task,
     name: legacyName,
     status: normalizedStatus,
-    subtasks: Array.isArray(task.subtasks) ? task.subtasks : [],
+    priority: normalizePriority(task.priority),
+    subtasks: normalizedSubtasks,
     dependencyTaskIds: [...new Set(rawDependencies.filter((id) => typeof id === 'string'))],
     category: task.category || '',
-    date: task.date || '',
-    endDate: typeof task.endDate === 'string' ? task.endDate.trim() : '',
+    date: canonicalizeDateOnly(task.date),
+    endDate: canonicalizeDateOnly(task.endDate),
     time: task.time || '',
     url: task.url || '',
     notes: task.notes || '',
@@ -200,12 +242,13 @@ function normalizeEvent(event) {
     : 'none';
   const parsedInterval = Number.parseInt(String(event.recurrenceInterval ?? '1'), 10);
   const recurrenceInterval = Number.isFinite(parsedInterval) && parsedInterval > 0 ? parsedInterval : 1;
-  const recurrenceUntil = typeof event.recurrenceUntil === 'string' ? event.recurrenceUntil : '';
+  const recurrenceUntil = canonicalizeDateOnly(event.recurrenceUntil);
   const parsedCount = Number.parseInt(String(event.recurrenceCount ?? ''), 10);
   const recurrenceCount = Number.isFinite(parsedCount) && parsedCount > 0 ? parsedCount : null;
   return {
     ...event,
-    endDate: event.endDate || event.startDate,
+    startDate: canonicalizeDateOnly(event.startDate),
+    endDate: canonicalizeDateOnly(event.endDate) || canonicalizeDateOnly(event.startDate),
     color: event.color || '#2563eb',
     allDay,
     startTime: allDay ? '' : startTime,
@@ -232,7 +275,9 @@ export function isValidEvent(event) {
   if (!event || typeof event !== 'object') return false;
   const { id, title, startDate, endDate, color, allDay, startTime, endTime, recurrenceFrequency, recurrenceInterval, recurrenceUntil, recurrenceCount } = event;
   if (typeof id !== 'string' || typeof title !== 'string') return false;
-  if (typeof startDate !== 'string' || (endDate && typeof endDate !== 'string')) return false;
+  if (!isRequiredDateOnlyString(startDate)) return false;
+  if (endDate !== undefined && endDate !== null && !isDateOnlyString(endDate)) return false;
+  if (recurrenceUntil !== undefined && recurrenceUntil !== null && !isDateOnlyString(recurrenceUntil)) return false;
   if (typeof color !== 'string') return false;
   if (allDay != null && typeof allDay !== 'boolean' && typeof allDay !== 'number') return false;
   if (startTime != null && typeof startTime !== 'string') return false;
@@ -267,17 +312,17 @@ export function validateBackupPayload(payload) {
 
 export function normalizeDataPayload(parsed) {
   if (Array.isArray(parsed)) {
-    const tasks = parsed.map(normalizeTask);
-    if (tasks.every(isValidTask)) return { tasks, boardNotes: [], events: [] };
+    const tasks = parsed.filter(isPlainObject).map(normalizeTask).filter(isValidTask);
+    return { tasks, boardNotes: [], events: [] };
   }
   if (parsed && typeof parsed === 'object' && Array.isArray(parsed.tasks)) {
-    const tasks = parsed.tasks.map(normalizeTask);
-    if (!tasks.every(isValidTask)) return { tasks: [], boardNotes: [], events: [] };
+    // Per-item sanitation: drop only invalid entities instead of discarding the whole dataset.
+    const tasks = parsed.tasks.filter(isPlainObject).map(normalizeTask).filter(isValidTask);
     const boardNotes = Array.isArray(parsed.boardNotes)
-      ? parsed.boardNotes.map(normalizeBoardNote).filter(isValidBoardNote)
+      ? parsed.boardNotes.filter(isPlainObject).map(normalizeBoardNote).filter(isValidBoardNote)
       : [];
     const events = Array.isArray(parsed.events)
-      ? parsed.events.map(normalizeEvent).filter(isValidEvent)
+      ? parsed.events.filter(isPlainObject).map(normalizeEvent).filter(isValidEvent)
       : [];
     const customStatuses = Array.isArray(parsed.customStatuses)
       ? normalizeStatuses(parsed.customStatuses)
@@ -677,6 +722,7 @@ export async function fetchWorkspaceData(profileId) {
 
 export async function loadData(profileId = null) {
   let localData = readLocalPayload(profileId);
+  lastLoadPreferLocal = false;
 
   try {
     const query = profileId ? `?profileId=${encodeURIComponent(profileId)}` : '';
@@ -685,11 +731,20 @@ export async function loadData(profileId = null) {
       const cloudData = await resp.json();
       const safeCloudData = normalizeDataPayload(cloudData);
       const resolvedProfileId = typeof cloudData.activeProfileId === 'string' ? cloudData.activeProfileId : profileId;
-      // Important: for explicit profiles, trust cloud as source of truth to avoid cross-workspace bleed.
-      const shouldPreferLocal = !resolvedProfileId && hasAnyData(localData) && !hasAnyData(safeCloudData);
+      // Preserve local data whenever the cloud copy is empty/invalid, even for an
+      // explicit profile, to avoid wiping unsynced local changes with an empty cloud.
+      const localHasData = hasAnyData(localData);
+      const cloudHasData = hasAnyData(safeCloudData);
+      const shouldPreferLocal = localHasData && !cloudHasData;
       const effectiveData = shouldPreferLocal ? localData : safeCloudData;
+      lastLoadPreferLocal = shouldPreferLocal;
       if (resolvedProfileId) {
-        lastCloudSnapshotByProfile.set(resolvedProfileId, clonePayload(effectiveData));
+        // When local wins over an empty cloud, record the real (empty) cloud snapshot
+        // so the next saveData pushes local up instead of treating it as synced.
+        lastCloudSnapshotByProfile.set(
+          resolvedProfileId,
+          clonePayload(shouldPreferLocal ? safeCloudData : effectiveData)
+        );
       }
       // Prefer local when cloud comes back empty, to avoid data loss on transient sync failures.
       localStorage.setItem(profileStorageKey(resolvedProfileId), JSON.stringify(effectiveData));
@@ -702,6 +757,7 @@ export async function loadData(profileId = null) {
         authenticated: true,
         profiles: Array.isArray(cloudData.profiles) ? cloudData.profiles : [],
         activeProfileId: resolvedProfileId || null,
+        preferredLocal: shouldPreferLocal,
       };
     }
     if (resp.status === 401) return { ...localData, authenticated: false, profiles: [], activeProfileId: profileId };

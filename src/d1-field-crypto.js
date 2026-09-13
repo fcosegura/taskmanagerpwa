@@ -90,16 +90,23 @@ export async function encryptField(key, plain) {
 export async function decryptField(key, stored) {
   if (stored === null || stored === undefined) return null;
   if (typeof stored !== 'string') return stored;
+  // Legacy/plaintext passthrough: only v1.-prefixed values are ciphertext.
   if (!stored.startsWith(V1_PREFIX)) return stored;
   try {
     const raw = base64ToBytes(stored.slice(V1_PREFIX.length));
-    if (raw.byteLength < 13) return stored;
+    if (raw.byteLength < 13) {
+      // Ciphertext-shaped but malformed: never surface the raw payload.
+      console.error('[crypto] decryptField: malformed ciphertext envelope');
+      return null;
+    }
     const iv = raw.subarray(0, 12);
     const data = raw.subarray(12);
     const plainBuf = await crypto.subtle.decrypt({ name: 'AES-GCM', iv, tagLength: 128 }, key, data);
     return new TextDecoder().decode(plainBuf);
-  } catch {
-    return stored;
+  } catch (err) {
+    // Ciphertext-shaped but undecryptable: return null instead of leaking it.
+    console.error('[crypto] decryptField failed', err?.name || 'decrypt_error');
+    return null;
   }
 }
 

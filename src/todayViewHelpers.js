@@ -1,3 +1,58 @@
+import { MONTHS, STATUS, isTerminalStatus } from './constants.js';
+
+const DATE_ONLY_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+/** True when the value is empty/null (optional) or a valid `YYYY-MM-DD` string. */
+export function isDateOnlyString(value) {
+  if (value === undefined || value === null || value === '') return true;
+  return typeof value === 'string' && DATE_ONLY_RE.test(value.trim());
+}
+
+/** True only when the value is a non-empty valid `YYYY-MM-DD` string. */
+export function isRequiredDateOnlyString(value) {
+  return typeof value === 'string' && DATE_ONLY_RE.test(value.trim());
+}
+
+const FLEXIBLE_DATE_RE = /^(\d{4})[-/](\d{1,2})[-/](\d{1,2})(?:[T\s].*)?$/;
+
+/**
+ * Canonicaliza una fecha escrita por IA/import a `YYYY-MM-DD` (rellenando ceros).
+ * Acepta `YYYY-M-D`, `YYYY/MM/DD`, `YYYY-MM-DD` e ISO datetime (`T…` o espacio).
+ * Devuelve '' para valores no parseables, fuera de rango o no-string.
+ */
+export function canonicalizeDateOnly(value) {
+  if (typeof value !== 'string') return '';
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  const match = FLEXIBLE_DATE_RE.exec(trimmed);
+  if (!match) return '';
+  const year = Number.parseInt(match[1], 10);
+  const month = Number.parseInt(match[2], 10);
+  const day = Number.parseInt(match[3], 10);
+  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return '';
+  if (month < 1 || month > 12 || day < 1 || day > 31) return '';
+  const date = new Date(year, month - 1, day, 12);
+  if (
+    date.getFullYear() !== year ||
+    date.getMonth() !== month - 1 ||
+    date.getDate() !== day
+  ) return '';
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
+/** Defensive date label: returns '' for missing/malformed dates instead of crashing. */
+export function fmtDate(s) {
+  if (typeof s !== 'string' || !s) return '';
+  const match = DATE_ONLY_RE.exec(s.trim());
+  if (!match) return '';
+  const year = Number.parseInt(match[1], 10);
+  const monthIndex = Number.parseInt(match[2], 10);
+  const day = Number.parseInt(match[3], 10);
+  const month = MONTHS[monthIndex - 1]?.slice(0, 3) ?? '';
+  if (!month || !Number.isFinite(year) || !Number.isFinite(day)) return '';
+  return `${day} ${month} ${year}`;
+}
+
 export function normalizeTaskUrl(url) {
   if (!url || typeof url !== 'string') return '';
   const trimmed = url.trim();
@@ -32,7 +87,7 @@ export function getDisplayDescription(task) {
   return trimmed;
 }
 
-function parseLocalDateOnly(dateStr) {
+export function parseLocalDateOnly(dateStr) {
   if (typeof dateStr !== 'string') return null;
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr.trim());
   if (!match) return null;
@@ -50,7 +105,7 @@ function priorityWeight(priority) {
   return { critical: 4, urgent: 4, high: 3, medium: 2, low: 1 }[priority] || 0;
 }
 
-export function getUpcomingTasks(tasks, todayStr, days = 5) {
+export function getUpcomingTasks(tasks, todayStr, days = 5, statuses = STATUS) {
   const today = parseLocalDateOnly(todayStr);
   const safeDays = Number.isInteger(days) && days > 0 ? days : 5;
   if (!today || !Array.isArray(tasks)) return [];
@@ -63,7 +118,7 @@ export function getUpcomingTasks(tasks, todayStr, days = 5) {
   return tasks
     .map((task, index) => ({ task, index, dateStr: typeof task?.date === 'string' ? task.date.trim() : '' }))
     .filter(({ task, dateStr }) => {
-      if (!task || task.status === 'done') return false;
+      if (!task || isTerminalStatus(task.status, statuses)) return false;
       const date = parseLocalDateOnly(dateStr);
       return Boolean(date && dateStr > firstDateStr && dateStr <= lastDateStr);
     })

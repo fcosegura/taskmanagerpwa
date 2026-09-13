@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { normalizePlannedSlots } from '../plannedSlots.js';
 import { uid } from '../utils.jsx';
+import { useModalDialog } from '../hooks/useModalDialog.js';
 
 
 
@@ -39,6 +40,7 @@ export default function AgendaPlanModal({
   editingSlot,
   initialDateStr = '',
 }) {
+  const dialogRef = useModalDialog({ isOpen: true, onClose });
   const [taskId, setTaskId] = useState(editingTask?.id || '');
   const [query, setQuery] = useState('');
   const [form, setForm] = useState(() => ({
@@ -107,6 +109,7 @@ export default function AgendaPlanModal({
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <form
+        ref={dialogRef}
         className="liquid-glass-modal"
         onSubmit={handleSubmit}
         onClick={(e) => e.stopPropagation()}

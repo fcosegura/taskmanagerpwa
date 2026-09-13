@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { STATUS_KINDS, normalizeStatuses, normalizeStatusDefinition } from '../constants.js';
+import { useModalDialog } from '../hooks/useModalDialog.js';
 
 const STYLING_THEMES = [
   { value: 'neutral', label: 'Neutro', tv: '--color-text-primary', bv: '--color-background-secondary', bov: '--color-border-secondary' },
@@ -33,6 +34,7 @@ function getThemeProps(themeValue) {
 }
 
 export default function StatusManagerModal({ statuses, onSave, onClose }) {
+  const dialogRef = useModalDialog({ isOpen: true, onClose });
   const [localStatuses, setLocalStatuses] = useState(() => normalizeStatuses(statuses));
   const [newLabel, setNewLabel] = useState('');
   const [newTheme, setNewTheme] = useState('neutral');
@@ -137,6 +139,7 @@ export default function StatusManagerModal({ statuses, onSave, onClose }) {
   return (
     <div className="modal-backdrop" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div
+        ref={dialogRef}
         className="liquid-glass-modal"
         role="dialog"
         aria-labelledby="status-manager-title"

@@ -1,10 +1,13 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, lazy, Suspense } from 'react';
-import { STATUS, normalizeStatuses } from './constants.js';
-import { uid, toDateStr, compareTasksForTaskList, parseDateTimeFromDescription, parseDescriptionDateResult, cleanDescriptionSegment, isJiraCategory, normalizeTicketNumber, applyTicketNumberToTaskName, inheritTicketFromParentTask, mergeTaskCompletionMeta } from './utils.jsx';
-import { loadData, saveData, validateBackupPayload, normalizeDataPayload, loginWithGoogleCredential, logoutSession, createProfile, deleteProfile, updateProfileStatuses, parseTaskWithAI, checkSession, generateTasksFromText, generateDailyStatus, fetchWorkspaceData, isMultiBackupPayload, validateMultiBackupPayload, normalizeMultiBackupPayload, fetchNoteAiMeta, loadCachedNoteAiMeta, searchNotesSemantic, fetchRelatedNotes, dismissNoteAiSuggestionClient, fetchNoteDuplicates, fetchNotesOrganizeLayout } from './storage.js';
+import { STATUS, PRIORITY, normalizeStatuses, isTerminalStatus } from './constants.js';
+import { uid, toDateStr, compareTasksForTaskList, parseDateTimeFromDescription, parseDescriptionDateResult, cleanDescriptionSegment, mergeTaskCompletionMeta } from './utils.jsx';
+import { loadData, saveData, validateBackupPayload, normalizeDataPayload, loginWithGoogleCredential, logoutSession, createProfile, deleteProfile, updateProfileStatuses, parseTaskWithAI, checkSession, generateTasksFromText, generateDailyStatus, fetchWorkspaceData, isMultiBackupPayload, validateMultiBackupPayload, normalizeMultiBackupPayload, fetchNoteAiMeta, loadCachedNoteAiMeta, searchNotesSemantic, fetchRelatedNotes, dismissNoteAiSuggestionClient, fetchNoteDuplicates, fetchNotesOrganizeLayout, didLastLoadPreferLocal } from './storage.js';
 import { appendStatusLogEntry } from './statusLog.js';
 import { collectDailyStatusActivities } from './dailyStatusActivities.js';
-import { getUpcomingTasks } from './todayViewHelpers.js';
+import { getUpcomingTasks, canonicalizeDateOnly } from './todayViewHelpers.js';
+import { normalizeTaskTicketFields as normalizeTaskWithTicket, applyStandaloneChildLink } from './taskLinking.js';
+import { shouldCascadeStatusToChildren, applyStatusWithChildCascade } from './taskStatusCascade.js';
+import { countOpenChildTasks } from './taskTrashHelpers.js';
 import { loadNoteAiPrefsFromStorage, saveNoteAiPrefsToStorage } from './noteAi/prefs.js';
 import { organizeNotesFromMeta } from './noteAi/clustering.js';
 import BoardView from './components/BoardView.jsx';
@@ -44,6 +47,14 @@ function serializePayload(payload) {
   } catch {
     return '';
   }
+}
+
+/** Compares an ISO timestamp's LOCAL calendar date against a `YYYY-MM-DD` string. */
+function isCompletedAtOnLocalDate(completedAt, dateStr) {
+  if (!completedAt || !dateStr) return false;
+  const date = new Date(completedAt);
+  if (Number.isNaN(date.getTime())) return false;
+  return toDateStr(date.getFullYear(), date.getMonth(), date.getDate()) === dateStr;
 }
 
 const ACTIVE_PROFILE_STORAGE_KEY = 'taskmanager_active_profile';
@@ -170,8 +181,20 @@ export default function App() {
   const [summaryFilter, setSummaryFilter] = useState('none');
   const [focusMode, setFocusMode] = useState(false);
   const [focusPriorityLevels, setFocusPriorityLevels] = useState(() => {
-    const stored = localStorage.getItem('focusPriorityLevels');
-    return stored ? JSON.parse(stored) : ['high', 'critical'];
+    const validPriorities = new Set(PRIORITY.map((p) => p.v));
+    try {
+      const stored = localStorage.getItem('focusPriorityLevels');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) {
+          const valid = parsed.filter((level) => typeof level === 'string' && validPriorities.has(level));
+          if (valid.length > 0) return valid;
+        }
+      }
+    } catch {
+      // localStorage corrupto o inaccesible: caer al default.
+    }
+    return ['high', 'critical'];
   });
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [noteAiPrefs, setNoteAiPrefs] = useState(() => loadNoteAiPrefsFromStorage());
@@ -229,6 +252,7 @@ export default function App() {
   const actionsMenuRef = useRef(null);
   const syncFeedbackTimerRef = useRef(null);
   const syncDebounceTimerRef = useRef(null);
+  const boardLayoutTimerRef = useRef(null);
   const lastSyncedPayloadRef = useRef('');
   const latestPayloadRef = useRef({ tasks: [], boardNotes: [], events: [] });
   const syncInFlightRef = useRef(false);
@@ -388,7 +412,10 @@ export default function App() {
         events: data.events || []
       };
       latestPayloadRef.current = loadedPayload;
-      lastSyncedPayloadRef.current = serializePayload(loadedPayload);
+      // When the cloud copy was empty/invalid, loadData kept the local data. Do
+      // not mark it as already synced so the debounced sync re-pushes it up.
+      const preferLocal = didLastLoadPreferLocal() || data.preferredLocal === true;
+      lastSyncedPayloadRef.current = preferLocal ? '' : serializePayload(loadedPayload);
       const resolvedId = data.activeProfileId || activeProfileId;
       const loadLocalStatuses = (profileId) => {
         const stored = localStorage.getItem(`taskmanager_custom_statuses_${profileId || 'default'}`) || localStorage.getItem('taskmanager_custom_statuses');
@@ -457,7 +484,7 @@ export default function App() {
     setExternalAppOpen(false);
   }, []);
 
-  const handleLoginSuccess = async (credential) => {
+  const handleLoginSuccess = useCallback(async (credential) => {
     await loginWithGoogleCredential(credential);
     try {
       localStorage.removeItem('taskmanager_session_expired');
@@ -468,7 +495,7 @@ export default function App() {
     setReady(false);
     setAuthenticated(true);
     setAuthVersion((version) => version + 1);
-  };
+  }, []);
 
   const handleLogout = async () => {
     try {
@@ -581,6 +608,7 @@ export default function App() {
 
   useEffect(() => () => {
     if (syncFeedbackTimerRef.current) window.clearTimeout(syncFeedbackTimerRef.current);
+    if (boardLayoutTimerRef.current) window.clearTimeout(boardLayoutTimerRef.current);
     clearSyncDebounce();
   }, [clearSyncDebounce]);
 
@@ -604,71 +632,68 @@ export default function App() {
     showToast(`No se puede ${actionLabel}: la tarea padre tiene ${openChildrenCount} tarea(s) hija(s) abierta(s).`, { type: 'warning', duration: 4200 });
   };
 
-  const normalizeTaskWithTicket = (taskInput) => {
-    const category = typeof taskInput?.category === 'string' ? taskInput.category : '';
-    const ticketNumber = normalizeTicketNumber(taskInput?.ticketNumber || '');
-    const normalizedName = isJiraCategory(category) && ticketNumber
-      ? applyTicketNumberToTaskName(taskInput?.name || '', ticketNumber)
-      : (typeof taskInput?.name === 'string' ? taskInput.name.trim() : '');
-    return {
-      ...taskInput,
-      category,
-      ticketNumber,
-      name: normalizedName,
-    };
-  };
-
-  const applyTaskUpdate = (normalizedTask) => {
-    setTasks((previousTasks) => {
-      const taskId = normalizedTask.id || uid();
-      const cleanedDependencyIds = [...new Set((normalizedTask.dependencyTaskIds || []).filter((dependencyId) => (
-        typeof dependencyId === 'string' &&
-        dependencyId !== taskId &&
-        previousTasks.some((item) => item.id === dependencyId)
-      )))];
-      const parentTasks = previousTasks.filter((item) => (
-        item.id !== taskId &&
-        Array.isArray(item.dependencyTaskIds) &&
-        item.dependencyTaskIds.includes(taskId)
+  const applyTaskUpdate = (normalizedTask, { cascade = false } = {}) => {
+    const taskId = normalizedTask.id || uid();
+    const cleanedDependencyIds = [...new Set((normalizedTask.dependencyTaskIds || []).filter((dependencyId) => (
+      typeof dependencyId === 'string' &&
+      dependencyId !== taskId &&
+      tasks.some((item) => item.id === dependencyId)
+    )))];
+    const parentTasks = tasks.filter((item) => (
+      item.id !== taskId &&
+      Array.isArray(item.dependencyTaskIds) &&
+      item.dependencyTaskIds.includes(taskId)
+    ));
+    const finalDependencyIds = parentTasks.length > 0 ? [] : cleanedDependencyIds;
+    if (isTerminalStatus(normalizedTask.status, statuses)) {
+      const openChildTasks = tasks.filter((item) => (
+        finalDependencyIds.includes(item.id) &&
+        !isTerminalStatus(item.status, statuses)
       ));
-      const finalDependencyIds = parentTasks.length > 0 ? [] : cleanedDependencyIds;
-      if (normalizedTask.status === 'done') {
-        const openChildTasks = previousTasks.filter((item) => (
-          finalDependencyIds.includes(item.id) &&
-          item.status !== 'done'
-        ));
-        if (openChildTasks.length > 0) {
-          showToast(`No se puede guardar en Hecha: tiene ${openChildTasks.length} tarea(s) hija(s) abierta(s).`, { type: 'warning', duration: 4200 });
-          return previousTasks;
-        }
+      if (openChildTasks.length > 0) {
+        showToast(`No se puede guardar en Hecha: tiene ${openChildTasks.length} tarea(s) hija(s) abierta(s).`, { type: 'warning', duration: 4200 });
+        return;
       }
+    }
+    setTasks((previousTasks) => {
       const prevForMerge = normalizedTask.id ? previousTasks.find((item) => item.id === normalizedTask.id) : null;
-      const nextTask = mergeTaskCompletionMeta(prevForMerge, { ...normalizedTask, id: taskId, dependencyTaskIds: finalDependencyIds });
-      return normalizedTask.id
+      const nextTask = mergeTaskCompletionMeta(prevForMerge, { ...normalizedTask, id: taskId, dependencyTaskIds: finalDependencyIds }, statuses);
+      const updated = normalizedTask.id
         ? previousTasks.map((item) => item.id === normalizedTask.id ? nextTask : item)
         : [...previousTasks, nextTask];
+      if (cascade && shouldCascadeStatusToChildren(nextTask.status)) {
+        return applyStatusWithChildCascade(updated, taskId, nextTask.status, statuses);
+      }
+      return updated;
     });
+  };
+
+  const buildReorderedTasks = (baseTasks, taskId, targetStatus, targetIndex, movedTask) => {
+    const remaining = baseTasks.filter((task) => task.id !== taskId);
+    const byStatus = statuses.reduce((acc, status) => {
+      acc[status.v] = [];
+      return acc;
+    }, {});
+    remaining.forEach((task) => {
+      if (!byStatus[task.status]) byStatus[task.status] = [];
+      byStatus[task.status].push(task);
+    });
+    const list = byStatus[targetStatus] || [];
+    const insertionIndex = targetIndex === null
+      ? list.length
+      : Math.max(0, Math.min(targetIndex, list.length));
+    list.splice(insertionIndex, 0, movedTask);
+    byStatus[targetStatus] = list;
+    const knownStatuses = new Set(statuses.map((status) => status.v));
+    const ordered = statuses.flatMap((status) => byStatus[status.v] || []);
+    // Keep tasks whose status is not in the current status list (custom/orphan
+    // buckets) at the end so they are never silently dropped.
+    const orphanKeys = Object.keys(byStatus).filter((key) => !knownStatuses.has(key));
+    return [...ordered, ...orphanKeys.flatMap((key) => byStatus[key])];
   };
 
   const reorderTaskInKanban = (taskId, targetStatus, targetIndex, movedTask) => {
-    setTasks((prev) => {
-      const remaining = prev.filter((task) => task.id !== taskId);
-      const byStatus = statuses.reduce((acc, status) => {
-        acc[status.v] = [];
-        return acc;
-      }, {});
-      remaining.forEach((task) => {
-        if (!byStatus[task.status]) byStatus[task.status] = [];
-        byStatus[task.status].push(task);
-      });
-      const list = byStatus[targetStatus] || [];
-      const insertionIndex = targetIndex === null
-        ? list.length
-        : Math.max(0, Math.min(targetIndex, list.length));
-      list.splice(insertionIndex, 0, movedTask);
-      byStatus[targetStatus] = list;
-      return statuses.flatMap((status) => byStatus[status.v] || []);
-    });
+    setTasks((prev) => buildReorderedTasks(prev, taskId, targetStatus, targetIndex, movedTask));
   };
 
   const commitStatusChange = ({ taskId, fromStatus, toStatus, comment, targetIndex = null }) => {
@@ -678,25 +703,29 @@ export default function App() {
     const sourceTask = tasks.find((task) => task.id === taskId);
     if (!sourceTask) return;
 
-    if (toStatus === 'done') {
-      const openChildTasks = tasks.filter((task) => (
-        (sourceTask.dependencyTaskIds || []).includes(task.id) &&
-        task.status !== 'done'
-      ));
-      if (openChildTasks.length > 0) {
-        showParentBlockedMessage('mover a Hecha', openChildTasks.length);
+    if (isTerminalStatus(toStatus, statuses)) {
+      const openChildTasks = countOpenChildTasks(sourceTask, tasks, statuses);
+      if (openChildTasks > 0) {
+        showParentBlockedMessage('mover a Hecha', openChildTasks);
         return;
       }
     }
 
-    let nextTask = mergeTaskCompletionMeta(sourceTask, { ...sourceTask, status: toStatus });
+    let nextTask = mergeTaskCompletionMeta(sourceTask, { ...sourceTask, status: toStatus }, statuses);
     nextTask = appendStatusLogEntry(nextTask, {
       fromStatus: fromStatus ?? sourceTask.status,
       toStatus,
       comment: trimmed,
     });
 
-    if (targetIndex !== null && targetIndex !== undefined) {
+    const hasTargetIndex = targetIndex !== null && targetIndex !== undefined;
+    if (shouldCascadeStatusToChildren(toStatus)) {
+      const cascaded = applyStatusWithChildCascade(tasks, taskId, toStatus, statuses)
+        .map((item) => (item.id === taskId ? nextTask : item));
+      setTasks(hasTargetIndex
+        ? buildReorderedTasks(cascaded, taskId, toStatus, targetIndex, nextTask)
+        : cascaded);
+    } else if (hasTargetIndex) {
       reorderTaskInKanban(taskId, toStatus, targetIndex, nextTask);
     } else {
       setTasks((prev) => prev.map((item) => (item.id === taskId ? nextTask : item)));
@@ -709,13 +738,10 @@ export default function App() {
     if (!toStatus || fromStatus === toStatus) return false;
     const sourceTask = tasks.find((task) => task.id === taskId);
     if (!sourceTask) return false;
-    if (toStatus === 'done') {
-      const openChildTasks = tasks.filter((task) => (
-        (sourceTask.dependencyTaskIds || []).includes(task.id) &&
-        task.status !== 'done'
-      ));
-      if (openChildTasks.length > 0) {
-        showParentBlockedMessage(source === 'list' ? 'completar' : 'mover a Hecha', openChildTasks.length);
+    if (isTerminalStatus(toStatus, statuses)) {
+      const openChildTasks = countOpenChildTasks(sourceTask, tasks, statuses);
+      if (openChildTasks > 0) {
+        showParentBlockedMessage(source === 'list' ? 'completar' : 'mover a Hecha', openChildTasks);
         return false;
       }
     }
@@ -727,13 +753,13 @@ export default function App() {
     if (!pendingStatusChange) return;
     if (pendingStatusChange.source === 'modal' && pendingModalUpsert) {
       const existing = tasks.find((item) => item.id === pendingModalUpsert.id);
-      let nextTask = mergeTaskCompletionMeta(existing, pendingModalUpsert);
+      let nextTask = mergeTaskCompletionMeta(existing, pendingModalUpsert, statuses);
       nextTask = appendStatusLogEntry(nextTask, {
         fromStatus: pendingStatusChange.fromStatus,
         toStatus: pendingStatusChange.toStatus,
         comment,
       });
-      applyTaskUpdate(nextTask);
+      applyTaskUpdate(nextTask, { cascade: true });
       setModal(null);
       setPendingStatusChange(null);
       setPendingModalUpsert(null);
@@ -750,7 +776,7 @@ export default function App() {
   const toggleDone = (id) => {
     const task = tasks.find((item) => item.id === id);
     if (!task) return;
-    const nextStatus = task.status === 'done' ? 'not_done' : 'done';
+    const nextStatus = isTerminalStatus(task.status, statuses) ? 'not_done' : 'done';
     requestStatusChange({
       taskId: id,
       fromStatus: task.status,
@@ -805,41 +831,26 @@ export default function App() {
   };
   const linkStandaloneTaskAsChild = (sourceTaskId, targetTaskId) => {
     if (!sourceTaskId || !targetTaskId || sourceTaskId === targetTaskId) return false;
-    let linked = false;
-    setTasks((previousTasks) => {
-      const sourceTask = previousTasks.find((task) => task.id === sourceTaskId);
-      const targetTask = previousTasks.find((task) => task.id === targetTaskId);
-      if (!sourceTask || !targetTask) return previousTasks;
+    const sourceTask = tasks.find((task) => task.id === sourceTaskId);
+    const targetTask = tasks.find((task) => task.id === targetTaskId);
+    if (!sourceTask || !targetTask) return false;
 
-      const hasParent = (taskId) => previousTasks.some((task) => (
-        Array.isArray(task.dependencyTaskIds) &&
-        task.dependencyTaskIds.includes(taskId)
-      ));
+    const hasParent = (taskId) => tasks.some((task) => (
+      Array.isArray(task.dependencyTaskIds) &&
+      task.dependencyTaskIds.includes(taskId)
+    ));
 
-      const sourceHasParent = hasParent(sourceTaskId);
-      const sourceHasChildren = Array.isArray(sourceTask.dependencyTaskIds) && sourceTask.dependencyTaskIds.length > 0;
-      const targetHasParent = hasParent(targetTaskId);
-      const alreadyLinked = (targetTask.dependencyTaskIds || []).includes(sourceTaskId);
+    const sourceHasParent = hasParent(sourceTaskId);
+    const sourceHasChildren = Array.isArray(sourceTask.dependencyTaskIds) && sourceTask.dependencyTaskIds.length > 0;
+    const targetHasParent = hasParent(targetTaskId);
+    const alreadyLinked = (targetTask.dependencyTaskIds || []).includes(sourceTaskId);
 
-      if (sourceHasParent || sourceHasChildren || targetHasParent || alreadyLinked) {
-        return previousTasks;
-      }
+    if (sourceHasParent || sourceHasChildren || targetHasParent || alreadyLinked) return false;
 
-      linked = true;
-      return previousTasks.map((task) => {
-        if (task.id === targetTaskId) {
-          return { ...task, dependencyTaskIds: [...(task.dependencyTaskIds || []), sourceTaskId] };
-        }
-        if (task.id === sourceTaskId) {
-          return normalizeTaskWithTicket(inheritTicketFromParentTask(targetTask, task));
-        }
-        return task;
-      });
-    });
-    if (linked) {
-      showToast('Dependencia creada: la tarea arrastrada ahora es hija de la tarea destino.', { type: 'success', duration: 3000 });
-    }
-    return linked;
+    setTasks((previousTasks) => applyStandaloneChildLink(previousTasks, { sourceTaskId, targetTaskId, targetTask }));
+
+    showToast('Dependencia creada: la tarea arrastrada ahora es hija de la tarea destino.', { type: 'success', duration: 3000 });
+    return true;
   };
   const triggerJsonDownload = (data, fileName) => {
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -1043,19 +1054,19 @@ export default function App() {
     const normalizedParentWithId = { ...normalizedParent, id: parentId, dependencyTaskIds };
 
     if (!normalizedParent.id) {
-      const parentForSave = mergeTaskCompletionMeta(null, normalizedParentWithId);
+      const parentForSave = mergeTaskCompletionMeta(null, normalizedParentWithId, statuses);
       setTasks((prev) => [...prev, parentForSave]);
       return;
     }
 
     const existingParent = tasks.find((item) => item.id === parentId);
-    const parentForSave = mergeTaskCompletionMeta(existingParent, normalizedParentWithId);
+    const parentForSave = mergeTaskCompletionMeta(existingParent, normalizedParentWithId, statuses);
 
     if (existingParent && existingParent.status !== parentForSave.status) {
       const openChildrenAfterSave = tasks.filter((t) => (
-        dependencyTaskIds.includes(t.id) && t.status !== 'done'
+        dependencyTaskIds.includes(t.id) && !isTerminalStatus(t.status, statuses)
       ));
-      if (parentForSave.status === 'done' && openChildrenAfterSave.length > 0) {
+      if (isTerminalStatus(parentForSave.status, statuses) && openChildrenAfterSave.length > 0) {
         setPendingModalUpsert(parentForSave);
         const opened = requestStatusChange({
           taskId: parentId,
@@ -1068,7 +1079,7 @@ export default function App() {
       }
     }
 
-    applyTaskUpdate(parentForSave);
+    applyTaskUpdate(parentForSave, { cascade: true });
   };
 
   const saveTaskPlannedSlots = (taskId, plannedSlots) => {
@@ -1086,48 +1097,28 @@ export default function App() {
   };
 
   const del = (id) => {
-    // Use a result object to safely communicate state from inside the React
-    // updater function without relying on mutation of outer-scope variables,
-    // which is not guaranteed to be observed synchronously in Concurrent Mode.
-    const result = { blocked: false, blockedCount: 0, taskName: '', snapshot: null };
+    const targetTask = tasks.find((task) => task.id === id);
+    if (!targetTask) return;
 
-    setTasks((previousTasks) => {
-      const targetTask = previousTasks.find((task) => task.id === id);
-      if (!targetTask) return previousTasks;
-
-      const openChildTasks = previousTasks.filter((task) => (
-        (targetTask.dependencyTaskIds || []).includes(task.id) &&
-        task.status !== 'done'
-      ));
-      if (openChildTasks.length > 0) {
-        result.blocked = true;
-        result.blockedCount = openChildTasks.length;
-        return previousTasks;
-      }
-
-      result.taskName = targetTask.name || 'Tarea';
-      result.snapshot = previousTasks;
-      return previousTasks
-        .filter((task) => task.id !== id)
-        .map((task) => ({
-          ...task,
-          dependencyTaskIds: (task.dependencyTaskIds || []).filter((dependencyId) => dependencyId !== id)
-        }));
-    });
-
-    // React guarantees that the updater runs synchronously during the same
-    // event before any effects or paint; reading `result` here is safe.
-    if (result.blocked) {
-      showParentBlockedMessage('eliminar', result.blockedCount || 1);
+    const openChildTasks = countOpenChildTasks(targetTask, tasks, statuses);
+    if (openChildTasks > 0) {
+      showParentBlockedMessage('eliminar', openChildTasks);
       return;
     }
-    if (result.snapshot) {
-      const snapshot = result.snapshot;
-      pushUndoTransaction({
-        description: `Tarea "${result.taskName}" eliminada`,
-        rollbackFn: () => setTasks(snapshot),
-      });
-    }
+
+    const snapshot = tasks;
+    setTasks((previousTasks) => previousTasks
+      .filter((task) => task.id !== id)
+      .map((task) => ({
+        ...task,
+        dependencyTaskIds: (task.dependencyTaskIds || []).filter((dependencyId) => dependencyId !== id)
+      })));
+
+    pushUndoTransaction({
+      description: `Tarea "${targetTask.name || 'Tarea'}" eliminada`,
+      rollbackFn: () => setTasks(snapshot),
+    });
+
     setModal(null);
     setTaskPreviewId((currentId) => (currentId === id ? null : currentId));
     setIsTaskSheetOpen(false);
@@ -1342,7 +1333,11 @@ export default function App() {
     if (moved === 0) return 0;
     setBoardNotes(nextNotes);
     setBoardLayoutAnimating(true);
-    window.setTimeout(() => setBoardLayoutAnimating(false), 520);
+    if (boardLayoutTimerRef.current) window.clearTimeout(boardLayoutTimerRef.current);
+    boardLayoutTimerRef.current = window.setTimeout(() => {
+      boardLayoutTimerRef.current = null;
+      setBoardLayoutAnimating(false);
+    }, 520);
     pushUndoTransaction({
       description: 'Tablero organizado',
       rollbackFn: () => setBoardNotes(previousNotes),
@@ -1538,7 +1533,7 @@ export default function App() {
 
   const navigateToView = useCallback((nextView) => {
     setTaskPreviewId(null);
-    setView(nextView === 'tasks' ? 'kanban' : nextView);
+    setView(nextView);
   }, [setTaskPreviewId, setView]);
 
   const handleSelectProfile = (profileId) => {
@@ -1585,7 +1580,7 @@ export default function App() {
       : fallbackName;
     return {
       name,
-      date: typeof taskInput?.date === 'string' ? taskInput.date : '',
+      date: canonicalizeDateOnly(taskInput?.date),
       time: typeof taskInput?.time === 'string' ? taskInput.time : '',
       status: 'not_done',
       priority: ['low', 'medium', 'high', 'critical'].includes(taskInput?.priority) ? taskInput.priority : 'high',
@@ -1760,11 +1755,11 @@ export default function App() {
   const now = new Date();
   const todayStr = toDateStr(now.getFullYear(), now.getMonth(), now.getDate());
 
-  const activeTasks = focusTasks.filter((t) => t.status !== 'done');
+  const activeTasks = focusTasks.filter((t) => !isTerminalStatus(t.status, statuses));
   const baseByStatus = filter === 'all' ? activeTasks : focusTasks.filter((t) => t.status === filter);
   const byCategory = categoryFilter === 'all' ? baseByStatus : baseByStatus.filter((t) => t.category === categoryFilter);
   const bySummary = summaryFilter === 'today'
-    ? byCategory.filter((t) => t.date === todayStr && t.status !== 'done')
+    ? byCategory.filter((t) => t.date === todayStr && !isTerminalStatus(t.status, statuses))
     : byCategory;
   const normalizedSearch = searchQuery.trim().toLowerCase();
   const bySearch = normalizedSearch
@@ -1777,13 +1772,15 @@ export default function App() {
   const categoryBase = filter === 'all' ? activeTasks : focusTasks.filter((t) => t.status === filter);
   const categoryCounts = categoryBase.reduce((acc, t) => { if (!t.category) return acc; acc[t.category] = (acc[t.category] || 0) + 1; return acc; }, {});
   const totalVisible = bySummary.length;
-  const completedCount = focusTasks.filter((t) => t.status === 'done').length;
+  const completedCount = focusTasks.filter((t) => isTerminalStatus(t.status, statuses)).length;
   const blockedCount = focusTasks.filter((t) => t.status === 'blocked').length;
-  const todayTasks = (tByDate[todayStr] || []).filter((t) => t.status !== 'done');
-  const overdueTasks = focusTasks.filter((t) => t.date && t.date < todayStr && t.status !== 'done');
-  const upcomingTasks = getUpcomingTasks(focusTasks, todayStr, 5);
+  const todayTasks = (tByDate[todayStr] || []).filter((t) => !isTerminalStatus(t.status, statuses));
+  const overdueTasks = focusTasks.filter((t) => t.date && t.date < todayStr && !isTerminalStatus(t.status, statuses));
+  const upcomingTasks = getUpcomingTasks(focusTasks, todayStr, 5, statuses);
   const todayEvents = eByDate[todayStr] || [];
-  const completedTodayCount = focusTasks.filter((t) => t.status === 'done' && t.completedAt && t.completedAt.startsWith(todayStr)).length;
+  const completedTodayCount = focusTasks.filter((t) => (
+    isTerminalStatus(t.status, statuses) && isCompletedAtOnLocalDate(t.completedAt, todayStr)
+  )).length;
 
   const todayCount = todayTasks.length;
   const activeMetric = summaryFilter === 'today'

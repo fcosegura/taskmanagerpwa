@@ -1,5 +1,6 @@
 import { MONTHS, DAYS } from '../constants.js';
 import { toDateStr, fmtDate } from '../utils.jsx';
+import { parseLocalDateOnly } from '../todayViewHelpers.js';
 import { Button, NBtn } from './shared/index.jsx';
 import TaskRow from './TaskRow.jsx';
 
@@ -75,6 +76,7 @@ export default function CalendarView({
 }) {
   const cells = [...Array(fD).fill(null), ...Array.from({ length: dIM }, (_, i) => i + 1)];
   const selDs = selDay ? toDateStr(y, mo, selDay) : null;
+  const selDate = selDs ? parseLocalDateOnly(selDs) : null;
   const today = new Date();
   const isCurrentMonth = today.getFullYear() === y && today.getMonth() === mo;
   const fallbackDay = isCurrentMonth ? today.getDate() : 1;
@@ -223,7 +225,7 @@ export default function CalendarView({
               Día seleccionado
             </div>
             <div style={{ fontSize: 'var(--font-size-md)', fontWeight: 800 }}>
-              {selDs ? `${DAYS[new Date(selDs).getDay()]}, ${fmtDate(selDs)}` : 'Selecciona un día en la cuadrícula'}
+              {selDate ? `${DAYS[selDate.getDay()]}, ${fmtDate(selDs)}` : 'Selecciona un día en la cuadrícula'}
             </div>
           </div>
           {selDs && (

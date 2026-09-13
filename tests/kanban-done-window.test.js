@@ -1,15 +1,27 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { isCompletedAtWithinKanbanRange, startOfLocalIsoWeekMs, mergeTaskCompletionMeta } from '../src/kanbanDoneRange.js';
+import { isCompletedAtWithinKanbanRange, startOfLocalIsoWeekMs, mergeTaskCompletionMeta, resolveTaskCompletionIso } from '../src/kanbanDoneRange.js';
 
 test('isCompletedAtWithinKanbanRange: all always passes', () => {
   assert.equal(isCompletedAtWithinKanbanRange('', 'all'), true);
   assert.equal(isCompletedAtWithinKanbanRange('invalid', 'all'), true);
 });
 
-test('isCompletedAtWithinKanbanRange: rejects missing ISO when filtered', () => {
-  assert.equal(isCompletedAtWithinKanbanRange('', 'week'), false);
-  assert.equal(isCompletedAtWithinKanbanRange(null, 'month'), false);
+test('isCompletedAtWithinKanbanRange: keeps undated/malformed entries visible (M-F8)', () => {
+  assert.equal(isCompletedAtWithinKanbanRange('', 'week'), true);
+  assert.equal(isCompletedAtWithinKanbanRange(null, 'month'), true);
+  assert.equal(isCompletedAtWithinKanbanRange('invalid', 'week'), true);
+});
+
+test('resolveTaskCompletionIso falls back to updatedAt, statusLog and createdAt (M-F8)', () => {
+  assert.equal(resolveTaskCompletionIso({ completedAt: '2026-05-10T00:00:00Z' }), '2026-05-10T00:00:00Z');
+  assert.equal(resolveTaskCompletionIso({ updatedAt: '2026-05-11T00:00:00Z' }), '2026-05-11T00:00:00Z');
+  assert.equal(
+    resolveTaskCompletionIso({ statusLog: [{ at: '2026-05-01T00:00:00Z' }, { at: '2026-05-12T00:00:00Z' }] }),
+    '2026-05-12T00:00:00Z'
+  );
+  assert.equal(resolveTaskCompletionIso({ createdAt: '2026-05-09T00:00:00Z' }), '2026-05-09T00:00:00Z');
+  assert.equal(resolveTaskCompletionIso({}), '');
 });
 
 test('week window uses Monday start (local)', () => {

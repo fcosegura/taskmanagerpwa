@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { Modal, Button } from './ui/index.jsx';
 import { countOpenChildTasks } from '../taskTrashHelpers.js';
+import { STATUS, isTerminalStatus } from '../constants.js';
 
 export default function TaskTrashDropZone({
   draggedTaskId,
   allTasks = [],
   onDeleteTask,
+  statuses = STATUS,
   className = '',
 }) {
   const [isDragOver, setIsDragOver] = useState(false);
@@ -39,7 +41,7 @@ export default function TaskTrashDropZone({
     const task = allTasks.find((t) => t.id === droppedId);
     if (!task) return;
 
-    const openChildren = countOpenChildTasks(task, allTasks);
+    const openChildren = countOpenChildTasks(task, allTasks, statuses);
     if (openChildren > 0) {
       // Skip confirm modal — delete will be blocked and show the parent warning toast.
       onDeleteTask?.(task.id);
@@ -60,7 +62,7 @@ export default function TaskTrashDropZone({
   const closedChildCount = taskToDelete
     ? (taskToDelete.dependencyTaskIds || []).filter((childId) => {
         const child = allTasks.find((t) => t.id === childId);
-        return child && child.status === 'done';
+        return child && isTerminalStatus(child.status, statuses);
       }).length
     : 0;
   // Remaining deps that are missing from allTasks still get unlinked on delete.

@@ -1,6 +1,52 @@
 import assert from 'node:assert/strict';
 import { test, describe } from 'node:test';
-import { getDisplayDescription, getUpcomingTasks, normalizeTaskUrl, formatTaskUrlLabel } from '../src/todayViewHelpers.js';
+import { getDisplayDescription, getUpcomingTasks, normalizeTaskUrl, formatTaskUrlLabel, fmtDate, canonicalizeDateOnly } from '../src/todayViewHelpers.js';
+import { STATUS } from '../src/constants.js';
+
+describe('canonicalizeDateOnly (R1)', () => {
+  test('rellena ceros en formatos no canónicos', () => {
+    assert.strictEqual(canonicalizeDateOnly('2026-5-3'), '2026-05-03');
+    assert.strictEqual(canonicalizeDateOnly('2026/05/03'), '2026-05-03');
+    assert.strictEqual(canonicalizeDateOnly('2026-05-03'), '2026-05-03');
+  });
+
+  test('recorta datetime ISO (T o espacio)', () => {
+    assert.strictEqual(canonicalizeDateOnly('2026-05-13T00:00:00Z'), '2026-05-13');
+    assert.strictEqual(canonicalizeDateOnly('2026-5-3T10:30:00'), '2026-05-03');
+    assert.strictEqual(canonicalizeDateOnly('2026-05-03 10:30'), '2026-05-03');
+  });
+
+  test('devuelve "" para entradas vacías, no-string o inválidas', () => {
+    assert.strictEqual(canonicalizeDateOnly(null), '');
+    assert.strictEqual(canonicalizeDateOnly(undefined), '');
+    assert.strictEqual(canonicalizeDateOnly(''), '');
+    assert.strictEqual(canonicalizeDateOnly('   '), '');
+    assert.strictEqual(canonicalizeDateOnly(123), '');
+    assert.strictEqual(canonicalizeDateOnly({}), '');
+    assert.strictEqual(canonicalizeDateOnly('no-date'), '');
+    assert.strictEqual(canonicalizeDateOnly('10/05/2026'), '');
+    assert.strictEqual(canonicalizeDateOnly('2026-13-01'), '');
+    assert.strictEqual(canonicalizeDateOnly('2026-02-30'), '');
+  });
+});
+
+describe('fmtDate (A7)', () => {
+  test('formats valid YYYY-MM-DD dates', () => {
+    assert.strictEqual(fmtDate('2026-05-13'), '13 May 2026');
+    assert.strictEqual(fmtDate('2026-01-01'), '1 Ene 2026');
+  });
+
+  test('returns empty string for malformed or non-string dates without throwing', () => {
+    assert.strictEqual(fmtDate('2026-13-99'), '');
+    assert.strictEqual(fmtDate('no-date'), '');
+    assert.strictEqual(fmtDate('2026-05-13T00:00:00Z'), '');
+    assert.strictEqual(fmtDate(''), '');
+    assert.strictEqual(fmtDate(null), '');
+    assert.strictEqual(fmtDate(undefined), '');
+    assert.strictEqual(fmtDate(123), '');
+  });
+});
+
 
 describe('TodayView task and event classification', () => {
   const todayStr = '2026-07-31';
@@ -82,6 +128,21 @@ describe('TodayView task and event classification', () => {
     assert.deepStrictEqual(
       getUpcomingTasks(tasks, '2026-07-30').map((task) => task.id),
       ['high-early', 'high-late', 'late', 'new-month']
+    );
+  });
+
+  test('getUpcomingTasks treats a custom terminal status as done (M-F4)', () => {
+    const customStatuses = [
+      ...STATUS,
+      { v: 'archived', label: 'Archivado', kind: 'done', isTerminal: true, canBeFocused: false, sortWeight: 0 },
+    ];
+    const tasks = [
+      { id: 'future-open', date: '2026-08-01', status: 'not_done' },
+      { id: 'future-archived', date: '2026-08-02', status: 'archived' },
+    ];
+    assert.deepStrictEqual(
+      getUpcomingTasks(tasks, '2026-07-31', 5, customStatuses).map((task) => task.id),
+      ['future-open']
     );
   });
 

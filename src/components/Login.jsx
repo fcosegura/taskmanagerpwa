@@ -4,9 +4,14 @@ const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
 export default function Login({ onLoginSuccess, notice = '' }) {
   const googleBtnRef = useRef(null);
+  const onLoginSuccessRef = useRef(onLoginSuccess);
   const [error, setError] = useState(() =>
     (GOOGLE_CLIENT_ID ? '' : 'Falta VITE_GOOGLE_CLIENT_ID en la configuración de build.')
   );
+
+  useEffect(() => {
+    onLoginSuccessRef.current = onLoginSuccess;
+  }, [onLoginSuccess]);
 
   useEffect(() => {
     if (!GOOGLE_CLIENT_ID) {
@@ -23,7 +28,7 @@ export default function Login({ onLoginSuccess, notice = '' }) {
         callback: async (response) => {
           try {
             setError('');
-            await onLoginSuccess(response.credential);
+            await onLoginSuccessRef.current?.(response.credential);
           } catch {
             setError('No se pudo iniciar sesión. Revisa la configuración de Google/Cloudflare.');
           }
@@ -59,7 +64,7 @@ export default function Login({ onLoginSuccess, notice = '' }) {
       window.clearInterval(interval);
       window.clearTimeout(timeout);
     };
-  }, [onLoginSuccess]);
+  }, []);
 
   return (
     <div className="login-page">

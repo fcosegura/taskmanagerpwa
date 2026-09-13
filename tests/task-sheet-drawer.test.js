@@ -98,11 +98,11 @@ describe('handleTaskSheetSave in App.jsx', () => {
   test('handleTaskSheetSave normalizes and saves dependencyTaskIds directly', () => {
     assert.match(appSource, /const dependencyTaskIds = Array\.isArray\(normalizedParent\.dependencyTaskIds\)/);
     assert.match(appSource, /normalizedParentWithId = \{ \.\.\.normalizedParent, id: parentId, dependencyTaskIds \}/);
-    assert.match(appSource, /applyTaskUpdate\(parentForSave\)/);
+    assert.match(appSource, /applyTaskUpdate\(parentForSave, \{ cascade: true \}\)/);
   });
 
   test('handleTaskSheetSave creates a single parent task for new tasks', () => {
-    assert.match(appSource, /mergeTaskCompletionMeta\(null, normalizedParentWithId\)/);
+    assert.match(appSource, /mergeTaskCompletionMeta\(null, normalizedParentWithId, statuses\)/);
     assert.match(appSource, /setTasks\(\(prev\) => \[\.\.\.prev, parentForSave\]\)/);
   });
 

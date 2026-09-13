@@ -11,6 +11,7 @@ import {
 import { isPlannedSlotsArrayShape, normalizePlannedSlots } from './plannedSlots.js';
 import { buildDailyStatusFallbackReport } from './dailyStatusFallback.js';
 import { partitionDailyStatusActivities, statusChangesForDailyReport } from './dailyStatusActivities.js';
+import { canonicalizeDateOnly } from './todayViewHelpers.js';
 import {
   dismissNoteAiSuggestion,
   enqueueNoteAiJobs,
@@ -292,6 +293,21 @@ async function pruneExpiredSessions(env) {
   const now = Math.floor(Date.now() / 1000);
   try {
     await env.DB.prepare('DELETE FROM sessions WHERE expires_at < ?').bind(now).run();
+  } catch {
+    // ignore
+  }
+}
+
+const RATE_LIMIT_RETENTION_SEC = 24 * 60 * 60;
+
+/**
+ * Best-effort cleanup of stale rate-limit rows. Runs on the same low-frequency
+ * path as pruneExpiredSessions (login), never on the hot request path.
+ */
+async function pruneStaleRateLimits(env) {
+  const cutoff = Math.floor(Date.now() / 1000) - RATE_LIMIT_RETENTION_SEC;
+  try {
+    await env.DB.prepare('DELETE FROM ai_rate_limits WHERE window_start < ?').bind(cutoff).run();
   } catch {
     // ignore
   }
@@ -1131,12 +1147,12 @@ function normalizeGeneratedTaskPlan(aiParsed, sourceText) {
     : fallback.childTasks;
 
   const normalizeMain = (item, fallbackName, fallbackRef) => {
-    const rawDate = typeof item?.date === 'string' ? item.date.trim() : '';
+    const rawDate = canonicalizeDateOnly(item?.date);
     const derivedDate = rawDate || parseDateInCurrentWeek(sourceText);
     return {
       ref: typeof item?.ref === 'string' && item.ref.trim() ? item.ref.trim().slice(0, 30) : fallbackRef,
       name: typeof item?.name === 'string' && item.name.trim() ? item.name.trim().slice(0, 120) : fallbackName,
-      date: derivedDate || '',
+      date: canonicalizeDateOnly(derivedDate) || '',
       time: typeof item?.time === 'string' ? item.time.trim().slice(0, 5) : '',
       priority: normalizePriority(item?.priority),
       notes: typeof item?.notes === 'string' ? item.notes.trim().slice(0, 400) : '',
@@ -1147,7 +1163,7 @@ function normalizeGeneratedTaskPlan(aiParsed, sourceText) {
   const normalizeChild = (item, fallbackName, defaultParentRef) => ({
     name: typeof item?.name === 'string' && item.name.trim() ? item.name.trim().slice(0, 120) : fallbackName,
     parentRef: typeof item?.parentRef === 'string' && item.parentRef.trim() ? item.parentRef.trim().slice(0, 30) : defaultParentRef,
-    date: typeof item?.date === 'string' ? item.date.trim().slice(0, 10) : '',
+    date: canonicalizeDateOnly(item?.date),
     time: typeof item?.time === 'string' ? item.time.trim().slice(0, 5) : '',
     priority: normalizePriority(item?.priority),
     notes: typeof item?.notes === 'string' ? item.notes.trim().slice(0, 400) : '',
@@ -1172,9 +1188,15 @@ function normalizeGeneratedTaskPlan(aiParsed, sourceText) {
   return { mainTasks, childTasks };
 }
 
+const GOOGLE_ID_TOKEN_PATTERN = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/;
+
 async function verifyGoogleToken(token, env) {
   if (!token) return null;
-  const googleResp = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${token}`);
+  // Only JWT-shaped values are Google ID tokens; opaque/other cookies must not hit Google.
+  if (!GOOGLE_ID_TOKEN_PATTERN.test(token)) return null;
+  const googleResp = await fetch(
+    `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(token)}`
+  );
   const info = await googleResp.json();
   if (!googleResp.ok || info.error) return null;
   if (info.aud !== env.GOOGLE_CLIENT_ID) return null;
@@ -1214,6 +1236,7 @@ export default {
           const userId = await verifyGoogleToken(credential, env);
           if (!userId) return json({ error: 'Token inválido' }, { status: 401 });
           await pruneExpiredSessions(env);
+          await pruneStaleRateLimits(env);
           const sessionToken = await createOpaqueSession(env, userId);
           return json(
             { success: true },
@@ -1267,6 +1290,8 @@ export default {
         if (request.method === 'GET' && path.startsWith('/notes/') && path.endsWith('/related')) {
           const noteId = decodeURIComponent(path.slice('/notes/'.length, -'/related'.length));
           if (!noteId) return json({ error: 'noteId inválido' }, { status: 400 });
+          const rateLimited = await consumeNoteAiRateLimit(env, userId);
+          if (rateLimited) return rateLimited;
           const result = await getRelatedNotesForNote(env, dataKey, userId, profileId, noteId);
           return json(result);
         }
@@ -1462,7 +1487,12 @@ export default {
         }
 
         if (request.method === 'POST' && path === '/profiles') {
-          const body = await request.json();
+          let body = null;
+          try {
+            body = await request.json();
+          } catch {
+            return json({ error: 'invalid_body' }, { status: 400 });
+          }
           const name = sanitizeProfileName(body?.name);
           if (!name) return json({ error: 'Nombre de perfil inválido' }, { status: 400 });
           const newProfile = { id: buildProfileId(userId, name), name };
@@ -1474,7 +1504,12 @@ export default {
         }
 
         if (request.method === 'POST' && path === '/profiles/delete') {
-          const body = await request.json();
+          let body = null;
+          try {
+            body = await request.json();
+          } catch {
+            return json({ error: 'invalid_body' }, { status: 400 });
+          }
           const targetProfileId = typeof body?.profileId === 'string' ? body.profileId : '';
           if (!targetProfileId) return json({ error: 'profileId inválido' }, { status: 400 });
 
@@ -1513,7 +1548,12 @@ export default {
         }
 
         if (request.method === 'POST' && path === '/profiles/update') {
-          const body = await request.json();
+          let body = null;
+          try {
+            body = await request.json();
+          } catch {
+            return json({ error: 'invalid_body' }, { status: 400 });
+          }
           const targetProfileId = typeof body?.profileId === 'string' ? body.profileId : '';
           if (!targetProfileId) return json({ error: 'profileId inválido' }, { status: 400 });
 
@@ -1609,13 +1649,15 @@ export default {
             }
             delete tr.planned_slots;
             delete tr.status_log;
-            const { created_at, updated_at, ...trRest } = tr;
+            // Explicit allow-list: never leak user_id/profile_id/description or
+            // any stored ciphertext back to the client.
             parsedTasks.push({
-              ...trRest,
+              id: unscopedEntityId(profileId, tr.id),
               name: nameOut,
+              status: typeof tr.status === 'string' ? tr.status : '',
+              priority: typeof tr.priority === 'string' ? tr.priority : '',
               url: typeof urlOut === 'string' ? urlOut : '',
               notes: typeof notesOut === 'string' ? notesOut : '',
-              id: unscopedEntityId(profileId, tr.id),
               hideInKanbanDone: Boolean(tr.hide_in_kanban_done),
               subtasks,
               dependencyTaskIds,
@@ -1623,8 +1665,8 @@ export default {
               statusLog: Array.isArray(statusLog) ? statusLog : [],
               ticketNumber: typeof ticketOut === 'string' ? ticketOut : '',
               completedAt: typeof completedOut === 'string' && completedOut ? completedOut : '',
-              createdAt: created_at || null,
-              updatedAt: updated_at || null,
+              createdAt: tr.created_at || null,
+              updatedAt: tr.updated_at || null,
               category: categoryOut,
               date: dateOut,
               endDate: typeof endDateOut === 'string' && endDateOut ? endDateOut : '',
@@ -1634,37 +1676,32 @@ export default {
 
           const parsedNotes = [];
           for (const note of notes || []) {
-            const { created_at, updated_at, ...restIn } = note;
-            const rest = { ...restIn };
-            delete rest.content_hash;
-            const titleDec = await decryptField(dataKey, rest.title);
-            const textDec = await decryptField(dataKey, rest.text);
+            const titleDec = await decryptField(dataKey, note.title);
+            const textDec = await decryptField(dataKey, note.text);
             parsedNotes.push({
-              ...rest,
+              id: unscopedEntityId(profileId, note.id),
               title: typeof titleDec === 'string' ? titleDec : '',
               text: typeof textDec === 'string' ? textDec : '',
-              id: unscopedEntityId(profileId, rest.id),
-              createdAt: created_at,
-              updatedAt: updated_at
+              x: typeof note.x === 'number' ? note.x : 0,
+              y: typeof note.y === 'number' ? note.y : 0,
+              createdAt: note.created_at,
+              updatedAt: note.updated_at
             });
           }
 
           const parsedEvents = [];
           for (const event of events || []) {
-            const { created_at, updated_at, ...evIn } = event;
-            const ev = { ...evIn };
-            delete ev.content_hash;
-            const titleDec = await decryptField(dataKey, ev.title);
-            const startDateDec = await decryptField(dataKey, ev.startDate);
-            const endDateDec = await decryptField(dataKey, ev.endDate);
-            const colorDec = await decryptField(dataKey, ev.color);
-            const startTimeDec = await decryptField(dataKey, ev.startTime);
-            const endTimeDec = await decryptField(dataKey, ev.endTime);
-            const freqDec = await decryptField(dataKey, ev.recurrenceFrequency);
-            const untilDec = await decryptField(dataKey, ev.recurrenceUntil);
+            const titleDec = await decryptField(dataKey, event.title);
+            const startDateDec = await decryptField(dataKey, event.startDate);
+            const endDateDec = await decryptField(dataKey, event.endDate);
+            const colorDec = await decryptField(dataKey, event.color);
+            const startTimeDec = await decryptField(dataKey, event.startTime);
+            const endTimeDec = await decryptField(dataKey, event.endTime);
+            const freqDec = await decryptField(dataKey, event.recurrenceFrequency);
+            const untilDec = await decryptField(dataKey, event.recurrenceUntil);
             const freqStr = freqDec == null ? '' : String(freqDec);
             parsedEvents.push({
-              ...ev,
+              id: unscopedEntityId(profileId, event.id),
               title: typeof titleDec === 'string' ? titleDec : '',
               startDate: typeof startDateDec === 'string' ? startDateDec : '',
               endDate: typeof endDateDec === 'string' ? endDateDec : '',
@@ -1675,16 +1712,15 @@ export default {
                 ? freqStr
                 : 'none',
               recurrenceUntil: typeof untilDec === 'string' ? untilDec : '',
-              id: unscopedEntityId(profileId, ev.id),
-              createdAt: created_at,
-              updatedAt: updated_at,
-              allDay: ev.allDay === 0 || ev.allDay === false ? false : true,
-              recurrenceInterval: Number.isFinite(Number(ev.recurrenceInterval)) && Number(ev.recurrenceInterval) > 0
-                ? Number(ev.recurrenceInterval)
+              allDay: event.allDay === 0 || event.allDay === false ? false : true,
+              recurrenceInterval: Number.isFinite(Number(event.recurrenceInterval)) && Number(event.recurrenceInterval) > 0
+                ? Number(event.recurrenceInterval)
                 : 1,
-              recurrenceCount: Number.isFinite(Number(ev.recurrenceCount)) && Number(ev.recurrenceCount) > 0
-                ? Number(ev.recurrenceCount)
-                : null
+              recurrenceCount: Number.isFinite(Number(event.recurrenceCount)) && Number(event.recurrenceCount) > 0
+                ? Number(event.recurrenceCount)
+                : null,
+              createdAt: event.created_at,
+              updatedAt: event.updated_at
             });
           }
 
@@ -1699,7 +1735,12 @@ export default {
 
         if (request.method === 'POST' && path === '/sync') {
           const syncStartedAt = Date.now();
-          const body = await request.json();
+          let body = null;
+          try {
+            body = await request.json();
+          } catch {
+            return json({ error: 'invalid_body' }, { status: 400 });
+          }
           const normalizedBody = normalizeSyncBody(body);
           if (!normalizedBody) {
             return json({ error: 'Payload inválido' }, { status: 400 });
@@ -1720,6 +1761,31 @@ export default {
             taskCount = tasks.length;
             noteCount = boardNotes.length;
             eventCount = events.length;
+
+            // Full reset replaces the whole note set, so vectors for notes that
+            // no longer exist would otherwise be orphaned. Detect the removed ids
+            // before the batch deletes them and enqueue best-effort vector cleanup.
+            let storedNoteIds = [];
+            try {
+              const { results } = await env.DB.prepare(
+                'SELECT id FROM notes WHERE user_id = ? AND profile_id = ?'
+              ).bind(userId, syncProfileId).all();
+              storedNoteIds = (results || [])
+                .map((row) => unscopedEntityId(syncProfileId, row.id))
+                .filter(Boolean);
+            } catch (err) {
+              console.error('[sync] full-reset note id lookup failed', err?.name || 'error');
+            }
+            const nextNoteIds = new Set(boardNotes.map((n) => n?.id).filter(Boolean));
+            for (const removedId of storedNoteIds) {
+              if (nextNoteIds.has(removedId)) continue;
+              noteAiJobs.push({
+                type: 'delete',
+                userId,
+                profileId: syncProfileId,
+                noteId: removedId,
+              });
+            }
 
             batch.push(
               env.DB.prepare("DELETE FROM tasks WHERE user_id = ? AND profile_id = ?").bind(userId, syncProfileId),
@@ -1796,11 +1862,20 @@ export default {
           }
 
           if (batch.length > 0) await env.DB.batch(batch);
-          await enqueueNoteAiJobs(env, ctx, noteAiJobs);
+          // Best-effort: the D1 batch is already committed, so a queue hiccup must
+          // not turn a successful sync into a 500 the client would retry.
+          try {
+            await enqueueNoteAiJobs(env, ctx, noteAiJobs);
+          } catch (err) {
+            console.error('note-ai enqueue failed', {
+              profile: await shortHashForLog(syncProfileId),
+              error: String(err?.message || err),
+            });
+          }
           const userIdHash = await shortHashForLog(userId);
           console.log('[sync] write batch completed', {
             userIdHash,
-            profileId: syncProfileId,
+            profileHash: await shortHashForLog(syncProfileId),
             mode: normalizedBody.mode,
             taskCount,
             noteCount,
