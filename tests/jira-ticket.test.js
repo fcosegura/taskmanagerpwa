@@ -47,26 +47,26 @@ test('inheritTicketFromParentTask keeps child ticket when already defined', () =
 
 test('extractJiraTicketFromUrl copies ticket from Jira browse URL', () => {
   assert.equal(
-    extractJiraTicketFromUrl('https://betssongroup.atlassian.net/browse/MAPP-17394'),
-    'MAPP-17394'
+    extractJiraTicketFromUrl('https://acme.atlassian.net/browse/MAPP-12345'),
+    'MAPP-12345'
   );
   assert.equal(
-    extractJiraTicketFromUrl('https://betssongroup.atlassian.net/browse/mapp-17394?focusedCommentId=1'),
-    'MAPP-17394'
+    extractJiraTicketFromUrl('https://acme.atlassian.net/browse/mapp-12345?focusedCommentId=1'),
+    'MAPP-12345'
   );
-  assert.equal(extractJiraTicketFromUrl('https://example.com/issues/MAPP-17394'), '');
+  assert.equal(extractJiraTicketFromUrl('https://example.com/issues/MAPP-12345'), '');
 });
 
 test('getJiraTaskDefaultsFromUrl returns Jira Task defaults for MAPP tickets', () => {
   assert.deepEqual(
-    getJiraTaskDefaultsFromUrl('https://betssongroup.atlassian.net/browse/MAPP-17394'),
+    getJiraTaskDefaultsFromUrl('https://acme.atlassian.net/browse/MAPP-12345'),
     { category: 'Jira Task', priority: 'high' }
   );
-  assert.equal(getJiraTaskDefaultsFromUrl('https://betssongroup.atlassian.net/browse/OTHER-1'), null);
+  assert.equal(getJiraTaskDefaultsFromUrl('https://acme.atlassian.net/browse/OTHER-1'), null);
 });
 
 test('applyJiraAutofillFromUrl fills ticket, category and priority for MAPP browse URLs', () => {
-  const url = 'https://betssongroup.atlassian.net/browse/MAPP-17394';
+  const url = 'https://acme.atlassian.net/browse/MAPP-12345';
   const result = applyJiraAutofillFromUrl(
     { name: 'Nueva tarea', priority: 'medium', category: '', ticketNumber: '', url: '' },
     url
@@ -76,13 +76,13 @@ test('applyJiraAutofillFromUrl fills ticket, category and priority for MAPP brow
     name: 'Nueva tarea',
     priority: 'high',
     category: 'Jira Task',
-    ticketNumber: 'MAPP-17394',
+    ticketNumber: 'MAPP-12345',
     url: '',
   });
 });
 
 test('applyJiraAutofillFromUrl keeps an explicit non-medium priority', () => {
-  const url = 'https://betssongroup.atlassian.net/browse/MAPP-17394';
+  const url = 'https://acme.atlassian.net/browse/MAPP-12345';
   const result = applyJiraAutofillFromUrl(
     { priority: 'critical', category: '', ticketNumber: '' },
     url
