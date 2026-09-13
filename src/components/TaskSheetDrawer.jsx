@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useMemo } from 'react';
 import { STATUS, PRIORITY } from '../constants.js';
 import { isJiraCategory, applyJiraAutofillFromUrl } from '../jiraTicket.js';
 import { useModalDialog } from '../hooks/useModalDialog.js';
@@ -8,6 +8,7 @@ export default function TaskSheetDrawer({
   isOpen,
   task = null,
   categories = [],
+  allTasks = [],
   onSave,
   onDelete,
   onClose,
@@ -33,11 +34,24 @@ export default function TaskSheetDrawer({
     notes: task?.notes || '',
     url: task?.url || '',
     ticketNumber: task?.ticketNumber || '',
-    subtasks: task?.subtasks || [],
-    dependencyTaskIds: task?.dependencyTaskIds || []
+    subtasks: Array.isArray(task?.subtasks) ? task.subtasks : [],
+    dependencyTaskIds: Array.isArray(task?.dependencyTaskIds) ? task.dependencyTaskIds : []
   }));
 
-  const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
+  const [newChildTitle, setNewChildTitle] = useState('');
+  const [pendingChildTitles, setPendingChildTitles] = useState([]);
+  const [unlinkedChildIds, setUnlinkedChildIds] = useState([]);
+
+  const existingChildren = useMemo(() => {
+    const ids = form.dependencyTaskIds.filter((id) => typeof id === 'string');
+    return ids
+      .map((id) => allTasks.find((t) => t.id === id))
+      .filter((t) => t && !unlinkedChildIds.includes(t.id));
+  }, [form.dependencyTaskIds, allTasks, unlinkedChildIds]);
+
+  const legacySubtasks = useMemo(() => {
+    return Array.isArray(form.subtasks) ? form.subtasks : [];
+  }, [form.subtasks]);
 
   if (!isOpen) return null;
 
@@ -51,28 +65,26 @@ export default function TaskSheetDrawer({
     });
   };
 
-  const handleAddSubtask = (e) => {
+  const handleAddPendingChild = (e) => {
     e.preventDefault();
-    if (!newSubtaskTitle.trim()) return;
-    setForm((prev) => ({
-      ...prev,
-      subtasks: [...prev.subtasks, { id: Date.now(), title: newSubtaskTitle.trim(), completed: false }]
-    }));
-    setNewSubtaskTitle('');
+    const trimmed = newChildTitle.trim();
+    if (!trimmed) return;
+    const alreadyPending = pendingChildTitles.some((t) => t.toLowerCase() === trimmed.toLowerCase());
+    const alreadyLinked = existingChildren.some((t) => (t.name || '').toLowerCase() === trimmed.toLowerCase());
+    if (alreadyPending || alreadyLinked) {
+      setNewChildTitle('');
+      return;
+    }
+    setPendingChildTitles((prev) => [...prev, trimmed]);
+    setNewChildTitle('');
   };
 
-  const handleToggleSubtask = (subId) => {
-    setForm((prev) => ({
-      ...prev,
-      subtasks: prev.subtasks.map((st) => (st.id === subId ? { ...st, completed: !st.completed } : st))
-    }));
+  const handleRemovePendingChild = (index) => {
+    setPendingChildTitles((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const handleRemoveSubtask = (subId) => {
-    setForm((prev) => ({
-      ...prev,
-      subtasks: prev.subtasks.filter((st) => st.id !== subId)
-    }));
+  const handleUnlinkChild = (childId) => {
+    setUnlinkedChildIds((prev) => (prev.includes(childId) ? prev : [...prev, childId]));
   };
 
   const handleSubmit = (e) => {
@@ -81,7 +93,11 @@ export default function TaskSheetDrawer({
     const payload = task?.id
       ? { ...task, ...form, id: task.id }
       : { ...form };
-    onSave(payload);
+    onSave({
+      taskPayload: payload,
+      pendingChildTitles,
+      unlinkedChildIds,
+    });
     onClose();
   };
 
@@ -106,7 +122,6 @@ export default function TaskSheetDrawer({
         </div>
 
         <form onSubmit={handleSubmit} className="sheet-drawer-body">
-          {/* Main Title Input */}
           <div className="form-group">
             <label htmlFor="task-name-input">Nombre de la tarea</label>
             <input
@@ -121,7 +136,6 @@ export default function TaskSheetDrawer({
             />
           </div>
 
-          {/* Status & Priority Row */}
           <div className="form-row">
             <div className="form-group flex-1">
               <label htmlFor="task-status-select">Estado</label>
@@ -154,7 +168,6 @@ export default function TaskSheetDrawer({
             </div>
           </div>
 
-          {/* Dates & Times */}
           <div className="form-row">
             <div className="form-group flex-1">
               <label htmlFor="task-duedate-input">Fecha límite</label>
@@ -177,7 +190,6 @@ export default function TaskSheetDrawer({
             </div>
           </div>
 
-          {/* Category & Ticket Number */}
           <div className="form-row">
             <div className="form-group flex-1">
               <label htmlFor="task-category-input">Categoría / Proyecto</label>
@@ -210,7 +222,6 @@ export default function TaskSheetDrawer({
             )}
           </div>
 
-          {/* URL & Link */}
           <div className="form-group">
             <label htmlFor="task-url-input">URL / Enlace externo</label>
             <input
@@ -222,7 +233,6 @@ export default function TaskSheetDrawer({
             />
           </div>
 
-          {/* Description & Notes */}
           <div className="form-group form-group-spaced">
             <label htmlFor="task-notes-input">Notas & Descripción</label>
             <textarea
@@ -234,43 +244,72 @@ export default function TaskSheetDrawer({
             />
           </div>
 
-          {/* Subtasks Section */}
           <div className="form-group subtasks-group">
-            <label>Sub-tareas ({form.subtasks.length})</label>
-            <div className="subtasks-list">
-              {form.subtasks.map((st) => (
-                <div key={st.id} className="subtask-item">
-                  <input
-                    type="checkbox"
-                    checked={Boolean(st.completed)}
-                    onChange={() => handleToggleSubtask(st.id)}
-                  />
-                  <span className={st.completed ? 'completed' : ''}>{st.title}</span>
-                  <button
-                    type="button"
-                    className="subtask-delete"
-                    onClick={() => handleRemoveSubtask(st.id)}
-                  >
-                    ✕
-                  </button>
-                </div>
-              ))}
-            </div>
+            <label>Tareas hijas ({existingChildren.length + pendingChildTitles.length})</label>
+            {existingChildren.length > 0 && (
+              <div className="subtasks-list">
+                {existingChildren.map((child) => (
+                  <div key={child.id} className="subtask-item">
+                    <span>{child.name || '(sin nombre)'}</span>
+                    <button
+                      type="button"
+                      className="subtask-delete"
+                      onClick={() => handleUnlinkChild(child.id)}
+                      title="Desvincular (no elimina la tarea)"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            {pendingChildTitles.length > 0 && (
+              <div className="subtasks-list pending-children">
+                {pendingChildTitles.map((title, index) => (
+                  <div key={`pending-${index}`} className="subtask-item pending">
+                    <span>{title}</span>
+                    <button
+                      type="button"
+                      className="subtask-delete"
+                      onClick={() => handleRemovePendingChild(index)}
+                      title="Quitar de la lista"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
             <div className="add-subtask-row">
               <input
                 type="text"
-                placeholder="Añadir sub-tarea..."
-                value={newSubtaskTitle}
-                onChange={(e) => setNewSubtaskTitle(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleAddSubtask(e)}
+                placeholder="Añadir tarea hija..."
+                value={newChildTitle}
+                onChange={(e) => setNewChildTitle(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleAddPendingChild(e)}
               />
-              <button type="button" className="ghost-button compact" onClick={handleAddSubtask}>
+              <button type="button" className="ghost-button compact" onClick={handleAddPendingChild}>
                 + Añadir
               </button>
             </div>
+            <p className="subtask-hint">Las tareas hijas se crearán al guardar.</p>
           </div>
 
-          {/* Footer Actions */}
+          {legacySubtasks.length > 0 && (
+            <div className="form-group subtasks-group legacy-subtasks">
+              <label>Sub-tareas legacy ({legacySubtasks.length})</label>
+              <div className="subtasks-list">
+                {legacySubtasks.map((st, index) => (
+                  <div key={st.id || `legacy-${index}`} className="subtask-item legacy">
+                    <input type="checkbox" checked={Boolean(st.completed || st.done)} disabled />
+                    <span className={(st.completed || st.done) ? 'completed' : ''}>{st.title || st.text || ''}</span>
+                  </div>
+                ))}
+              </div>
+              <p className="subtask-hint">Solo lectura. No se modifican al guardar.</p>
+            </div>
+          )}
+
           <div className="sheet-drawer-footer">
             {task?.id && onDelete && (
               <button

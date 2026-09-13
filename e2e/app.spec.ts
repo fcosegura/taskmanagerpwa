@@ -32,6 +32,54 @@ test.describe('tareas', () => {
     await expect(page.locator('.task-title', { hasText: name })).toBeVisible();
   });
 
+  test('crea una tarea padre con hijas desde el drawer', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.getByRole('heading', { name: /Prioriza lo importante/i })).toBeVisible({
+      timeout: 30_000,
+    });
+
+    await page.getByRole('button', { name: /crear nueva tarea/i }).click();
+    await expect(page.locator('.sheet-drawer-overlay')).toBeVisible();
+
+    const parentName = `E2E padre ${Date.now()}`;
+    await page.getByLabel(/Nombre/i).fill(parentName);
+
+    const childInput = page.locator('.add-subtask-row input[type="text"]');
+    await childInput.fill('Hija alpha');
+    await page.locator('.add-subtask-row button', { hasText: /Añadir/i }).click();
+    await childInput.fill('Hija beta');
+    await page.locator('.add-subtask-row button', { hasText: /Añadir/i }).click();
+
+    await expect(page.locator('.pending-children .subtask-item')).toHaveCount(2);
+
+    await page.getByRole('button', { name: /^Guardar$/i }).click();
+
+    await expect(page.locator('.task-title', { hasText: parentName })).toBeVisible();
+  });
+
+  test('cancelar el drawer no persiste tareas hijas pendientes', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.getByRole('heading', { name: /Prioriza lo importante/i })).toBeVisible({
+      timeout: 30_000,
+    });
+
+    await page.getByRole('button', { name: /crear nueva tarea/i }).click();
+    await expect(page.locator('.sheet-drawer-overlay')).toBeVisible();
+
+    const parentName = `E2E cancel ${Date.now()}`;
+    await page.getByLabel(/Nombre/i).fill(parentName);
+
+    const childInput = page.locator('.add-subtask-row input[type="text"]');
+    await childInput.fill('Hija que no se guarda');
+    await page.locator('.add-subtask-row button', { hasText: /Añadir/i }).click();
+
+    await page.getByRole('button', { name: /Cancelar/i }).click();
+    await expect(page.locator('.sheet-drawer-overlay')).not.toBeVisible();
+
+    await expect(page.locator('.task-title', { hasText: parentName })).not.toBeVisible();
+    await expect(page.locator('.task-title', { hasText: 'Hija que no se guarda' })).not.toBeVisible();
+  });
+
   test('permite introducir un comentario presionando Enter en el textarea', async ({ page }) => {
     await page.goto('/');
     await expect(page.getByRole('heading', { name: /Prioriza lo importante/i })).toBeVisible({
