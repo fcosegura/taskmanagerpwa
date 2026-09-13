@@ -134,6 +134,32 @@ test.describe('Fase 3 — Flujos E2E de Tareas, Command Menu y Accesibilidad', (
     await expect(page.locator('.sheet-drawer-overlay')).not.toBeVisible();
   });
 
+  test('muestra tareas pendientes de los próximos cinco días en Hoy', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.getByRole('heading', { name: /Prioriza lo importante/i })).toBeVisible({ timeout: 30_000 });
+
+    const futureDate = new Date();
+    futureDate.setDate(futureDate.getDate() + 2);
+    const futureDateString = [
+      futureDate.getFullYear(),
+      String(futureDate.getMonth() + 1).padStart(2, '0'),
+      String(futureDate.getDate()).padStart(2, '0'),
+    ].join('-');
+    const taskName = `Tarea Próxima E2E ${Date.now()}`;
+
+    await page.getByRole('button', { name: /crear nueva tarea/i }).click();
+    await expect(page.locator('.sheet-drawer-overlay')).toBeVisible();
+    await page.getByLabel(/Nombre de la tarea/i).fill(taskName);
+    await page.getByLabel(/Fecha límite/i).fill(futureDateString);
+    await page.getByRole('button', { name: /^Guardar$/i }).click();
+
+    await page.getByRole('button', { name: 'Hoy', exact: true }).first().click();
+    const upcoming = page.locator('.upcoming-tasks-subblock');
+    await expect(upcoming).toBeVisible();
+    await expect(upcoming).toContainText('Próximas tareas (1)');
+    await expect(upcoming.locator('.task-title', { hasText: taskName })).toBeVisible();
+  });
+
   test('edita una tarea existente sin duplicarla', async ({ page }) => {
     await page.goto('/');
     await expect(page.getByRole('heading', { name: /Prioriza lo importante/i })).toBeVisible({ timeout: 30_000 });

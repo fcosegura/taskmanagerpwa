@@ -6,6 +6,7 @@ import { recommendNextFocusTask } from '../focusRecommendation.js';
 export default function TodayView({
   todayTasks = [],
   overdueTasks = [],
+  upcomingTasks = [],
   allTasks = [],
   todayEvents = [],
   completedTodayCount = 0,
@@ -67,6 +68,15 @@ export default function TodayView({
     });
   }, [todayEvents]);
 
+  const upcomingTaskGroups = useMemo(() => {
+    const groups = new Map();
+    upcomingTasks.forEach((task) => {
+      if (!groups.has(task.date)) groups.set(task.date, []);
+      groups.get(task.date).push(task);
+    });
+    return [...groups.entries()];
+  }, [upcomingTasks]);
+
   const recommendation = useMemo(() => {
     const combinedTasks = [];
     const seenIds = new Set();
@@ -120,6 +130,54 @@ export default function TodayView({
         <span className="task-url-link-label">{label}</span>
       </a>
     );
+  };
+
+  const renderTaskCard = (task, { overdue = false } = {}) => {
+    const sInfo = getStatusInfo(task.status);
+    return (
+      <div key={task.id} className={`today-task-card material-elevated${overdue ? ' overdue' : ''}`}>
+        <button
+          type="button"
+          className="task-checkbox task-checkbox-animated"
+          onClick={() => onToggleComplete && onToggleComplete(task.id)}
+          aria-label={`Completar ${task.name}`}
+        />
+        <button
+          type="button"
+          className="task-card-body"
+          onClick={() => onSelectTask && onSelectTask(task)}
+        >
+          <span className="task-title">{task.name}</span>
+          <span className="task-card-sub">
+            {sInfo && (
+              <span
+                className={`status-pill status-${task.status}`}
+                style={{
+                  color: sInfo.tv ? `var(${sInfo.tv})` : undefined,
+                  backgroundColor: sInfo.bv ? `var(${sInfo.bv})` : undefined,
+                  borderColor: sInfo.bov ? `var(${sInfo.bov})` : undefined
+                }}
+              >
+                {sInfo.label || sInfo.l || task.status}
+              </span>
+            )}
+            {task.category && <span className="category-pill">{task.category}</span>}
+            {task.time && <span className="time-pill"><span aria-hidden="true">⏰ </span>{task.time}</span>}
+            {overdue && <span className="overdue-tag">Venció {task.date}</span>}
+            {renderTaskUrlLink(task)}
+          </span>
+        </button>
+      </div>
+    );
+  };
+
+  const formatUpcomingDate = (dateStr) => {
+    const [year, month, day] = dateStr.split('-').map(Number);
+    return new Date(year, month - 1, day, 12).toLocaleDateString('es-ES', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long'
+    });
   };
 
   return (
@@ -246,43 +304,7 @@ export default function TodayView({
             </div>
           ) : (
             <div className="today-tasks-list">
-              {sortedTodayTasks.map((task) => {
-                const sInfo = getStatusInfo(task.status);
-                return (
-                  <div key={task.id} className="today-task-card material-elevated">
-                    <button
-                      type="button"
-                      className="task-checkbox task-checkbox-animated"
-                      onClick={() => onToggleComplete && onToggleComplete(task.id)}
-                      aria-label={`Completar ${task.name}`}
-                    />
-                    <button
-                      type="button"
-                      className="task-card-body"
-                      onClick={() => onSelectTask && onSelectTask(task)}
-                    >
-                      <span className="task-title">{task.name}</span>
-                      <span className="task-card-sub">
-                        {sInfo && (
-                          <span
-                            className={`status-pill status-${task.status}`}
-                            style={{
-                              color: sInfo.tv ? `var(${sInfo.tv})` : undefined,
-                              backgroundColor: sInfo.bv ? `var(${sInfo.bv})` : undefined,
-                              borderColor: sInfo.bov ? `var(${sInfo.bov})` : undefined
-                            }}
-                          >
-                            {sInfo.label || sInfo.l || task.status}
-                          </span>
-                        )}
-                        {task.category && <span className="category-pill">{task.category}</span>}
-                        {task.time && <span className="time-pill"><span aria-hidden="true">⏰ </span>{task.time}</span>}
-                        {renderTaskUrlLink(task)}
-                      </span>
-                    </button>
-                  </div>
-                );
-              })}
+              {sortedTodayTasks.map((task) => renderTaskCard(task))}
             </div>
           )}
 
@@ -290,45 +312,31 @@ export default function TodayView({
             <div className="overdue-subblock">
               <h3><span aria-hidden="true">⚠️ </span>Tareas Atrasadas ({overdueTasks.length})</h3>
               <div className="today-tasks-list">
-                {overdueTasks.map((task) => {
-                  const sInfo = getStatusInfo(task.status);
-                  return (
-                    <div key={task.id} className="today-task-card material-elevated overdue">
-                      <button
-                        type="button"
-                        className="task-checkbox task-checkbox-animated"
-                        onClick={() => onToggleComplete && onToggleComplete(task.id)}
-                        aria-label={`Completar ${task.name}`}
-                      />
-                      <button
-                        type="button"
-                        className="task-card-body"
-                        onClick={() => onSelectTask && onSelectTask(task)}
-                      >
-                        <span className="task-title">{task.name}</span>
-                        <span className="task-card-sub">
-                          {sInfo && (
-                            <span
-                              className={`status-pill status-${task.status}`}
-                              style={{
-                                color: sInfo.tv ? `var(${sInfo.tv})` : undefined,
-                                backgroundColor: sInfo.bv ? `var(${sInfo.bv})` : undefined,
-                                borderColor: sInfo.bov ? `var(${sInfo.bov})` : undefined
-                              }}
-                            >
-                              {sInfo.label || sInfo.l || task.status}
-                            </span>
-                          )}
-                          <span className="overdue-tag">Venció {task.date}</span>
-                          {renderTaskUrlLink(task)}
-                        </span>
-                      </button>
-                    </div>
-                  );
-                })}
+                {overdueTasks.map((task) => renderTaskCard(task, { overdue: true }))}
               </div>
             </div>
           )}
+
+          <div className="upcoming-tasks-subblock">
+            <div className="upcoming-tasks-heading">
+              <h3>Próximas tareas ({upcomingTasks.length})</h3>
+              <span>5 días</span>
+            </div>
+            {upcomingTaskGroups.length === 0 ? (
+              <div className="upcoming-empty-state">No hay tareas pendientes en los próximos 5 días.</div>
+            ) : (
+              <div className="upcoming-task-groups">
+                {upcomingTaskGroups.map(([dateStr, tasksForDate]) => (
+                  <div key={dateStr} className="upcoming-task-group">
+                    <h4>{formatUpcomingDate(dateStr)}</h4>
+                    <div className="today-tasks-list">
+                      {tasksForDate.map((task) => renderTaskCard(task))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </section>
 
         {/* Agenda / Events Column */}

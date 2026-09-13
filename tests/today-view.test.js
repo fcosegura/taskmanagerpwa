@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test, describe } from 'node:test';
-import { getDisplayDescription, normalizeTaskUrl, formatTaskUrlLabel } from '../src/todayViewHelpers.js';
+import { getDisplayDescription, getUpcomingTasks, normalizeTaskUrl, formatTaskUrlLabel } from '../src/todayViewHelpers.js';
 
 describe('TodayView task and event classification', () => {
   const todayStr = '2026-07-31';
@@ -52,6 +52,37 @@ describe('TodayView task and event classification', () => {
 
     assert.deepStrictEqual(renderedTitles, ['Evento todo el día', 'Revisión código', 'Reunión de equipo']);
     assert.deepStrictEqual(renderedBadges, ['Todo el día', '09:00', '10:00']);
+  });
+
+  test('returns only pending tasks from tomorrow through the fifth future day', () => {
+    const tasks = [
+      { id: 'today', date: '2026-07-31', status: 'not_done' },
+      { id: 'tomorrow', date: '2026-08-01', status: 'not_done', priority: 'medium' },
+      { id: 'day-five', date: '2026-08-05', status: 'in_progress', priority: 'high' },
+      { id: 'day-six', date: '2026-08-06', status: 'not_done' },
+      { id: 'done', date: '2026-08-02', status: 'done' },
+      { id: 'missing-date', status: 'not_done' },
+      { id: 'invalid-date', date: '2026-02-30', status: 'not_done' }
+    ];
+
+    assert.deepStrictEqual(
+      getUpcomingTasks(tasks, '2026-07-31').map((task) => task.id),
+      ['tomorrow', 'day-five']
+    );
+  });
+
+  test('sorts future tasks by date, priority, and time across month boundaries', () => {
+    const tasks = [
+      { id: 'late', date: '2026-08-01', status: 'not_done', priority: 'low', time: '09:00' },
+      { id: 'high-late', date: '2026-08-01', status: 'not_done', priority: 'high', time: '11:00' },
+      { id: 'high-early', date: '2026-08-01', status: 'not_done', priority: 'high', time: '08:00' },
+      { id: 'new-month', date: '2026-08-02', status: 'not_done', priority: 'critical' }
+    ];
+
+    assert.deepStrictEqual(
+      getUpcomingTasks(tasks, '2026-07-30').map((task) => task.id),
+      ['high-early', 'high-late', 'late', 'new-month']
+    );
   });
 
   describe('getDisplayDescription helper', () => {

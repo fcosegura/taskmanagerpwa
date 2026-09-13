@@ -4,6 +4,7 @@ import { uid, toDateStr, compareTasksForTaskList, parseDateTimeFromDescription, 
 import { loadData, saveData, validateBackupPayload, normalizeDataPayload, loginWithGoogleCredential, logoutSession, createProfile, deleteProfile, updateProfileStatuses, parseTaskWithAI, checkSession, generateTasksFromText, generateDailyStatus, fetchWorkspaceData, isMultiBackupPayload, validateMultiBackupPayload, normalizeMultiBackupPayload, fetchNoteAiMeta, loadCachedNoteAiMeta, searchNotesSemantic, fetchRelatedNotes, dismissNoteAiSuggestionClient, fetchNoteDuplicates, fetchNotesOrganizeLayout } from './storage.js';
 import { appendStatusLogEntry } from './statusLog.js';
 import { collectDailyStatusActivities } from './dailyStatusActivities.js';
+import { getUpcomingTasks } from './todayViewHelpers.js';
 import { loadNoteAiPrefsFromStorage, saveNoteAiPrefsToStorage } from './noteAi/prefs.js';
 import { organizeNotesFromMeta } from './noteAi/clustering.js';
 import BoardView from './components/BoardView.jsx';
@@ -1743,6 +1744,7 @@ export default function App() {
   const blockedCount = focusTasks.filter((t) => t.status === 'blocked').length;
   const todayTasks = (tByDate[todayStr] || []).filter((t) => t.status !== 'done');
   const overdueTasks = focusTasks.filter((t) => t.date && t.date < todayStr && t.status !== 'done');
+  const upcomingTasks = getUpcomingTasks(focusTasks, todayStr, 5);
   const todayEvents = eByDate[todayStr] || [];
   const completedTodayCount = focusTasks.filter((t) => t.status === 'done' && t.completedAt && t.completedAt.startsWith(todayStr)).length;
 
@@ -2116,6 +2118,7 @@ export default function App() {
           ? <TodayView
               todayTasks={todayTasks}
               overdueTasks={overdueTasks}
+              upcomingTasks={upcomingTasks}
               allTasks={tasks}
               todayEvents={todayEvents}
               completedTodayCount={completedTodayCount}
