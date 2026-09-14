@@ -65,7 +65,7 @@ test('getJiraTaskDefaultsFromUrl returns Jira Task defaults for MAPP tickets', (
   assert.equal(getJiraTaskDefaultsFromUrl('https://acme.atlassian.net/browse/OTHER-1'), null);
 });
 
-test('applyJiraAutofillFromUrl fills ticket, category and priority for MAPP browse URLs', () => {
+test('applyJiraAutofillFromUrl fills ticket, category, priority and title for MAPP browse URLs', () => {
   const url = 'https://acme.atlassian.net/browse/MAPP-12345';
   const result = applyJiraAutofillFromUrl(
     { name: 'Nueva tarea', priority: 'medium', category: '', ticketNumber: '', url: '' },
@@ -73,12 +73,25 @@ test('applyJiraAutofillFromUrl fills ticket, category and priority for MAPP brow
   );
 
   assert.deepEqual(result, {
-    name: 'Nueva tarea',
+    name: 'Nueva tarea [MAPP-12345]',
     priority: 'high',
     category: 'Jira Task',
     ticketNumber: 'MAPP-12345',
     url: '',
   });
+});
+
+test('applyJiraAutofillFromUrl uses ticket as title when name is empty', () => {
+  const url = 'https://acme.atlassian.net/browse/MAPP-19023';
+  const result = applyJiraAutofillFromUrl(
+    { name: '', priority: 'medium', category: '', ticketNumber: '', url: '' },
+    url
+  );
+
+  assert.equal(result.name, '[MAPP-19023]');
+  assert.equal(result.ticketNumber, 'MAPP-19023');
+  assert.equal(result.category, 'Jira Task');
+  assert.equal(result.priority, 'high');
 });
 
 test('applyJiraAutofillFromUrl keeps an explicit non-medium priority', () => {
