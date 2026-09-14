@@ -40,13 +40,21 @@ export function applyJiraAutofillFromUrl(form, url) {
   }
 
   const jiraDefaults = getJiraTaskDefaultsFromUrl(url);
-  if (!jiraDefaults) return next;
-
-  if (!next.category) {
-    next.category = jiraDefaults.category;
+  if (jiraDefaults) {
+    if (!next.category) {
+      next.category = jiraDefaults.category;
+    }
+    if ((next.priority || 'medium') === 'medium') {
+      next.priority = jiraDefaults.priority;
+    }
   }
-  if ((next.priority || 'medium') === 'medium') {
-    next.priority = jiraDefaults.priority;
+
+  const ticket = normalizeTicketNumber(next.ticketNumber || '');
+  if (ticket) {
+    const nextName = applyTicketNumberToTaskName(next.name || '', ticket);
+    if (nextName !== (next.name || '').trim()) {
+      next.name = nextName;
+    }
   }
 
   return next;
