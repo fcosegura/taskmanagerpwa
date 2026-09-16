@@ -9,6 +9,7 @@ import { normalizeTaskTicketFields as normalizeTaskWithTicket, applyStandaloneCh
 import { shouldCascadeStatusToChildren, applyStatusWithChildCascade } from './taskStatusCascade.js';
 import { countOpenChildTasks } from './taskTrashHelpers.js';
 import { loadNoteAiPrefsFromStorage, saveNoteAiPrefsToStorage } from './noteAi/prefs.js';
+import { loadNextFocusAllowedStatuses, saveNextFocusAllowedStatuses } from './nextFocusStatusPrefs.js';
 import { organizeNotesFromMeta } from './noteAi/clustering.js';
 import BoardView from './components/BoardView.jsx';
 import TaskModal from './components/TaskModal.jsx';
@@ -85,6 +86,11 @@ export default function App() {
     const deletedStatuses = statuses.filter((s) => !newStatuses.some((ns) => ns.v === s.v));
     if (deletedStatuses.length > 0) {
       const deletedValues = new Set(deletedStatuses.map((s) => s.v));
+      setNextFocusAllowedStatuses((prev) => {
+        const next = prev.filter((v) => !deletedValues.has(v));
+        saveNextFocusAllowedStatuses(next);
+        return next;
+      });
       setTasks((prevTasks) => {
         return prevTasks.map((t) => {
           if (deletedValues.has(t.status)) {
@@ -197,7 +203,18 @@ export default function App() {
     return ['high', 'critical'];
   });
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [nextFocusAllowedStatuses, setNextFocusAllowedStatuses] = useState(() => loadNextFocusAllowedStatuses(STATUS));
   const [noteAiPrefs, setNoteAiPrefs] = useState(() => loadNoteAiPrefsFromStorage());
+
+  useEffect(() => {
+    setNextFocusAllowedStatuses((prev) => {
+      const validKeys = new Set(normalizeStatuses(statuses).map((s) => s.v));
+      const pruned = prev.filter((v) => validKeys.has(v));
+      if (pruned.length === prev.length) return prev;
+      saveNextFocusAllowedStatuses(pruned);
+      return pruned;
+    });
+  }, [statuses]);
   const [noteAiMetaById, setNoteAiMetaById] = useState({});
   const [selectedBoardNoteId, setSelectedBoardNoteId] = useState(null);
   const [relatedNotesFetch, setRelatedNotesFetch] = useState(null);
@@ -2161,6 +2178,7 @@ export default function App() {
               onOpenCreateTask={() => open({ date: todayStr })}
               onNavigateToView={navigateToView}
               statuses={statuses}
+              nextFocusAllowedStatuses={nextFocusAllowedStatuses}
               onChangeStatus={(taskId, nextStatus) => {
                 const task = tasks.find((item) => item.id === taskId);
                 if (!task || task.status === nextStatus) return;
@@ -2347,6 +2365,12 @@ export default function App() {
             setFocusPriorityLevels(levels);
             localStorage.setItem('focusPriorityLevels', JSON.stringify(levels));
           }}
+          nextFocusAllowedStatuses={nextFocusAllowedStatuses}
+          onSaveNextFocusAllowedStatuses={(allowed) => {
+            const next = saveNextFocusAllowedStatuses(allowed);
+            setNextFocusAllowedStatuses(next);
+          }}
+          statuses={statuses}
           density={density}
           onToggleDensity={toggleDensity}
           noteAiPrefs={noteAiPrefs}

@@ -15,6 +15,7 @@ export default function TodayView({
   onOpenCreateTask,
   onNavigateToView,
   statuses = STATUS,
+  nextFocusAllowedStatuses,
   onChangeStatus,
 }) {
   const normalizedStatuses = useMemo(() => normalizeStatuses(statuses), [statuses]);
@@ -105,8 +106,9 @@ export default function TodayView({
       today: todayStr,
       now,
       statuses: normalizedStatuses,
+      allowedStatuses: nextFocusAllowedStatuses,
     });
-  }, [allTasks, todayTasks, overdueTasks, normalizedStatuses]);
+  }, [allTasks, todayTasks, overdueTasks, normalizedStatuses, nextFocusAllowedStatuses]);
 
   const nextRecommendedTask = recommendation.task;
   const recommendationReason = recommendation.reason;
