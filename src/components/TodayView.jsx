@@ -322,10 +322,10 @@ export default function TodayView({
           <div className="upcoming-tasks-subblock">
             <div className="upcoming-tasks-heading">
               <h3>Próximas tareas ({upcomingTasks.length})</h3>
-              <span>5 días</span>
+              <span>5 días laborales</span>
             </div>
             {upcomingTaskGroups.length === 0 ? (
-              <div className="upcoming-empty-state">No hay tareas pendientes en los próximos 5 días.</div>
+              <div className="upcoming-empty-state">No hay tareas pendientes en los próximos 5 días laborales.</div>
             ) : (
               <div className="upcoming-task-groups">
                 {upcomingTaskGroups.map(([dateStr, tasksForDate]) => (

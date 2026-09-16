@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test, describe } from 'node:test';
-import { getDisplayDescription, getUpcomingTasks, normalizeTaskUrl, formatTaskUrlLabel, fmtDate, canonicalizeDateOnly } from '../src/todayViewHelpers.js';
+import { getDisplayDescription, getUpcomingTasks, getNextBusinessDayStrings, normalizeTaskUrl, formatTaskUrlLabel, fmtDate, canonicalizeDateOnly, parseLocalDateOnly } from '../src/todayViewHelpers.js';
 import { STATUS } from '../src/constants.js';
 
 describe('canonicalizeDateOnly (R1)', () => {
@@ -100,29 +100,44 @@ describe('TodayView task and event classification', () => {
     assert.deepStrictEqual(renderedBadges, ['Todo el día', '09:00', '10:00']);
   });
 
-  test('returns only pending tasks from tomorrow through the fifth future day', () => {
+  test('getNextBusinessDayStrings skips weekends', () => {
+    const friday = parseLocalDateOnly('2026-07-31');
+    const allowed = getNextBusinessDayStrings(friday, 5);
+    assert.deepStrictEqual([...allowed], [
+      '2026-08-03',
+      '2026-08-04',
+      '2026-08-05',
+      '2026-08-06',
+      '2026-08-07',
+    ]);
+  });
+
+  test('returns only pending tasks on the next five business days', () => {
     const tasks = [
       { id: 'today', date: '2026-07-31', status: 'not_done' },
-      { id: 'tomorrow', date: '2026-08-01', status: 'not_done', priority: 'medium' },
-      { id: 'day-five', date: '2026-08-05', status: 'in_progress', priority: 'high' },
-      { id: 'day-six', date: '2026-08-06', status: 'not_done' },
-      { id: 'done', date: '2026-08-02', status: 'done' },
+      { id: 'weekend-sat', date: '2026-08-01', status: 'not_done', priority: 'medium' },
+      { id: 'weekend-sun', date: '2026-08-02', status: 'not_done' },
+      { id: 'monday', date: '2026-08-03', status: 'not_done', priority: 'medium' },
+      { id: 'wednesday', date: '2026-08-05', status: 'in_progress', priority: 'high' },
+      { id: 'after-window', date: '2026-08-10', status: 'not_done' },
+      { id: 'done', date: '2026-08-04', status: 'done' },
       { id: 'missing-date', status: 'not_done' },
       { id: 'invalid-date', date: '2026-02-30', status: 'not_done' }
     ];
 
     assert.deepStrictEqual(
       getUpcomingTasks(tasks, '2026-07-31').map((task) => task.id),
-      ['tomorrow', 'day-five']
+      ['monday', 'wednesday']
     );
   });
 
   test('sorts future tasks by date, priority, and time across month boundaries', () => {
     const tasks = [
-      { id: 'late', date: '2026-08-01', status: 'not_done', priority: 'low', time: '09:00' },
-      { id: 'high-late', date: '2026-08-01', status: 'not_done', priority: 'high', time: '11:00' },
-      { id: 'high-early', date: '2026-08-01', status: 'not_done', priority: 'high', time: '08:00' },
-      { id: 'new-month', date: '2026-08-02', status: 'not_done', priority: 'critical' }
+      { id: 'late', date: '2026-08-04', status: 'not_done', priority: 'low', time: '09:00' },
+      { id: 'high-late', date: '2026-08-04', status: 'not_done', priority: 'high', time: '11:00' },
+      { id: 'high-early', date: '2026-08-04', status: 'not_done', priority: 'high', time: '08:00' },
+      { id: 'new-month', date: '2026-08-05', status: 'not_done', priority: 'critical' },
+      { id: 'weekend', date: '2026-08-01', status: 'not_done', priority: 'critical' }
     ];
 
     assert.deepStrictEqual(
@@ -137,8 +152,8 @@ describe('TodayView task and event classification', () => {
       { v: 'archived', label: 'Archivado', kind: 'done', isTerminal: true, canBeFocused: false, sortWeight: 0 },
     ];
     const tasks = [
-      { id: 'future-open', date: '2026-08-01', status: 'not_done' },
-      { id: 'future-archived', date: '2026-08-02', status: 'archived' },
+      { id: 'future-open', date: '2026-08-03', status: 'not_done' },
+      { id: 'future-archived', date: '2026-08-04', status: 'archived' },
     ];
     assert.deepStrictEqual(
       getUpcomingTasks(tasks, '2026-07-31', 5, customStatuses).map((task) => task.id),
