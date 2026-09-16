@@ -21,6 +21,7 @@ import { STATUS, normalizeStatuses } from './constants.js';
  * @param {string} [params.today] - YYYY-MM-DD date string
  * @param {Date|string|number} [params.now] - Current date/time reference
  * @param {Array} [params.statuses] - Custom or standard statuses list
+ * @param {Array<string>} [params.allowedStatuses] - Optional allowlist of status ids for candidates
  * @returns {{ task: Object|null, reason: string, reasonCode: string }}
  */
 export function recommendNextFocusTask({
@@ -28,6 +29,7 @@ export function recommendNextFocusTask({
   today,
   now,
   statuses = STATUS,
+  allowedStatuses,
 } = {}) {
   if (!Array.isArray(tasks) || tasks.length === 0) {
     return { task: null, reason: '', reasonCode: 'none' };
@@ -35,6 +37,9 @@ export function recommendNextFocusTask({
 
   const normalizedStatuses = normalizeStatuses(statuses);
   const statusMap = new Map(normalizedStatuses.map((s) => [s.v, s]));
+  const allowedStatusSet = Array.isArray(allowedStatuses)
+    ? new Set(allowedStatuses)
+    : null;
 
   const nowDate = now instanceof Date ? now : (now ? new Date(now) : new Date());
 
@@ -76,6 +81,10 @@ export function recommendNextFocusTask({
 
     // Terminal / done tasks are strictly excluded
     if (sDef.isTerminal || task.status === 'done') {
+      return null;
+    }
+
+    if (allowedStatusSet && !allowedStatusSet.has(task.status)) {
       return null;
     }
 

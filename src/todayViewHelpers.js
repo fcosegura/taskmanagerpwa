@@ -105,22 +105,37 @@ function priorityWeight(priority) {
   return { critical: 4, urgent: 4, high: 3, medium: 2, low: 1 }[priority] || 0;
 }
 
+function isWeekend(date) {
+  const day = date.getDay();
+  return day === 0 || day === 6;
+}
+
+/** Returns YYYY-MM-DD strings for the next `count` business days strictly after `fromDate`. */
+export function getNextBusinessDayStrings(fromDate, count) {
+  const allowed = new Set();
+  const cursor = new Date(fromDate);
+  while (allowed.size < count) {
+    cursor.setDate(cursor.getDate() + 1);
+    if (!isWeekend(cursor)) {
+      allowed.add(toDateString(cursor));
+    }
+  }
+  return allowed;
+}
+
 export function getUpcomingTasks(tasks, todayStr, days = 5, statuses = STATUS) {
   const today = parseLocalDateOnly(todayStr);
   const safeDays = Number.isInteger(days) && days > 0 ? days : 5;
   if (!today || !Array.isArray(tasks)) return [];
 
-  const lastDate = new Date(today);
-  lastDate.setDate(lastDate.getDate() + safeDays);
-  const firstDateStr = toDateString(today);
-  const lastDateStr = toDateString(lastDate);
+  const allowedDates = getNextBusinessDayStrings(today, safeDays);
 
   return tasks
     .map((task, index) => ({ task, index, dateStr: typeof task?.date === 'string' ? task.date.trim() : '' }))
     .filter(({ task, dateStr }) => {
       if (!task || isTerminalStatus(task.status, statuses)) return false;
-      const date = parseLocalDateOnly(dateStr);
-      return Boolean(date && dateStr > firstDateStr && dateStr <= lastDateStr);
+      if (!parseLocalDateOnly(dateStr)) return false;
+      return allowedDates.has(dateStr);
     })
     .sort((a, b) => {
       if (a.dateStr !== b.dateStr) return a.dateStr.localeCompare(b.dateStr);

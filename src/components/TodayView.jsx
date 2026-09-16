@@ -15,6 +15,7 @@ export default function TodayView({
   onOpenCreateTask,
   onNavigateToView,
   statuses = STATUS,
+  nextFocusAllowedStatuses,
   onChangeStatus,
 }) {
   const normalizedStatuses = useMemo(() => normalizeStatuses(statuses), [statuses]);
@@ -105,8 +106,9 @@ export default function TodayView({
       today: todayStr,
       now,
       statuses: normalizedStatuses,
+      allowedStatuses: nextFocusAllowedStatuses,
     });
-  }, [allTasks, todayTasks, overdueTasks, normalizedStatuses]);
+  }, [allTasks, todayTasks, overdueTasks, normalizedStatuses, nextFocusAllowedStatuses]);
 
   const nextRecommendedTask = recommendation.task;
   const recommendationReason = recommendation.reason;
@@ -320,10 +322,10 @@ export default function TodayView({
           <div className="upcoming-tasks-subblock">
             <div className="upcoming-tasks-heading">
               <h3>Próximas tareas ({upcomingTasks.length})</h3>
-              <span>5 días</span>
+              <span>5 días laborales</span>
             </div>
             {upcomingTaskGroups.length === 0 ? (
-              <div className="upcoming-empty-state">No hay tareas pendientes en los próximos 5 días.</div>
+              <div className="upcoming-empty-state">No hay tareas pendientes en los próximos 5 días laborales.</div>
             ) : (
               <div className="upcoming-task-groups">
                 {upcomingTaskGroups.map(([dateStr, tasksForDate]) => (
