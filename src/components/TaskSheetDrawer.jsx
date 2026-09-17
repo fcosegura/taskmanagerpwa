@@ -2,6 +2,7 @@ import { useState, useRef } from 'react';
 import { STATUS, PRIORITY } from '../constants.js';
 import { isJiraCategory, applyJiraAutofillFromUrl, normalizeTicketNumber, applyTicketNumberToTaskName } from '../jiraTicket.js';
 import { useModalDialog } from '../hooks/useModalDialog.js';
+import { isChildTaskStatusAllowed } from '../childTaskStatusPrefs.js';
 import { IconButton } from './ui/index.jsx';
 
 export default function TaskSheetDrawer({
@@ -12,7 +13,8 @@ export default function TaskSheetDrawer({
   onSave,
   onDelete,
   onClose,
-  statuses = STATUS
+  statuses = STATUS,
+  childTaskAllowedStatuses
 }) {
   const titleInputRef = useRef(null);
   const dialogRef = useModalDialog({
@@ -46,6 +48,7 @@ export default function TaskSheetDrawer({
   const availableChildTasks = allTasks.filter((candidate) => (
     candidate.id !== task?.id &&
     !parentTasks.some((parentTask) => parentTask.id === candidate.id) &&
+    (selectedChildIds.includes(candidate.id) || isChildTaskStatusAllowed(candidate.status, childTaskAllowedStatuses)) &&
     (candidate.status !== 'done' || selectedChildIds.includes(candidate.id))
   ));
 

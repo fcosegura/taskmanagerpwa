@@ -10,6 +10,7 @@ import { shouldCascadeStatusToChildren, applyStatusWithChildCascade } from './ta
 import { countOpenChildTasks } from './taskTrashHelpers.js';
 import { loadNoteAiPrefsFromStorage, saveNoteAiPrefsToStorage } from './noteAi/prefs.js';
 import { loadNextFocusAllowedStatuses, saveNextFocusAllowedStatuses } from './nextFocusStatusPrefs.js';
+import { loadChildTaskAllowedStatuses, saveChildTaskAllowedStatuses } from './childTaskStatusPrefs.js';
 import { organizeNotesFromMeta } from './noteAi/clustering.js';
 import BoardView from './components/BoardView.jsx';
 import TaskModal from './components/TaskModal.jsx';
@@ -89,6 +90,11 @@ export default function App() {
       setNextFocusAllowedStatuses((prev) => {
         const next = prev.filter((v) => !deletedValues.has(v));
         saveNextFocusAllowedStatuses(next);
+        return next;
+      });
+      setChildTaskAllowedStatuses((prev) => {
+        const next = prev.filter((v) => !deletedValues.has(v));
+        saveChildTaskAllowedStatuses(next);
         return next;
       });
       setTasks((prevTasks) => {
@@ -204,6 +210,7 @@ export default function App() {
   });
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [nextFocusAllowedStatuses, setNextFocusAllowedStatuses] = useState(() => loadNextFocusAllowedStatuses(STATUS));
+  const [childTaskAllowedStatuses, setChildTaskAllowedStatuses] = useState(() => loadChildTaskAllowedStatuses(STATUS));
   const [noteAiPrefs, setNoteAiPrefs] = useState(() => loadNoteAiPrefsFromStorage());
 
   useEffect(() => {
@@ -2306,7 +2313,7 @@ export default function App() {
 
       {modal && (
         <div className="modal-backdrop" onClick={(e) => e.target === e.currentTarget && setModal(null)}>
-          <TaskModal key={`${modal.id || 'new-task'}${modal._taskModalInitialAdvanced === false ? '-adv-min' : ''}`} task={modal} categories={categories} allTasks={tasks} onSave={upsert} onDelete={modal.id ? () => del(modal.id) : null} onClose={() => setModal(null)} statuses={statuses} />
+          <TaskModal key={`${modal.id || 'new-task'}${modal._taskModalInitialAdvanced === false ? '-adv-min' : ''}`} task={modal} categories={categories} allTasks={tasks} onSave={upsert} onDelete={modal.id ? () => del(modal.id) : null} onClose={() => setModal(null)} statuses={statuses} childTaskAllowedStatuses={childTaskAllowedStatuses} />
         </div>
       )}
 
@@ -2373,6 +2380,11 @@ export default function App() {
           statuses={statuses}
           density={density}
           onToggleDensity={toggleDensity}
+          childTaskAllowedStatuses={childTaskAllowedStatuses}
+          onSaveChildTaskAllowedStatuses={(allowed) => {
+            const next = saveChildTaskAllowedStatuses(allowed);
+            setChildTaskAllowedStatuses(next);
+          }}
           noteAiPrefs={noteAiPrefs}
           onSaveNoteAiPrefs={(prefs) => {
             const next = saveNoteAiPrefsToStorage(prefs);
@@ -2455,6 +2467,7 @@ export default function App() {
           onDelete={taskSheetDrawerTask?.id ? (id) => del(id) : null}
           onClose={() => { setIsTaskSheetOpen(false); setTaskSheetDrawerTask(null); }}
           statuses={statuses}
+          childTaskAllowedStatuses={childTaskAllowedStatuses}
         />
       </Suspense>
 

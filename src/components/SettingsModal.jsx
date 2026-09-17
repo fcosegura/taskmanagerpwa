@@ -27,6 +27,8 @@ export default function SettingsModal({
   onSaveFocusPriorities,
   nextFocusAllowedStatuses,
   onSaveNextFocusAllowedStatuses,
+  childTaskAllowedStatuses = [],
+  onSaveChildTaskAllowedStatuses,
   statuses = [],
   density = 'comfortable',
   onToggleDensity,
@@ -36,6 +38,7 @@ export default function SettingsModal({
 }) {
   const [showFocusPriority, setShowFocusPriority] = useState(false);
   const [showNextFocusStatuses, setShowNextFocusStatuses] = useState(false);
+  const [showChildTaskStatuses, setShowChildTaskStatuses] = useState(false);
   const [showNoteAi, setShowNoteAi] = useState(false);
 
   const selectableStatuses = useMemo(
@@ -160,6 +163,34 @@ export default function SettingsModal({
               <span>Estatus en siguiente foco</span>
               <span style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>
                 {nextFocusAllowedStatuses.length} seleccionados
+              </span>
+            </button>
+          )}
+
+          {onSaveChildTaskAllowedStatuses && (
+            <button
+              type="button"
+              onClick={() => setShowChildTaskStatuses(true)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                width: '100%',
+                padding: '12px 14px',
+                borderRadius: 12,
+                border: '1px solid var(--color-border-tertiary)',
+                background: 'var(--color-background-secondary)',
+                color: 'var(--color-text-primary)',
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: 'pointer',
+                textAlign: 'left',
+                marginBottom: 10,
+              }}
+            >
+              <span>Estatus de tareas hijas</span>
+              <span style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>
+                {childTaskAllowedStatuses.length} seleccionados
               </span>
             </button>
           )}
@@ -333,6 +364,78 @@ export default function SettingsModal({
               })}
             </div>
             <button type="button" onClick={() => setShowNextFocusStatuses(false)} style={cancelButtonStyle}>
+              Volver
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showChildTaskStatuses && onSaveChildTaskAllowedStatuses && (
+        <div className="modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) setShowChildTaskStatuses(false); }}>
+          <div
+            className="liquid-glass-modal"
+            role="dialog"
+            aria-labelledby="child-task-statuses-title"
+            onClick={(e) => e.stopPropagation()}
+            style={modalStyle}
+          >
+            <div id="child-task-statuses-title" style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>
+              Estatus de tareas hijas
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 14 }}>
+              Selecciona qué estados pueden aparecer al elegir tareas hijas en una tarea nueva. Las tareas en un estado no seleccionado no se mostrarán en la lista.
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {selectableStatuses.map((status) => {
+                const active = childTaskAllowedStatuses.includes(status.v);
+                return (
+                  <button
+                    key={status.v}
+                    type="button"
+                    onClick={() => {
+                      const next = active
+                        ? childTaskAllowedStatuses.filter((v) => v !== status.v)
+                        : [...childTaskAllowedStatuses, status.v];
+                      onSaveChildTaskAllowedStatuses(next);
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '10px 12px',
+                      borderRadius: 12,
+                      border: active ? `2px solid var(${status.bov})` : '1px solid var(--color-border-tertiary)',
+                      background: active ? `var(${status.bv})` : 'var(--color-background-secondary)',
+                      color: active ? `var(${status.tv})` : 'var(--color-text-secondary)',
+                      fontSize: 13,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                    }}
+                  >
+                    <span>{status.label}</span>
+                    <span
+                      style={{
+                        width: 18,
+                        height: 18,
+                        borderRadius: 4,
+                        border: active ? '2px solid var(--color-text-primary)' : '2px solid var(--color-border-tertiary)',
+                        background: active ? 'var(--color-text-primary)' : 'transparent',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: 11,
+                        fontWeight: 700,
+                        color: active ? 'var(--color-background-primary)' : 'transparent',
+                      }}
+                    >
+                      {active ? '✓' : ''}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <button type="button" onClick={() => setShowChildTaskStatuses(false)} style={cancelButtonStyle}>
               Volver
             </button>
           </div>

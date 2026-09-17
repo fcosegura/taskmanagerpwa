@@ -3,16 +3,19 @@ import { STATUS, PRIORITY, isTerminalStatus } from '../constants.js';
 import { fmtDate, parseDateTimeFromDescription, parseDescriptionDateResult, cleanDescriptionSegment } from '../utils.jsx';
 import { isJiraCategory, normalizeTicketNumber, applyTicketNumberToTaskName, extractJiraTicketFromUrl, getJiraTaskDefaultsFromUrl } from '../jiraTicket.js';
 import { parseTaskWithAI } from '../storage.js';
+import { isChildTaskStatusAllowed } from '../childTaskStatusPrefs.js';
 import { useModalDialog } from '../hooks/useModalDialog.js';
 
-export default function TaskModal({ task, categories, allTasks = [], onSave, onDelete, onClose, statuses = STATUS }) {
+export default function TaskModal({ task, categories, allTasks = [], onSave, onDelete, onClose, statuses = STATUS, childTaskAllowedStatuses }) {
   const dialogRef = useModalDialog({ isOpen: true, onClose });
   const { _taskModalInitialAdvanced, ...taskRest } = task;
   const parentTasks = allTasks.filter((candidate) => (candidate.dependencyTaskIds || []).includes(taskRest.id));
   const isChildTask = parentTasks.length > 0;
+  const selectedDependencyIds = Array.isArray(taskRest.dependencyTaskIds) ? taskRest.dependencyTaskIds : [];
   const availableDependencyTasks = allTasks.filter((candidate) => (
     candidate.id !== taskRest.id &&
     !isTerminalStatus(candidate.status, statuses) &&
+    (selectedDependencyIds.includes(candidate.id) || isChildTaskStatusAllowed(candidate.status, childTaskAllowedStatuses)) &&
     !parentTasks.some((parentTask) => parentTask.id === candidate.id)
   ));
   const [form, setForm] = useState({
