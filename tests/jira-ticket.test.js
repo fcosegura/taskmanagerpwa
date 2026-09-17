@@ -20,6 +20,14 @@ test('applyTicketNumberToTaskName appends suffix once', () => {
   assert.equal(applyTicketNumberToTaskName('Implementar login [ABC-123]', 'ABC-123'), 'Implementar login [ABC-123]');
 });
 
+test('applyTicketNumberToTaskName replaces an existing ticket token', () => {
+  assert.equal(applyTicketNumberToTaskName('Tarea [OLD-1]', 'NEW-2'), 'Tarea [NEW-2]');
+});
+
+test('applyTicketNumberToTaskName uses the ticket as title when name is empty', () => {
+  assert.equal(applyTicketNumberToTaskName('', 'MAPP-1'), '[MAPP-1]');
+});
+
 test('inheritTicketFromParentTask copies missing child ticket and appends name', () => {
   const child = { id: 'child-1', name: 'Sub tarea', ticketNumber: '' };
   const parent = { id: 'parent-1', name: 'Padre', ticketNumber: 'XYZ-7' };
@@ -39,42 +47,55 @@ test('inheritTicketFromParentTask keeps child ticket when already defined', () =
 
 test('extractJiraTicketFromUrl copies ticket from Jira browse URL', () => {
   assert.equal(
-    extractJiraTicketFromUrl('https://betssongroup.atlassian.net/browse/MAPP-17394'),
-    'MAPP-17394'
+    extractJiraTicketFromUrl('https://acme.atlassian.net/browse/MAPP-12345'),
+    'MAPP-12345'
   );
   assert.equal(
-    extractJiraTicketFromUrl('https://betssongroup.atlassian.net/browse/mapp-17394?focusedCommentId=1'),
-    'MAPP-17394'
+    extractJiraTicketFromUrl('https://acme.atlassian.net/browse/mapp-12345?focusedCommentId=1'),
+    'MAPP-12345'
   );
-  assert.equal(extractJiraTicketFromUrl('https://example.com/issues/MAPP-17394'), '');
+  assert.equal(extractJiraTicketFromUrl('https://example.com/issues/MAPP-12345'), '');
 });
 
 test('getJiraTaskDefaultsFromUrl returns Jira Task defaults for MAPP tickets', () => {
   assert.deepEqual(
-    getJiraTaskDefaultsFromUrl('https://betssongroup.atlassian.net/browse/MAPP-17394'),
+    getJiraTaskDefaultsFromUrl('https://acme.atlassian.net/browse/MAPP-12345'),
     { category: 'Jira Task', priority: 'high' }
   );
-  assert.equal(getJiraTaskDefaultsFromUrl('https://betssongroup.atlassian.net/browse/OTHER-1'), null);
+  assert.equal(getJiraTaskDefaultsFromUrl('https://acme.atlassian.net/browse/OTHER-1'), null);
 });
 
-test('applyJiraAutofillFromUrl fills ticket, category and priority for MAPP browse URLs', () => {
-  const url = 'https://betssongroup.atlassian.net/browse/MAPP-17394';
+test('applyJiraAutofillFromUrl fills ticket, category, priority and title for MAPP browse URLs', () => {
+  const url = 'https://acme.atlassian.net/browse/MAPP-12345';
   const result = applyJiraAutofillFromUrl(
     { name: 'Nueva tarea', priority: 'medium', category: '', ticketNumber: '', url: '' },
     url
   );
 
   assert.deepEqual(result, {
-    name: 'Nueva tarea',
+    name: 'Nueva tarea [MAPP-12345]',
     priority: 'high',
     category: 'Jira Task',
-    ticketNumber: 'MAPP-17394',
+    ticketNumber: 'MAPP-12345',
     url: '',
   });
 });
 
+test('applyJiraAutofillFromUrl uses ticket as title when name is empty', () => {
+  const url = 'https://acme.atlassian.net/browse/MAPP-19023';
+  const result = applyJiraAutofillFromUrl(
+    { name: '', priority: 'medium', category: '', ticketNumber: '', url: '' },
+    url
+  );
+
+  assert.equal(result.name, '[MAPP-19023]');
+  assert.equal(result.ticketNumber, 'MAPP-19023');
+  assert.equal(result.category, 'Jira Task');
+  assert.equal(result.priority, 'high');
+});
+
 test('applyJiraAutofillFromUrl keeps an explicit non-medium priority', () => {
-  const url = 'https://betssongroup.atlassian.net/browse/MAPP-17394';
+  const url = 'https://acme.atlassian.net/browse/MAPP-12345';
   const result = applyJiraAutofillFromUrl(
     { priority: 'critical', category: '', ticketNumber: '' },
     url

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { EVENT_COLORS } from '../constants.js';
+import { useModalDialog } from '../hooks/useModalDialog.js';
 
 function timeToMinutes(t) {
   if (!t || typeof t !== 'string') return 0;
@@ -8,6 +9,7 @@ function timeToMinutes(t) {
 }
 
 export default function EventModal({ event, onSave, onDelete, onClose }) {
+  const dialogRef = useModalDialog({ isOpen: true, onClose });
   const [form, setForm] = useState(event);
   const [recurrenceEndType, setRecurrenceEndType] = useState(() => {
     if (event?.recurrenceCount) return 'count';
@@ -70,7 +72,7 @@ export default function EventModal({ event, onSave, onDelete, onClose }) {
   };
 
   return (
-    <form className="liquid-glass-modal" onSubmit={onSubmit} style={{ width: 'min(420px, 100%)', maxWidth: 'calc(100% - 32px)', borderRadius: 'var(--border-radius-lg)', padding: 24, color: 'var(--color-text-primary)' }}>
+    <form ref={dialogRef} className="liquid-glass-modal" onSubmit={onSubmit} style={{ width: 'min(420px, 100%)', maxWidth: 'calc(100% - 32px)', borderRadius: 'var(--border-radius-lg)', padding: 24, color: 'var(--color-text-primary)' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, gap: 12 }}>
         <div style={{ fontSize: 18, fontWeight: 700 }}>{event.id ? 'Editar evento' : 'Nuevo evento'}</div>
         <button type="button" onClick={onClose} aria-label="Cerrar modal" style={{ border: 'none', background: 'transparent', color: 'var(--color-text-primary)', opacity: 0.55, cursor: 'pointer', fontSize: 22, lineHeight: 1 }}>×</button>

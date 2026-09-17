@@ -22,3 +22,16 @@ test('countOpenChildTasks: ignores missing child ids', () => {
   const tasks = [{ id: 'c1', status: 'done' }];
   assert.equal(countOpenChildTasks(parent, tasks), 0);
 });
+
+test('countOpenChildTasks: treats a custom terminal status as done (M-F4)', () => {
+  const parent = { id: 'p', dependencyTaskIds: ['c1', 'c2'] };
+  const tasks = [
+    { id: 'c1', status: 'archived' },
+    { id: 'c2', status: 'not_done' },
+  ];
+  const statuses = [
+    { v: 'not_done', kind: 'backlog', isTerminal: false },
+    { v: 'archived', label: 'Archivado', kind: 'done', isTerminal: true },
+  ];
+  assert.equal(countOpenChildTasks(parent, tasks, statuses), 1);
+});

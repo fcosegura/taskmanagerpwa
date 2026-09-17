@@ -4,7 +4,9 @@ import {
   findParentTask,
   isChildTask,
   shouldShowTaskInKanbanDoneColumn,
+  isTaskHiddenByCollapse,
 } from '../src/kanbanTaskVisibility.js';
+import { STATUS } from '../src/constants.js';
 
 const tasks = [
   { id: 'p1', name: 'Parent', status: 'done', dependencyTaskIds: ['c1', 'c2'] },
@@ -43,6 +45,32 @@ describe('kanban done column visibility', () => {
       { id: 'c', status: 'in_progress' },
     ];
     assert.equal(shouldShowTaskInKanbanDoneColumn(parentDoneChildOpen[1], parentDoneChildOpen), false);
+  });
+
+  it('hides a done child when the parent has a custom terminal status (M-F4)', () => {
+    const customStatuses = [
+      ...STATUS,
+      { v: 'shipped', label: 'Enviado', kind: 'done', isTerminal: true, canBeFocused: false, sortWeight: 0 },
+    ];
+    const customTasks = [
+      { id: 'p', status: 'shipped', dependencyTaskIds: ['c'] },
+      { id: 'c', status: 'done' },
+    ];
+    assert.equal(shouldShowTaskInKanbanDoneColumn(customTasks[1], customTasks, customStatuses), false);
+  });
+});
+
+describe('isTaskHiddenByCollapse (M-F5)', () => {
+  it('hides a task when an ancestor is collapsed, shows it when expanded', () => {
+    const parentByChild = new Map([['child', 'parent']]);
+    assert.equal(isTaskHiddenByCollapse('child', parentByChild, new Set()), true);
+    assert.equal(isTaskHiddenByCollapse('child', parentByChild, new Set(['parent'])), false);
+    assert.equal(isTaskHiddenByCollapse('root', parentByChild, new Set()), false);
+  });
+
+  it('does not hang on cyclic ancestry and keeps the task visible', () => {
+    const parentByChild = new Map([['a', 'b'], ['b', 'a']]);
+    assert.equal(isTaskHiddenByCollapse('a', parentByChild, new Set(['a', 'b'])), false);
   });
 });
 

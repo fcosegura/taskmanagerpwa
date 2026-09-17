@@ -56,6 +56,29 @@ describe('applyStatusWithChildCascade', () => {
     assert.equal(result.find((t) => t.id === 'c1').status, 'not_done');
     assert.equal(result.find((t) => t.id === 'c2').status, 'in_progress');
   });
+
+  it('cascades recursively to grandchildren (A6)', () => {
+    const tasks = [
+      { id: 'p', status: 'in_progress', dependencyTaskIds: ['c'] },
+      { id: 'c', status: 'not_done', dependencyTaskIds: ['g'] },
+      { id: 'g', status: 'not_done' },
+    ];
+    const result = applyStatusWithChildCascade(tasks, 'p', 'done');
+    assert.equal(result.find((t) => t.id === 'c').status, 'done');
+    assert.equal(result.find((t) => t.id === 'g').status, 'done');
+    assert.ok(result.find((t) => t.id === 'c').completedAt);
+    assert.ok(result.find((t) => t.id === 'g').completedAt);
+  });
+
+  it('is cycle-safe when dependencies loop (A6)', () => {
+    const tasks = [
+      { id: 'a', status: 'in_progress', dependencyTaskIds: ['b'] },
+      { id: 'b', status: 'not_done', dependencyTaskIds: ['a'] },
+    ];
+    const result = applyStatusWithChildCascade(tasks, 'a', 'blocked');
+    assert.equal(result.find((t) => t.id === 'a').status, 'blocked');
+    assert.equal(result.find((t) => t.id === 'b').status, 'blocked');
+  });
 });
 
 describe('getChildIdsForParent', () => {

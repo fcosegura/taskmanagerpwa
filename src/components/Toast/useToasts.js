@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 let toastSeq = 0;
 
@@ -12,6 +12,11 @@ let toastSeq = 0;
 export function useToasts() {
   const [toasts, setToasts] = useState([]);
   const timersRef = useRef(new Map());
+
+  useEffect(() => () => {
+    timersRef.current.forEach((timer) => window.clearTimeout(timer));
+    timersRef.current.clear();
+  }, []);
 
   const dismiss = useCallback((id) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));

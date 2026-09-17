@@ -80,16 +80,24 @@ export default function GraphView({
     if (dragRef.current?.pointerId === e.pointerId) dragRef.current = null;
   };
 
-  const onWheel = (e) => {
-    e.preventDefault();
-    const delta = e.deltaY > 0 ? 0.9 : 1.1;
-    setScale((s) => Math.min(2.4, Math.max(0.45, s * delta)));
-  };
-
   const resetView = () => {
     setPan({ x: 0, y: 0 });
     setScale(1);
   };
+
+  useEffect(() => {
+    const el = svgRef.current;
+    if (!el) return undefined;
+    const handleWheel = (e) => {
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? 0.9 : 1.1;
+      setScale((s) => Math.min(2.4, Math.max(0.45, s * delta)));
+    };
+    // Native listener is required so preventDefault works (React's onWheel is passive).
+    el.addEventListener('wheel', handleWheel, { passive: false });
+    return () => el.removeEventListener('wheel', handleWheel);
+    // Re-attach when the SVG mounts/unmounts as notes are added/removed.
+  }, [model.nodes.length]);
 
   const sendChat = async () => {
     const q = chatInput.trim();
@@ -180,7 +188,6 @@ export default function GraphView({
               onPointerMove={onPointerMove}
               onPointerUp={onPointerUp}
               onPointerCancel={onPointerUp}
-              onWheel={onWheel}
             >
               <rect
                 data-role="graph-bg"

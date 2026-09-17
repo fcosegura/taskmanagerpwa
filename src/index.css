@@ -2598,6 +2598,23 @@ nav.show-mobile button.active {
   opacity: 0.6;
 }
 
+.dependency-task-item {
+  cursor: pointer;
+}
+
+.dependency-task-item input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  flex-shrink: 0;
+}
+
+.dependency-task-item span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .subtask-delete {
   margin-left: auto;
   border: none;
@@ -2967,6 +2984,66 @@ button.task-card-body {
   font-size: var(--font-size-xs);
   color: var(--color-text-danger);
   font-weight: 600;
+}
+
+.upcoming-tasks-subblock {
+  margin-top: 8px;
+  padding-top: 18px;
+  border-top: 1px solid var(--color-border-secondary);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.upcoming-tasks-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.upcoming-tasks-heading h3,
+.upcoming-task-group h4 {
+  margin: 0;
+  font-weight: 800;
+}
+
+.upcoming-tasks-heading h3 {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-info);
+}
+
+.upcoming-tasks-heading > span {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+}
+
+.upcoming-task-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.upcoming-task-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.upcoming-task-group h4 {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  text-transform: capitalize;
+}
+
+.upcoming-empty-state {
+  padding: 16px;
+  border: 1px dashed var(--color-border-secondary);
+  border-radius: var(--border-radius-md);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  text-align: center;
 }
 
 .empty-state-card {

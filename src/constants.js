@@ -74,6 +74,18 @@ export const STATUS = [
   { v: 'done', label: 'Completado', tv: '--color-text-success', bv: '--color-background-success', bov: '--color-border-success', kind: 'done', isTerminal: true, canBeFocused: false, sortWeight: 0 },
 ];
 
+/**
+ * Whether a status id is terminal (done-like), honoring custom statuses.
+ * Falls back to the built-in STATUS list when no list is provided.
+ */
+export function isTerminalStatus(statusId, statuses = STATUS) {
+  if (typeof statusId !== 'string' || !statusId) return false;
+  const list = Array.isArray(statuses) && statuses.length ? statuses : STATUS;
+  const def = list.find((s) => s.v === statusId || s.value === statusId);
+  if (def && typeof def.isTerminal === 'boolean') return def.isTerminal;
+  return def?.kind === 'done' || statusId === 'done';
+}
+
 
 /** Parent statuses that propagate to dependency (child) tasks. */
 export const PARENT_CASCADE_STATUSES = new Set(['blocked', 'paused', 'done']);

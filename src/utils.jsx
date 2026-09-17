@@ -1,4 +1,3 @@
-import { MONTHS } from './constants.js';
 import * as chrono from 'chrono-node';
 import {
   isJiraCategory,
@@ -16,13 +15,10 @@ export {
   startOfLocalIsoWeekMs,
   isCompletedAtWithinKanbanRange,
   mergeTaskCompletionMeta,
+  resolveTaskCompletionIso,
 } from './kanbanDoneRange.js';
 
-export function fmtDate(s) {
-  if (!s) return '';
-  const [y, m, d] = s.split('-');
-  return `${parseInt(d)} ${MONTHS[parseInt(m) - 1].slice(0, 3)} ${y}`;
-}
+export { fmtDate } from './todayViewHelpers.js';
 
 export function toDateStr(y, mo, d) {
   return `${y}-${String(mo + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;

@@ -124,9 +124,10 @@ export function createVectorizeStore(vectorize) {
       if (!vectorize?.query) return { matches: [] };
       return vectorize.query(vector, options);
     },
-    async deleteByIds(ids) {
+    async deleteByIds(ids, { namespace } = {}) {
       if (!vectorize?.deleteByIds || !ids?.length) return { skipped: true };
-      return vectorize.deleteByIds(ids);
+      const options = namespace ? { namespace } : undefined;
+      return vectorize.deleteByIds(ids, options);
     },
   };
 }

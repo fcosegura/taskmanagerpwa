@@ -4,6 +4,7 @@ import { compareTasksForTaskList } from '../utils.jsx';
 import { Chip } from './shared/index.jsx';
 import TaskRow from './TaskRow.jsx';
 import TaskTrashDropZone from './TaskTrashDropZone.jsx';
+import { isTaskHiddenByCollapse } from '../kanbanTaskVisibility.js';
 
 export default function TasksView({
   allTasks = [],
@@ -133,18 +134,9 @@ export default function TasksView({
     });
   }, []);
 
-  const displayedOrderedTasks = useMemo(() => {
-    const isHiddenByCollapse = (taskId) => {
-      let cur = taskId;
-      while (parentByChild.has(cur)) {
-        const parentId = parentByChild.get(cur);
-        if (!expandedParentIds.has(parentId)) return true;
-        cur = parentId;
-      }
-      return false;
-    };
-    return orderedTasks.filter((task) => !isHiddenByCollapse(task.id));
-  }, [orderedTasks, parentByChild, expandedParentIds]);
+  const displayedOrderedTasks = useMemo(() => (
+    orderedTasks.filter((task) => !isTaskHiddenByCollapse(task.id, parentByChild, expandedParentIds))
+  ), [orderedTasks, parentByChild, expandedParentIds]);
 
   return (
     <div className="tasks-view">
@@ -165,6 +157,7 @@ export default function TasksView({
             <TaskTrashDropZone
               draggedTaskId={draggedTaskId}
               allTasks={allTasks}
+              statuses={statuses}
               onDeleteTask={onDeleteTask}
             />
             <button

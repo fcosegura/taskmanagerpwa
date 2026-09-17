@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { STATUS, PRIORITY } from '../constants.js';
-import { fmtDate, isCompletedAtWithinKanbanRange } from '../utils.jsx';
+import { STATUS, PRIORITY, isTerminalStatus } from '../constants.js';
+import { fmtDate, isCompletedAtWithinKanbanRange, resolveTaskCompletionIso } from '../utils.jsx';
 import { isChildTask, shouldShowTaskInKanbanDoneColumn } from '../kanbanTaskVisibility.js';
 import { getHiddenKanbanTaskCount, getVisibleKanbanTasks, sortKanbanTasksByRecency } from '../kanbanTaskLimit.js';
 import {
@@ -94,7 +94,7 @@ function KanbanTaskCard({
   const isLinkDropTarget = isDragOver && dragMode === 'link';
 
   const subtasks = task.subtasks || [];
-  const completedSubtasks = subtasks.filter((st) => st.completed).length;
+  const completedSubtasks = subtasks.filter((st) => st.done).length;
 
   const cardClassName = [
     'kanban-task-card',
@@ -359,13 +359,14 @@ export default function KanbanView({
 
   const groupedTasks = useMemo(() => (
     statuses.reduce((accumulator, status) => {
+      const isDoneColumn = isTerminalStatus(status.v, statuses);
       const tasksInStatus = roleFilteredTasks.filter((task) => {
         if (task.status !== status.v) return false;
-        if (status.v === 'done' && task.hideInKanbanDone) return false;
-        if (status.v === 'done') {
-          const completedAt = typeof task.completedAt === 'string' ? task.completedAt : task.completed_at;
+        if (isDoneColumn && task.hideInKanbanDone) return false;
+        if (isDoneColumn) {
+          const completedAt = resolveTaskCompletionIso(task);
           if (!isCompletedAtWithinKanbanRange(completedAt, doneRange)) return false;
-          if (!shouldShowTaskInKanbanDoneColumn(task, allTasks)) return false;
+          if (!shouldShowTaskInKanbanDoneColumn(task, allTasks, statuses)) return false;
         }
         return true;
       });
@@ -460,6 +461,7 @@ export default function KanbanView({
         <TaskTrashDropZone
           draggedTaskId={draggedTaskId}
           allTasks={allTasks}
+          statuses={statuses}
           onDeleteTask={onDeleteTask}
         />
 

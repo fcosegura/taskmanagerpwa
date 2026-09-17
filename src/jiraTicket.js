@@ -40,13 +40,21 @@ export function applyJiraAutofillFromUrl(form, url) {
   }
 
   const jiraDefaults = getJiraTaskDefaultsFromUrl(url);
-  if (!jiraDefaults) return next;
-
-  if (!next.category) {
-    next.category = jiraDefaults.category;
+  if (jiraDefaults) {
+    if (!next.category) {
+      next.category = jiraDefaults.category;
+    }
+    if ((next.priority || 'medium') === 'medium') {
+      next.priority = jiraDefaults.priority;
+    }
   }
-  if ((next.priority || 'medium') === 'medium') {
-    next.priority = jiraDefaults.priority;
+
+  const ticket = normalizeTicketNumber(next.ticketNumber || '');
+  if (ticket) {
+    const nextName = applyTicketNumberToTaskName(next.name || '', ticket);
+    if (nextName !== (next.name || '').trim()) {
+      next.name = nextName;
+    }
   }
 
   return next;
@@ -54,13 +62,14 @@ export function applyJiraAutofillFromUrl(form, url) {
 
 export function applyTicketNumberToTaskName(name, ticketNumber) {
   const cleanName = typeof name === 'string' ? name.trim() : '';
-  const cleanTicket = normalizeTicketNumber(ticketNumber);
+  const cleanTicket = normalizeTicketNumber(ticketNumber).toUpperCase();
   if (!cleanTicket) return cleanName;
-  const ticketSuffix = `[${cleanTicket}]`;
-  const escapedSuffix = ticketSuffix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const hasSameSuffix = new RegExp(`${escapedSuffix}$`).test(cleanName);
-  if (hasSameSuffix) return cleanName;
-  return `${cleanName} ${ticketSuffix}`.trim();
+  const existingTicketToken = /\[[A-Z][A-Z0-9]+-\d+\]/gi;
+  const withoutTicket = cleanName
+    .replace(existingTicketToken, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+  return `${withoutTicket} [${cleanTicket}]`.trim();
 }
 
 export function inheritTicketFromParentTask(parentTask, childTask) {

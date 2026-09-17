@@ -1,17 +1,20 @@
 import { useState, useRef } from 'react';
 import { STATUS, PRIORITY } from '../constants.js';
-import { isJiraCategory, applyJiraAutofillFromUrl } from '../jiraTicket.js';
+import { isJiraCategory, applyJiraAutofillFromUrl, normalizeTicketNumber, applyTicketNumberToTaskName } from '../jiraTicket.js';
 import { useModalDialog } from '../hooks/useModalDialog.js';
+import { isChildTaskStatusAllowed } from '../childTaskStatusPrefs.js';
 import { IconButton } from './ui/index.jsx';
 
 export default function TaskSheetDrawer({
   isOpen,
   task = null,
   categories = [],
+  allTasks = [],
   onSave,
   onDelete,
   onClose,
-  statuses = STATUS
+  statuses = STATUS,
+  childTaskAllowedStatuses
 }) {
   const titleInputRef = useRef(null);
   const dialogRef = useModalDialog({
@@ -33,46 +36,52 @@ export default function TaskSheetDrawer({
     notes: task?.notes || '',
     url: task?.url || '',
     ticketNumber: task?.ticketNumber || '',
-    subtasks: task?.subtasks || [],
-    dependencyTaskIds: task?.dependencyTaskIds || []
+    subtasks: Array.isArray(task?.subtasks) ? task.subtasks : [],
+    dependencyTaskIds: Array.isArray(task?.dependencyTaskIds) ? task.dependencyTaskIds : []
   }));
 
-  const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
+  const parentTasks = task?.id
+    ? allTasks.filter((candidate) => (candidate.dependencyTaskIds || []).includes(task.id))
+    : [];
+
+  const selectedChildIds = Array.isArray(form.dependencyTaskIds) ? form.dependencyTaskIds : [];
+  const availableChildTasks = allTasks.filter((candidate) => (
+    candidate.id !== task?.id &&
+    !parentTasks.some((parentTask) => parentTask.id === candidate.id) &&
+    (selectedChildIds.includes(candidate.id) || isChildTaskStatusAllowed(candidate.status, childTaskAllowedStatuses)) &&
+    (candidate.status !== 'done' || selectedChildIds.includes(candidate.id))
+  ));
 
   if (!isOpen) return null;
 
   const handleChange = (field, value) => {
     setForm((prev) => {
-      const next = { ...prev, [field]: value };
+      let next = { ...prev, [field]: value };
       if (field === 'url' && value) {
-        return applyJiraAutofillFromUrl(next, value);
+        next = applyJiraAutofillFromUrl(next, value);
+      }
+      if (field !== 'name') {
+        const ticket = normalizeTicketNumber(next.ticketNumber || '');
+        if (ticket) {
+          const nextName = applyTicketNumberToTaskName(next.name || '', ticket);
+          if (nextName !== (next.name || '').trim()) next = { ...next, name: nextName };
+        }
       }
       return next;
     });
   };
 
-  const handleAddSubtask = (e) => {
-    e.preventDefault();
-    if (!newSubtaskTitle.trim()) return;
-    setForm((prev) => ({
-      ...prev,
-      subtasks: [...prev.subtasks, { id: Date.now(), title: newSubtaskTitle.trim(), completed: false }]
-    }));
-    setNewSubtaskTitle('');
-  };
-
-  const handleToggleSubtask = (subId) => {
-    setForm((prev) => ({
-      ...prev,
-      subtasks: prev.subtasks.map((st) => (st.id === subId ? { ...st, completed: !st.completed } : st))
-    }));
-  };
-
-  const handleRemoveSubtask = (subId) => {
-    setForm((prev) => ({
-      ...prev,
-      subtasks: prev.subtasks.filter((st) => st.id !== subId)
-    }));
+  const toggleChildTask = (childId) => {
+    setForm((prev) => {
+      const current = Array.isArray(prev.dependencyTaskIds) ? prev.dependencyTaskIds : [];
+      const exists = current.includes(childId);
+      return {
+        ...prev,
+        dependencyTaskIds: exists
+          ? current.filter((id) => id !== childId)
+          : [...current, childId]
+      };
+    });
   };
 
   const handleSubmit = (e) => {
@@ -81,7 +90,7 @@ export default function TaskSheetDrawer({
     const payload = task?.id
       ? { ...task, ...form, id: task.id }
       : { ...form };
-    onSave(payload);
+    onSave({ taskPayload: payload });
     onClose();
   };
 
@@ -106,7 +115,6 @@ export default function TaskSheetDrawer({
         </div>
 
         <form onSubmit={handleSubmit} className="sheet-drawer-body">
-          {/* Main Title Input */}
           <div className="form-group">
             <label htmlFor="task-name-input">Nombre de la tarea</label>
             <input
@@ -121,7 +129,6 @@ export default function TaskSheetDrawer({
             />
           </div>
 
-          {/* Status & Priority Row */}
           <div className="form-row">
             <div className="form-group flex-1">
               <label htmlFor="task-status-select">Estado</label>
@@ -154,7 +161,6 @@ export default function TaskSheetDrawer({
             </div>
           </div>
 
-          {/* Dates & Times */}
           <div className="form-row">
             <div className="form-group flex-1">
               <label htmlFor="task-duedate-input">Fecha límite</label>
@@ -177,7 +183,6 @@ export default function TaskSheetDrawer({
             </div>
           </div>
 
-          {/* Category & Ticket Number */}
           <div className="form-row">
             <div className="form-group flex-1">
               <label htmlFor="task-category-input">Categoría / Proyecto</label>
@@ -210,7 +215,6 @@ export default function TaskSheetDrawer({
             )}
           </div>
 
-          {/* URL & Link */}
           <div className="form-group">
             <label htmlFor="task-url-input">URL / Enlace externo</label>
             <input
@@ -222,7 +226,6 @@ export default function TaskSheetDrawer({
             />
           </div>
 
-          {/* Description & Notes */}
           <div className="form-group form-group-spaced">
             <label htmlFor="task-notes-input">Notas & Descripción</label>
             <textarea
@@ -234,43 +237,35 @@ export default function TaskSheetDrawer({
             />
           </div>
 
-          {/* Subtasks Section */}
           <div className="form-group subtasks-group">
-            <label>Sub-tareas ({form.subtasks.length})</label>
-            <div className="subtasks-list">
-              {form.subtasks.map((st) => (
-                <div key={st.id} className="subtask-item">
-                  <input
-                    type="checkbox"
-                    checked={Boolean(st.completed)}
-                    onChange={() => handleToggleSubtask(st.id)}
-                  />
-                  <span className={st.completed ? 'completed' : ''}>{st.title}</span>
-                  <button
-                    type="button"
-                    className="subtask-delete"
-                    onClick={() => handleRemoveSubtask(st.id)}
-                  >
-                    ✕
-                  </button>
-                </div>
-              ))}
-            </div>
-            <div className="add-subtask-row">
-              <input
-                type="text"
-                placeholder="Añadir sub-tarea..."
-                value={newSubtaskTitle}
-                onChange={(e) => setNewSubtaskTitle(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleAddSubtask(e)}
-              />
-              <button type="button" className="ghost-button compact" onClick={handleAddSubtask}>
-                + Añadir
-              </button>
-            </div>
+            <label>Tareas hijas ({form.dependencyTaskIds.length})</label>
+            {parentTasks.length > 0 ? (
+              <p className="subtask-hint">
+                Esta tarea es hija de: {parentTasks.map((parentTask) => parentTask.name).join(', ')}.
+                Solo la tarea padre puede elegir sus hijas.
+              </p>
+            ) : availableChildTasks.length === 0 ? (
+              <p className="subtask-hint">No hay tareas abiertas disponibles para vincular.</p>
+            ) : (
+              <div className="subtasks-list">
+                {availableChildTasks.map((candidate) => {
+                  const checked = form.dependencyTaskIds.includes(candidate.id);
+                  return (
+                    <label key={candidate.id} className="subtask-item dependency-task-item">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleChildTask(candidate.id)}
+                      />
+                      <span>{candidate.name || '(sin nombre)'}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+            <p className="subtask-hint">Elige tareas ya creadas para vincularlas como hijas.</p>
           </div>
 
-          {/* Footer Actions */}
           <div className="sheet-drawer-footer">
             {task?.id && onDelete && (
               <button

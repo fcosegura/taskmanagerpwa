@@ -59,15 +59,28 @@ async function vectorIdForNote(userId, profileId, noteId) {
   return hex.slice(0, 32);
 }
 
+const SCHEMA_CACHE_TTL_MS = 5 * 60 * 1000;
+
+let noteAiSchemaCache = null;
+
 export async function ensureNoteAiSchema(env) {
+  const now = Date.now();
+  if (noteAiSchemaCache && now - noteAiSchemaCache.at < SCHEMA_CACHE_TTL_MS) {
+    return;
+  }
   const safeExec = async (statement) => {
     try {
       await env.DB.prepare(statement).run();
-    } catch {
-      // resilient bootstrap
+      return true;
+    } catch (err) {
+      // `ALTER TABLE ADD COLUMN` on an existing column is expected after the first
+      // successful migration; anything else must keep the cache cold for a retry.
+      const message = String(err?.message || err).toLowerCase();
+      return message.includes('duplicate column');
     }
   };
-  await safeExec(`
+  let allCriticalOk = true;
+  allCriticalOk = (await safeExec(`
     CREATE TABLE IF NOT EXISTS note_ai_meta (
       note_id TEXT NOT NULL,
       user_id TEXT NOT NULL,
@@ -85,10 +98,12 @@ export async function ensureNoteAiSchema(env) {
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       PRIMARY KEY (note_id, profile_id)
     )
-  `);
-  await safeExec('CREATE INDEX IF NOT EXISTS idx_note_ai_meta_user_profile ON note_ai_meta(user_id, profile_id)');
-  await safeExec('CREATE INDEX IF NOT EXISTS idx_note_ai_meta_status ON note_ai_meta(user_id, profile_id, status)');
-  await safeExec('ALTER TABLE note_ai_meta ADD COLUMN vector_schema INTEGER DEFAULT 0');
+  `)) && allCriticalOk;
+  allCriticalOk = (await safeExec('CREATE INDEX IF NOT EXISTS idx_note_ai_meta_user_profile ON note_ai_meta(user_id, profile_id)')) && allCriticalOk;
+  allCriticalOk = (await safeExec('CREATE INDEX IF NOT EXISTS idx_note_ai_meta_status ON note_ai_meta(user_id, profile_id, status)')) && allCriticalOk;
+  allCriticalOk = (await safeExec('ALTER TABLE note_ai_meta ADD COLUMN vector_schema INTEGER DEFAULT 0')) && allCriticalOk;
+  // Only cache when every critical statement succeeded; otherwise retry next call.
+  if (allCriticalOk) noteAiSchemaCache = { at: Date.now() };
 }
 
 function scopedNoteId(profileId, noteId) {
@@ -218,7 +233,8 @@ export async function processNoteAiJob(env, dataKey, job, prefsInput = DEFAULT_N
     ).bind(userId, profileId, scoped).run();
     try {
       const vid = await vectorIdForNote(userId, profileId, noteId);
-      await services.vectors.deleteByIds([vid]);
+      const ns = await vectorNamespace(userId, profileId);
+      await services.vectors.deleteByIds([vid], { namespace: ns });
     } catch {
       // vector delete best-effort
     }
@@ -543,13 +559,23 @@ export async function enqueueStaleNoteAiReindex(env, ctx, userId, profileId) {
   return { enqueued: jobs.length };
 }
 
+/**
+ * Cloudflare Queues `sendBatch` accepts at most 100 messages per call.
+ * Larger workspaces must be split to avoid failing right after the D1 commit.
+ */
+export const QUEUE_BATCH_LIMIT = 100;
+
 export async function enqueueNoteAiJobs(env, ctx, jobs) {
   const list = Array.isArray(jobs) ? jobs.filter(Boolean) : [];
   if (!list.length) return;
 
   if (env?.NOTES_AI_QUEUE?.send) {
-    if (typeof env.NOTES_AI_QUEUE.sendBatch === 'function' && list.length > 1) {
-      await env.NOTES_AI_QUEUE.sendBatch(list.map((body) => ({ body })));
+    if (typeof env.NOTES_AI_QUEUE.sendBatch === 'function') {
+      for (let i = 0; i < list.length; i += QUEUE_BATCH_LIMIT) {
+        await env.NOTES_AI_QUEUE.sendBatch(
+          list.slice(i, i + QUEUE_BATCH_LIMIT).map((body) => ({ body }))
+        );
+      }
     } else {
       for (const body of list) {
         await env.NOTES_AI_QUEUE.send(body);

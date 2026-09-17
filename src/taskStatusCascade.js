@@ -1,4 +1,4 @@
-import { PARENT_CASCADE_STATUSES } from './constants.js';
+import { PARENT_CASCADE_STATUSES, STATUS } from './constants.js';
 import { mergeTaskCompletionMeta } from './kanbanDoneRange.js';
 
 export function shouldCascadeStatusToChildren(status) {
@@ -9,17 +9,33 @@ export function getChildIdsForParent(parentTask) {
   return [...new Set((parentTask?.dependencyTaskIds || []).filter((id) => typeof id === 'string' && id))];
 }
 
-/** When parent moves to blocked, paused, or done, children get the same status. */
-export function applyStatusWithChildCascade(tasks, parentId, nextStatus) {
+/**
+ * When a parent moves to blocked, paused, or done, children get the same status.
+ * Propagation is recursive (grandchildren included) and cycle-safe.
+ */
+export function applyStatusWithChildCascade(tasks, parentId, nextStatus, statuses = STATUS) {
   const parentTask = tasks.find((task) => task.id === parentId);
   if (!parentTask) return tasks;
 
-  const childIds = shouldCascadeStatusToChildren(nextStatus)
-    ? new Set(getChildIdsForParent(parentTask))
-    : new Set();
+  const affected = new Set([parentId]);
 
-  return tasks.map((task) => {
-    if (task.id !== parentId && !childIds.has(task.id)) return task;
-    return mergeTaskCompletionMeta(task, { ...task, status: nextStatus });
-  });
+  if (shouldCascadeStatusToChildren(nextStatus)) {
+    const queue = [parentId];
+    while (queue.length > 0) {
+      const currentId = queue.shift();
+      const current = tasks.find((task) => task.id === currentId);
+      if (!current) continue;
+      for (const childId of getChildIdsForParent(current)) {
+        if (affected.has(childId)) continue;
+        affected.add(childId);
+        queue.push(childId);
+      }
+    }
+  }
+
+  return tasks.map((task) => (
+    affected.has(task.id)
+      ? mergeTaskCompletionMeta(task, { ...task, status: nextStatus }, statuses)
+      : task
+  ));
 }

@@ -1,16 +1,21 @@
 import { useState } from 'react';
-import { STATUS, PRIORITY } from '../constants.js';
+import { STATUS, PRIORITY, isTerminalStatus } from '../constants.js';
 import { fmtDate, parseDateTimeFromDescription, parseDescriptionDateResult, cleanDescriptionSegment } from '../utils.jsx';
 import { isJiraCategory, normalizeTicketNumber, applyTicketNumberToTaskName, extractJiraTicketFromUrl, getJiraTaskDefaultsFromUrl } from '../jiraTicket.js';
 import { parseTaskWithAI } from '../storage.js';
+import { isChildTaskStatusAllowed } from '../childTaskStatusPrefs.js';
+import { useModalDialog } from '../hooks/useModalDialog.js';
 
-export default function TaskModal({ task, categories, allTasks = [], onSave, onDelete, onClose, statuses = STATUS }) {
+export default function TaskModal({ task, categories, allTasks = [], onSave, onDelete, onClose, statuses = STATUS, childTaskAllowedStatuses }) {
+  const dialogRef = useModalDialog({ isOpen: true, onClose });
   const { _taskModalInitialAdvanced, ...taskRest } = task;
   const parentTasks = allTasks.filter((candidate) => (candidate.dependencyTaskIds || []).includes(taskRest.id));
   const isChildTask = parentTasks.length > 0;
+  const selectedDependencyIds = Array.isArray(taskRest.dependencyTaskIds) ? taskRest.dependencyTaskIds : [];
   const availableDependencyTasks = allTasks.filter((candidate) => (
     candidate.id !== taskRest.id &&
-    candidate.status !== 'done' &&
+    !isTerminalStatus(candidate.status, statuses) &&
+    (selectedDependencyIds.includes(candidate.id) || isChildTaskStatusAllowed(candidate.status, childTaskAllowedStatuses)) &&
     !parentTasks.some((parentTask) => parentTask.id === candidate.id)
   ));
   const [form, setForm] = useState({
@@ -61,22 +66,31 @@ export default function TaskModal({ task, categories, allTasks = [], onSave, onD
   };
 
   const withAutoJiraTicket = (nextForm, categoryOverride = newCategory) => {
-    const category = categoryOverride.trim() || nextForm.category || '';
-    if (!isJiraCategory(category) || normalizeTicketNumber(nextForm.ticketNumber || '')) {
-      return withAutoJiraDefaults(nextForm, categoryOverride);
+    const withDefaults = withAutoJiraDefaults(nextForm, categoryOverride);
+    const category = categoryOverride.trim() || withDefaults.category || '';
+    if (!isJiraCategory(category) || normalizeTicketNumber(withDefaults.ticketNumber || '')) {
+      return withDefaults;
     }
-    const ticketFromUrl = extractJiraTicketFromUrl(nextForm.url || '');
-    const nextFormWithTicket = ticketFromUrl ? { ...nextForm, ticketNumber: ticketFromUrl } : nextForm;
-    return withAutoJiraDefaults(nextFormWithTicket, categoryOverride);
+    const ticketFromUrl = extractJiraTicketFromUrl(withDefaults.url || '');
+    return ticketFromUrl ? { ...withDefaults, ticketNumber: ticketFromUrl } : withDefaults;
+  };
+
+  const withTicketInName = (nextForm, field) => {
+    if (field === 'name') return nextForm;
+    const ticket = normalizeTicketNumber(nextForm.ticketNumber || '');
+    if (!ticket) return nextForm;
+    const nextName = applyTicketNumberToTaskName(nextForm.name || '', ticket);
+    if (nextName === (nextForm.name || '').trim()) return nextForm;
+    return { ...nextForm, name: nextName };
   };
 
   const handleChange = (field, value) => {
-    setForm((prev) => withAutoJiraTicket({ ...prev, [field]: value }));
+    setForm((prev) => withTicketInName(withAutoJiraTicket({ ...prev, [field]: value }), field));
   };
 
   const handleNewCategoryChange = (value) => {
     setNewCategory(value);
-    setForm((prev) => withAutoJiraTicket(prev, value));
+    setForm((prev) => withTicketInName(withAutoJiraTicket(prev, value), 'newCategory'));
   };
   const toggleDependency = (dependencyId) => {
     setForm((prev) => {
@@ -163,7 +177,7 @@ export default function TaskModal({ task, categories, allTasks = [], onSave, onD
   const showTicketNumberField = isJiraCategory(effectiveCategory);
 
   return (
-    <form className="liquid-glass-modal" onSubmit={onSubmit} style={{ width: 'min(420px, 100%)', maxWidth: 'calc(100% - 32px)', borderRadius: 'var(--border-radius-lg)', padding: 24, color: 'var(--color-text-primary)' }}>
+    <form ref={dialogRef} className="liquid-glass-modal" onSubmit={onSubmit} style={{ width: 'min(420px, 100%)', maxWidth: 'calc(100% - 32px)', borderRadius: 'var(--border-radius-lg)', padding: 24, color: 'var(--color-text-primary)' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, gap: 12, flexWrap: 'wrap' }}>
         <div>
           <div style={{ fontSize: 18, fontWeight: 700 }}>{taskRest.id ? 'Editar tarea' : 'Nueva tarea'}</div>
@@ -290,7 +304,7 @@ export default function TaskModal({ task, categories, allTasks = [], onSave, onD
           {statuses.map((option) => <option key={option.v} value={option.v}>{option.label}</option>)}
         </select>
       </label>
-      {form.status === 'done' && (
+      {isTerminalStatus(form.status, statuses) && (
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 18, fontSize: 12, color: 'var(--color-text-secondary)', userSelect: 'none', cursor: 'pointer' }}>
           <input
             type="checkbox"
