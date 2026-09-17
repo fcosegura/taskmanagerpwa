@@ -1,5 +1,25 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Download } from '@playwright/test';
+import { readFile } from 'node:fs/promises';
 import { installApiMocks, installUnauthorizedMocks, E2E_TASK_NAME, SECOND_TASK_NAME } from './api-mock';
+
+// Leer el contenido de una descarga. `createReadStream()` puede devolver 0 bytes de forma
+// intermitente para descargas blob pequeñas y el fichero temporal puede seguir bloqueado
+// unos instantes en Windows, así que reintentamos la lectura desde disco.
+async function readDownloadedText(download: Download): Promise<string> {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    try {
+      const filePath = await download.path();
+      if (filePath) {
+        const text = await readFile(filePath, 'utf-8');
+        if (text.length > 0) return text;
+      }
+    } catch {
+      // El fichero todavía puede estar bloqueado: reintentamos.
+    }
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  throw new Error('No se pudo leer el archivo descargado.');
+}
 
 test.beforeEach(async ({ page }) => {
   await installApiMocks(page);
@@ -210,8 +230,12 @@ test.describe('Fase 3 — Flujos E2E de Tareas, Command Menu y Accesibilidad', (
     await page.goto('/');
     await expect(page.getByRole('heading', { name: /Prioriza lo importante/i })).toBeVisible({ timeout: 30_000 });
 
+    // La vista Hoy solo muestra los próximos 5 días laborables: elegimos el siguiente
+    // día laborable para que el test no dependa del día de la semana en que se ejecute.
     const futureDate = new Date();
-    futureDate.setDate(futureDate.getDate() + 2);
+    do {
+      futureDate.setDate(futureDate.getDate() + 1);
+    } while (futureDate.getDay() === 0 || futureDate.getDay() === 6);
     const futureDateString = [
       futureDate.getFullYear(),
       String(futureDate.getMonth() + 1).padStart(2, '0'),
@@ -307,13 +331,7 @@ test.describe('backup e importación', () => {
     expect(download.suggestedFilename()).toMatch(/^taskmanager-backup-.*\.json$/);
 
     // Leer el JSON descargado con la API de Playwright (sin rutas rígidas del sistema local).
-    const stream = await download.createReadStream();
-    if (!stream) throw new Error('No se pudo leer el archivo descargado.');
-    const chunks: Buffer[] = [];
-    for await (const chunk of stream) {
-      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-    }
-    const backup = JSON.parse(Buffer.concat(chunks).toString('utf-8'));
+    const backup = JSON.parse(await readDownloadedText(download));
 
     expect(Array.isArray(backup.workspaces)).toBe(true);
     expect(backup.workspaces.length).toBeGreaterThanOrEqual(2);
