@@ -55,6 +55,7 @@ export function fmtDate(s) {
 
 export function normalizeTaskUrl(url) {
   if (!url || typeof url !== 'string') return '';
+  // eslint-disable-next-line no-control-regex
   const cleaned = url.replace(/[\x00-\x1F\x7F]/g, '').trim();
   if (!cleaned) return '';
   const lower = cleaned.toLowerCase();
