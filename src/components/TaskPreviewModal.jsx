@@ -1,5 +1,6 @@
 import { STATUS, PRIORITY } from '../constants.js';
 import { fmtDate, linkifyText, isJiraCategory } from '../utils.jsx';
+import { normalizeTaskUrl } from '../todayViewHelpers.js';
 import { normalizeStatusLog } from '../statusLog.js';
 import { Pill, CategoryPill } from './shared/index.jsx';
 
@@ -102,14 +103,14 @@ export default function TaskPreviewModal({ task, allTasks = [], onClose, onEdit,
         </div>
       )}
 
-      {task.url && (
+      {normalizeTaskUrl(task.url) ? (
         <div style={{ marginBottom: 14 }}>
           <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 6 }}>Enlace</div>
-          <a href={task.url} target="_blank" rel="noreferrer" style={{ fontSize: 13, color: 'var(--color-accent)', wordBreak: 'break-all' }}>
+          <a href={normalizeTaskUrl(task.url)} target="_blank" rel="noreferrer" style={{ fontSize: 13, color: 'var(--color-accent)', wordBreak: 'break-all' }}>
             {task.url}
           </a>
         </div>
-      )}
+      ) : null}
 
       {hasChildTasks && (
         <div style={{ marginBottom: 16 }}>

@@ -51,7 +51,7 @@ const SECURITY_HEADERS = {
     "img-src 'self' data: https://lh3.googleusercontent.com",
     "font-src 'self'",
     "connect-src 'self' https://accounts.google.com https://www.googleapis.com https://oauth2.googleapis.com",
-    "frame-src https://accounts.google.com",
+    "frame-src https://accounts.google.com https://mynotebook.fcovidalsegura.workers.dev",
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",
@@ -1191,7 +1191,7 @@ function normalizeGeneratedTaskPlan(aiParsed, sourceText) {
 const GOOGLE_ID_TOKEN_PATTERN = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/;
 
 async function verifyGoogleToken(token, env) {
-  if (!token) return null;
+  if (!token || !env?.GOOGLE_CLIENT_ID || typeof env.GOOGLE_CLIENT_ID !== 'string' || !env.GOOGLE_CLIENT_ID.trim()) return null;
   // Only JWT-shaped values are Google ID tokens; opaque/other cookies must not hit Google.
   if (!GOOGLE_ID_TOKEN_PATTERN.test(token)) return null;
   const googleResp = await fetch(

@@ -37,6 +37,11 @@ self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
+  // Solo cachear solicitudes GET y HEAD
+  if (request.method !== 'GET' && request.method !== 'HEAD') {
+    return;
+  }
+
   // Nunca cachear API: siempre red para evitar respuestas stale en sync/workspaces.
   if (url.pathname.startsWith('/api/')) {
     event.respondWith(fetch(request));
