@@ -476,7 +476,7 @@ export default function BoardView({
 
   const handleAddNote = () => {
     onAddNote({
-      id: Date.now().toString(36) + Math.random().toString(36).slice(2),
+      id: crypto.randomUUID(),
       title: '',
       text: '',
       createdAt: new Date().toISOString(),

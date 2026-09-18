@@ -21,10 +21,7 @@ const NOTEBOOK_REQUEST_TIMEOUT_MS = 6000;
 const WIDTH_STEP = 32;
 
 function buildRequestId() {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID();
-  }
-  return `notebook-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  return crypto.randomUUID();
 }
 
 function clampWidth(width) {
