@@ -18,7 +18,7 @@ export function normalizeStatusLog(raw) {
 
 export function appendStatusLogEntry(task, { fromStatus, toStatus, comment, at = new Date().toISOString(), id }) {
   const entry = {
-    id: typeof id === 'string' ? id : `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`,
+    id: typeof id === 'string' ? id : crypto.randomUUID(),
     fromStatus: fromStatus ?? null,
     toStatus,
     comment: String(comment || '').trim(),
