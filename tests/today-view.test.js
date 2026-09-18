@@ -198,6 +198,15 @@ describe('TodayView task and event classification', () => {
       assert.strictEqual(normalizeTaskUrl(null), '');
     });
 
+    test('normalizeTaskUrl rejects dangerous schemes like javascript:, data:, and vbscript:', () => {
+      assert.strictEqual(normalizeTaskUrl('javascript:alert(1)'), '');
+      assert.strictEqual(normalizeTaskUrl('JAVASCRIPT:alert(1)'), '');
+      assert.strictEqual(normalizeTaskUrl('  javascript:alert(1)  '), '');
+      assert.strictEqual(normalizeTaskUrl('\x00javascript:alert(1)'), '');
+      assert.strictEqual(normalizeTaskUrl('data:text/html,<script>alert(1)</script>'), '');
+      assert.strictEqual(normalizeTaskUrl('vbscript:msgbox(1)'), '');
+    });
+
     test('formatTaskUrlLabel shows hostname without www', () => {
       assert.strictEqual(formatTaskUrlLabel('https://www.jira.example.com/browse/ABC-1'), 'jira.example.com');
       assert.strictEqual(formatTaskUrlLabel('docs.google.com/doc'), 'docs.google.com');

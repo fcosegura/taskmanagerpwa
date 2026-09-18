@@ -55,9 +55,16 @@ export function fmtDate(s) {
 
 export function normalizeTaskUrl(url) {
   if (!url || typeof url !== 'string') return '';
-  const trimmed = url.trim();
-  if (!trimmed) return '';
-  return trimmed.startsWith('http') ? trimmed : `https://${trimmed}`;
+  // eslint-disable-next-line no-control-regex
+  const cleaned = url.replace(/[\x00-\x1F\x7F]/g, '').trim();
+  if (!cleaned) return '';
+  const lower = cleaned.toLowerCase();
+  if (lower.startsWith('javascript:') || lower.startsWith('data:') || lower.startsWith('vbscript:')) {
+    return '';
+  }
+  return cleaned.startsWith('http://') || cleaned.startsWith('https://')
+    ? cleaned
+    : `https://${cleaned}`;
 }
 
 export function formatTaskUrlLabel(url) {
