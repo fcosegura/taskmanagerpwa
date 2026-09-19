@@ -5,6 +5,7 @@ import { isJiraCategory, normalizeTicketNumber, applyTicketNumberToTaskName, ext
 import { parseTaskWithAI } from '../storage.js';
 import { isChildTaskStatusAllowed } from '../childTaskStatusPrefs.js';
 import { useModalDialog } from '../hooks/useModalDialog.js';
+import { Spinner } from './ui/index.jsx';
 
 export default function TaskModal({ task, categories, allTasks = [], onSave, onDelete, onClose, statuses = STATUS, childTaskAllowedStatuses }) {
   const dialogRef = useModalDialog({ isOpen: true, onClose });
@@ -240,7 +241,7 @@ export default function TaskModal({ task, categories, allTasks = [], onSave, onD
             fontWeight: 700
           }}
         >
-          {aiLoading ? 'Sugiriendo...' : 'Sugerir con IA'}
+          {aiLoading ? <><Spinner /> Sugiriendo...</> : 'Sugerir con IA'}
         </button>
         {aiFeedback && <span style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>{aiFeedback}</span>}
       </div>

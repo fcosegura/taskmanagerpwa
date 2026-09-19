@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Spinner } from './ui/index.jsx';
 
 function isDismissed(meta, kind, value) {
   const key = `${kind}:${value}`;
@@ -537,7 +538,7 @@ export default function BoardView({
                   opacity: organizeBusy || notes.length < 2 ? 0.65 : 1,
                 }}
               >
-                {organizeBusy ? 'Organizando…' : 'Organizar tablero'}
+                {organizeBusy ? <><Spinner /> Organizando…</> : 'Organizar tablero'}
               </button>
             )}
             <button

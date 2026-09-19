@@ -2,6 +2,7 @@ import { useMemo, useState, useCallback } from 'react';
 import { STATUS } from '../constants.js';
 import { compareTasksForTaskList } from '../utils.jsx';
 import { Chip } from './shared/index.jsx';
+import { Spinner } from './ui/index.jsx';
 import TaskRow from './TaskRow.jsx';
 import TaskTrashDropZone from './TaskTrashDropZone.jsx';
 import { isTaskHiddenByCollapse } from '../kanbanTaskVisibility.js';
@@ -298,7 +299,7 @@ export default function TasksView({
           disabled={!quickText.trim() || quickAiLoading}
           style={{ background: quickText.trim() && !quickAiLoading ? 'var(--color-background-info)' : 'var(--color-background-secondary)', color: quickText.trim() && !quickAiLoading ? 'var(--color-text-info)' : 'var(--color-text-secondary)', border: 'none', padding: '10px 14px', borderRadius: 999, fontSize: 12, fontWeight: 700, cursor: quickText.trim() && !quickAiLoading ? 'pointer' : 'not-allowed', transition: 'all 0.2s' }}
         >
-          {quickAiLoading ? 'IA...' : 'IA'}
+          {quickAiLoading ? <Spinner /> : 'IA'}
         </button>
         <button
           type="submit"
