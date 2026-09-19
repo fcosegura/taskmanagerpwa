@@ -13,7 +13,7 @@ import {
 } from '../kanbanColumnOrganize.js';
 import CopyTicketButton from './CopyTicketButton.jsx';
 import { CategoryPill } from './shared/index.jsx';
-import { IconButton } from './ui/index.jsx';
+import { IconButton, Spinner } from './ui/index.jsx';
 import TaskTrashDropZone from './TaskTrashDropZone.jsx';
 
 const KANBAN_DONE_RANGE_OPTIONS = [
@@ -454,7 +454,7 @@ export default function KanbanView({
             onClick={onDailyStatus}
             disabled={dailyStatusLoading}
           >
-            {dailyStatusLoading ? 'Generando...' : 'Daily Status'}
+            {dailyStatusLoading ? <><Spinner /> Generando...</> : 'Daily Status'}
           </button>
         )}
 

@@ -12,6 +12,7 @@ import { loadNoteAiPrefsFromStorage, saveNoteAiPrefsToStorage } from './noteAi/p
 import { loadNextFocusAllowedStatuses, saveNextFocusAllowedStatuses } from './nextFocusStatusPrefs.js';
 import { loadChildTaskAllowedStatuses, saveChildTaskAllowedStatuses } from './childTaskStatusPrefs.js';
 import { organizeNotesFromMeta } from './noteAi/clustering.js';
+import { Spinner } from './components/ui/index.jsx';
 import BoardView from './components/BoardView.jsx';
 import TaskModal from './components/TaskModal.jsx';
 import TaskPreviewModal from './components/TaskPreviewModal.jsx';
@@ -2122,7 +2123,7 @@ export default function App() {
                   onClick={handleGenerateTasksFromAi}
                   disabled={aiGenerationLoading}
                 >
-                  {aiGenerationLoading ? 'Generando tareas...' : 'Generar tareas IA'}
+                  {aiGenerationLoading ? <><Spinner /> Generando tareas...</> : 'Generar tareas IA'}
                 </button>
               </div>
             )}

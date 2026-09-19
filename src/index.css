@@ -3841,3 +3841,14 @@ input {
   justify-content: center;
   gap: 10px;
 }
+
+/* ── UI Spinner ── */
+.spinner {
+  display: inline-block;
+  vertical-align: text-bottom;
+  animation: ui-spin 1s linear infinite;
+  margin-right: 6px;
+}
+@keyframes ui-spin {
+  100% { transform: rotate(360deg); }
+}
