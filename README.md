@@ -7,25 +7,30 @@ Aplicación de gestión de tareas de tipo **Progressive Web App (PWA)** con sopo
 ## 🚀 Características Principales
 
 - **Múltiples Vistas de Trabajo**:
-  - **Hoy (`today`)**: Vista focalizada diaria con algoritmo determinístico de recomendación de foco.
+  - **Hoy (`today`)**: Vista focalizada diaria con recomendación de foco, atrasadas, agenda, progreso y sección de próximas tareas (5 días laborables).
   - **Tareas (`tasks`)**: Vista en lista completa con búsqueda rápida, filtros y parsing NLP.
-  - **Kanban (`kanban`)**: Tablero drag-and-drop con WIP limits y soporte para Epics y Sub-tasks.
+  - **Kanban (`kanban`)**: Tablero drag-and-drop con WIP limits, Epics/Sub-tasks, columnas colapsables y orden inteligente de columnas.
   - **Calendario (`calendar`)**: Vista mensual con eventos recurrentes y festivos.
   - **Agenda Diaria (`daily`)**: Time-blocking por franjas horarias (06:00 a 22:00).
   - **Tablero de Notas (`board`)**: Notas adhesivas organizadas visualmente en lienzo 2D.
+  - **Grafo de Notas (`graph`)**: Grafo de relaciones entre notas con chat contextual RAG.
   - **Timeline (`timeline`)**: Histórico y auditoría de cambios de estado (*statusLog*).
+- **Organización Automática de Notas (Note AI)**:
+  - Análisis y embeddings en segundo plano (Cloudflare Workers AI + Vectorize).
+  - Resumen, etiquetas, entidades, clasificación y sugerencias convertibles en tareas.
+  - Búsqueda semántica, notas relacionadas, detección de duplicados, organización del tablero y chat RAG sobre las notas.
 - **Asistencia IA (Cloudflare Workers AI - Llama 3.1)**:
   - Creación y estructuración inteligente de tareas desde texto libre.
-  - Desglose de planes de acción en subtareas (main/child tasks).
+  - Desglose de planes de acción en tareas principales e hijas.
   - Generación de reportes de estado diario (Daily Standup / Scrum Report).
 - **Sincronización Cloud y Modo Offline**:
   - Persistencia local inmediata (`localStorage`) con sincronización delta incremental a Cloudflare D1.
   - Service Worker (v4) con estrategias de caching diferenciadas para soporte offline completo.
 - **Seguridad y Privacidad**:
-  - Autenticación con Google OAuth (Sign-In with Google) y sesiones opacas en cookies `HttpOnly`.
-  - Cifrado de datos a nivel de campo (AES-256-GCM + SHA-256) server-side y client-side.
+  - Autenticación con Google OAuth (Sign-In with Google) y sesiones opacas en cookies `HttpOnly` (expiran en 1 hora).
+  - Cifrado de datos a nivel de campo (AES-256-GCM + SHA-256) aplicado exclusivamente server-side en el Worker; el cliente guarda plaintext local.
 - **Multitrabajo / Workspaces**:
-  - Gestión de múltiples perfiles independientes con personalización de estados (*custom statuses*).
+  - Gestión de múltiples perfiles independientes con personalización de estados (*custom statuses*) y allowlists de estados configurables (siguiente foco, tareas hijas).
 
 ---
 
@@ -33,11 +38,13 @@ Aplicación de gestión de tareas de tipo **Progressive Web App (PWA)** con sopo
 
 | Capa | Tecnología |
 |---|---|
-| **Frontend** | React 19 (JSX, sin TypeScript), CSS Vanilla |
+| **Frontend** | React 19 (JSX, sin TypeScript), CSS Vanilla con tokens Material Design 3 |
 | **Build & Tooling** | Vite 8, ESLint 9 (Flat Config), Husky |
 | **Backend & API** | Cloudflare Workers (`src/worker.js`) |
 | **Base de Datos** | Cloudflare D1 (SQLite serverless) |
 | **Inteligencia Artificial** | Cloudflare Workers AI (`@cf/meta/llama-3.1-8b-instruct`) |
+| **Embeddings / Búsqueda** | Cloudflare Workers AI (`@cf/baai/bge-m3`, 1024-dim) + Cloudflare Vectorize |
+| **Jobs asíncronos** | Cloudflare Queues (Note AI: analyze/delete) |
 | **Autenticación** | Google Identity Services + Cookies `HttpOnly` |
 | **PWA & Offline** | Service Worker (`public/sw.js`) + Web App Manifest |
 | **Testing** | Node.js Test Runner (Unitario), Playwright (E2E) |
@@ -122,6 +129,14 @@ Para desplegar el frontend y worker a **Cloudflare Workers**:
 
 ```bash
 npm run deploy
+```
+
+Recursos Cloudflare de creación única (Note AI):
+
+```bash
+npx wrangler vectorize create taskmanager-notes --dimensions=1024 --metric=cosine
+npx wrangler queues create taskmanager-notes-ai
+npx wrangler secret put DATA_ENCRYPTION_KEY   # clave AES-256 de 32 bytes
 ```
 
 ---
