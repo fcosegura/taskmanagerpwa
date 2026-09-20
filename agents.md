@@ -52,11 +52,11 @@ taskmanagerpwa/
 │
 ├── src/
 │   ├── main.jsx                # Entry point React + registro de Service Worker + detección de updates
-│   ├── App.jsx                 # ⭐ Componente raíz (~97KB). Todo el estado vive aquí.
+│   ├── App.jsx                 # ⭐ Componente raíz (~101KB). Todo el estado vive aquí.
 │   ├── App.css                 # Estilos específicos de App
-│   ├── index.css               # ⭐ Estilos globales (~79KB). Sistema de diseño completo.
+│   ├── index.css               # ⭐ Estilos globales (~85KB). Sistema de diseño completo.
 │   ├── ui-cleanup.css          # Estilos adicionales de limpieza UI
-│   ├── worker.js               # ⭐ Cloudflare Worker (~76KB). API + auth + sync + cifrado + queue consumer.
+│   ├── worker.js               # ⭐ Cloudflare Worker (~80KB). API + auth + sync + cifrado + queue consumer.
 │   ├── storage.js              # ⭐ Capa de persistencia (localStorage + sync cloud + AI + Note AI + auth client)
 │   ├── constants.js            # Constantes: statuses, prioridades, categorías, normalización
 │   ├── utils.jsx               # Utilidades: IDs, fechas, parsing NLP, linkificación
@@ -70,11 +70,17 @@ taskmanagerpwa/
 │   ├── statusLog.js            # Registro auditado de cambios de estado (max 100 entries)
 │   ├── taskSorter.js           # Comparador multi-nivel de tareas (grupo + prioridad)
 │   ├── taskStatusCascade.js    # Cascada de estado padre→hijos (blocked, paused, done)
+│   ├── taskLinking.js          # Link puro/idempotente hijo↔dependencia + normalización de ticket
+│   ├── nextFocusStatusPrefs.js # Allowlist de statuses para la recomendación de foco (localStorage)
+│   ├── childTaskStatusPrefs.js # Allowlist de statuses ofrecibles como tareas hijas (localStorage)
 │   ├── kanbanDoneRange.js      # Filtro de tareas done por ventana temporal
 │   ├── kanbanTaskLimit.js      # WIP limits + colapso de columnas (5 tareas visible)
 │   ├── kanbanTaskVisibility.js # Visibilidad de hijos en columna Done del Kanban
-│   ├── jiraTicket.js           # Parsing, formateo y herencia de tickets Jira
-│   ├── todayViewHelpers.js     # Sanitización de descripciones (oculta payloads cifrados)
+│   ├── kanbanColumnOrganize.js # Orden inteligente de columnas Kanban + persistencia del orden
+│   ├── jiraTicket.js           # Parsing, formateo, autofill y herencia de tickets Jira
+│   ├── todayViewHelpers.js     # Fechas defensivas/canonicalización + sanitización de descripciones + próximas tareas
+│   ├── externalAppDrawerLayout.js # Constantes/clamp de ancho del drawer de apps externas
+│   ├── externalAppNotebookMessages.js # Helpers de mensajes/errores postMessage de MyNotebook
 │   ├── taskTrashHelpers.js     # Helpers de papelera (conteo de hijos abiertos al borrar)
 │   │
 │   ├── noteAi/                 # ⭐ Organización automática de notas (Phases 1–3)
@@ -93,25 +99,25 @@ taskmanagerpwa/
 │   │       └── UndoToast.jsx   # Toast de deshacer suscrito al undoManager
 │   │
 │   ├── components/
-│   │   ├── KanbanView.jsx      # Vista Kanban con drag-and-drop y filtrado Epic/Sub-task
+│   │   ├── KanbanView.jsx      # Vista Kanban: drag-and-drop, Epic/Sub-task, columnas colapsables + organizar
 │   │   ├── CalendarView.jsx    # Vista calendario mensual con festivos españoles
 │   │   ├── TasksView.jsx       # Vista lista con búsqueda, filtros, quickAdd e IA
-│   │   ├── TodayView.jsx       # Vista de hoy con recomendación de foco y progreso
+│   │   ├── TodayView.jsx       # Vista de hoy: foco, atrasadas, agenda, progreso y próximas tareas
 │   │   ├── TimelineView.jsx    # Vista timeline/auditoría cronológica de status
 │   │   ├── DailyAgendaView.jsx # Vista agenda diaria/semanal con time slots (06:00-22:00)
 │   │   ├── BoardView.jsx       # Tablero de notas + UI Note AI (tags, related, search, organize, duplicates)
 │   │   ├── GraphView.jsx       # Grafo de relaciones entre notas + chat RAG contextual (Phase 3)
 │   │   ├── GraphView.css       # Estilos del grafo / panel de chat
-│   │   ├── TaskModal.jsx       # Modal crear/editar tarea (NLP dates, IA parsing, Jira)
+│   │   ├── TaskModal.jsx       # Modal crear/editar tarea (NLP dates, IA parsing, Jira, tareas hijas)
 │   │   ├── EventModal.jsx      # Modal crear/editar evento (recurrencia, colores)
 │   │   ├── TaskRow.jsx         # Componente de fila de tarea reutilizable (lista y board)
 │   │   ├── TaskPreviewModal.jsx # Preview read-only con audit trail de statusLog
-│   │   ├── TaskSheetDrawer.jsx # Slide-over drawer de edición de tarea
+│   │   ├── TaskSheetDrawer.jsx # Slide-over drawer de edición: tareas hijas (selección), Jira autofill
 │   │   ├── TaskTrashDropZone.jsx # Zona drop de papelera (Lista/Kanban) con confirmación
 │   │   ├── CommandMenu.jsx     # Paleta de comandos (Cmd+K) con navegación por teclado
 │   │   ├── Login.jsx           # Pantalla de login con Google Identity Services
 │   │   ├── BottomNav.jsx       # Navegación inferior mobile + botón Quick Add central
-│   │   ├── SettingsModal.jsx   # Focus Mode + densidad + toggles Note AI
+│   │   ├── SettingsModal.jsx   # Focus Mode + densidad + allowlists de statuses + toggles Note AI
 │   │   ├── StatusManagerModal.jsx # CRUD de statuses personalizados con kinds/themes
 │   │   ├── ExternalAppDrawer.jsx # Drawer con iframe de MyNotebook + postMessage
 │   │   ├── AgendaPlanModal.jsx  # Modal de time-blocking para asignar planned slots
@@ -140,7 +146,7 @@ taskmanagerpwa/
 │   └── icons.svg               # Sprite SVG de iconos de la app
 │
 ├── tests/                      # Tests unitarios (node --test)
-│   └── *.test.js               # 23 archivos de test (incluye noteAi + noteAi-phase3)
+│   └── *.test.js               # 28 archivos de test (incluye noteAi + noteAi-phase3 + noteAi-fixes)
 │
 ├── e2e/                        # Tests E2E (Playwright)
 │   ├── app.spec.ts             # Escenarios completos de la app
@@ -243,6 +249,8 @@ Estado principal en `App.jsx`:
 | `filter` / `searchQuery` / `categoryFilter` | `string` | Filtros |
 | `summaryFilter` | `string` | Filtro de resumen |
 | `focusMode` / `focusPriorityLevels` | `boolean` / `string[]` | Modo foco y niveles |
+| `nextFocusAllowedStatuses` | `string[]` | Allowlist de statuses candidatos en la recomendación de foco (localStorage `nextFocusAllowedStatuses`) |
+| `childTaskAllowedStatuses` | `string[]` | Allowlist de statuses ofrecibles como tareas hijas (localStorage `childTaskAllowedStatuses`) |
 | `density` | `string` | Densidad UI: `'comfortable'` o `'compact'` (localStorage `taskmanager_density`) |
 | `syncState` | `string` | `'idle'`, `'saving'`, `'saved'`, `'error'`, `'offline'` |
 | `theme` | `string` | `'light'` o `'dark'` |
@@ -406,13 +414,19 @@ Los statuses se clasifican por **kinds** con propiedades semánticas:
 
 | id | label | kind | theme |
 |---|---|---|---|
-| `not_done` | Sin empezar | backlog | neutral |
-| `in_progress` | En curso | active | info |
-| `paused` | Pausado | waiting | warning |
+| `not_done` | Sin iniciar | backlog | neutral |
+| `in_progress` | En progreso | active | info |
+| `paused` | En pausa | waiting | warning |
 | `blocked` | Bloqueado | blocked | danger |
-| `done` | Hecho | done | success |
+| `done` | Completado | done | success |
 
 Los perfiles pueden agregar **statuses personalizados** via `StatusManagerModal`, asignando kind y theme.
+
+`isTerminalStatus(statusId, statuses)` (`constants.js`) resuelve si un status es terminal respetando custom statuses (fallback a `kind === 'done'`). Usar este helper en lugar de comparar contra el literal `'done'`.
+
+**Allowlists configurables en Settings** (`SettingsModal`):
+- **"Estatus en siguiente foco"** → `nextFocusAllowedStatuses` (`nextFocusStatusPrefs.js`, localStorage `nextFocusAllowedStatuses`). Default: todos los statuses no terminales. Gatea los candidatos de `recommendNextFocusTask`.
+- **"Estatus de tareas hijas"** → `childTaskAllowedStatuses` (`childTaskStatusPrefs.js`, localStorage `childTaskAllowedStatuses`). Default: todos los statuses no terminales. Gatea qué tareas existentes se ofrecen como hijas en `TaskModal` / `TaskSheetDrawer` (las ya seleccionadas siempre se muestran).
 
 **Statuses con cascada** (`PARENT_CASCADE_STATUSES`): `blocked`, `paused`, `done` — cuando un padre cambia a estos, sus hijos se actualizan automáticamente.
 
@@ -630,9 +644,9 @@ Implementa:
 
 | Componente | Archivo | Descripción |
 |---|---|---|
-| `TodayView` | `components/TodayView.jsx` | Dashboard diario con recomendación de foco, overdue, schedule, progreso. Usa `recommendNextFocusTask`. |
+| `TodayView` | `components/TodayView.jsx` | Dashboard diario: recomendación de foco, atrasadas, agenda, progreso y sección "Próximas tareas" (5 días laborables). Usa `recommendNextFocusTask` con `allowedStatuses`. |
 | `TasksView` | `components/TasksView.jsx` | Lista con búsqueda, filtros (status chips, category chips), quickAdd, AI suggest, dependencias jerárquicas expand/collapse, papelera drag-and-drop. |
-| `KanbanView` | `components/KanbanView.jsx` | Kanban con drag-and-drop para mover status o crear dependencias padre-hijo. Filtrado Epic vs Sub-task. Columnas colapsables. Papelera drag-and-drop. |
+| `KanbanView` | `components/KanbanView.jsx` | Kanban con drag-and-drop para mover status o crear dependencias padre-hijo. Filtrado Epic vs Sub-task. Columnas colapsables + botón "Organizar columnas" (orden inteligente persistido). Papelera drag-and-drop. |
 | `CalendarView` | `components/CalendarView.jsx` | Calendario mensual con festivos españoles. Tasks/events por fecha. Panel lateral con detalle del día. |
 | `DailyAgendaView` | `components/DailyAgendaView.jsx` | Agenda 1-día o 7-días (06:00-22:00) con time slots, events, planned slots. Línea roja de hora actual. |
 | `BoardView` | `components/BoardView.jsx` | Canvas de notas adhesivas (Pointer Events). UI Note AI: classification/tags/summary, related panel, búsqueda semántica, organizar tablero, duplicados, sugerencias → tarea. |
@@ -643,13 +657,13 @@ Implementa:
 
 | Componente | Trigger | Propósito |
 |---|---|---|
-| `TaskModal` | Crear/editar tarea | Formulario completo: NLP dates, AI parsing, Jira auto-detect, subtareas, dependencias |
+| `TaskModal` | Crear/editar tarea | Formulario completo: NLP dates, AI parsing, Jira auto-detect, tareas hijas (selección por allowlist) |
 | `EventModal` | Crear/editar evento | Formulario con recurrencia (daily/weekly/monthly), colores, all-day toggle |
 | `TaskPreviewModal` | Click en tarea | Vista read-only con audit trail de statusLog y dependencias |
-| `TaskSheetDrawer` | Editar tarea (slide-over) | Drawer lateral para edición con focus trap |
+| `TaskSheetDrawer` | Editar tarea (slide-over) | Drawer lateral para edición con focus trap. Selecciona **tareas hijas existentes** (`dependencyTaskIds`, gateadas por allowlist) y autocompleta ticket/título Jira al pegar URL (incl. solo proyecto `MAPP-*`). Los `subtasks` legacy se conservan sin editar. |
 | `CommandMenu` | Cmd/Ctrl+K | Paleta de comandos: navegación (incl. grafo), acciones, densidad, búsqueda de tareas |
 | `StatusManagerModal` | Desde gestión de workspace | CRUD de statuses personalizados con kinds y themes |
-| `SettingsModal` | Configuración | Focus mode + densidad + sección “Organización automática de notas” (prefs Note AI) |
+| `SettingsModal` | Configuración | Focus mode + densidad + allowlist "Estatus en siguiente foco" y "Estatus de tareas hijas" + sección “Organización automática de notas” (prefs Note AI) |
 | `AgendaPlanModal` | Time-blocking | Asignar tareas a time slots en la agenda |
 | `StatusChangeCommentModal` | Cambio de status | Comentario obligatorio con shortcut Enter |
 | `PriorityPickerModal` | Click en prioridad | Selector visual rápido |
@@ -693,7 +707,7 @@ Implementa:
 
 ### 8.1 `focusRecommendation.js` — Algoritmo de Recomendación de Foco
 
-Función: `recommendNextFocusTask(tasks, statuses)`
+Función: `recommendNextFocusTask({ tasks, today, now, statuses, allowedStatuses })`
 
 Scoring determinístico multi-nivel:
 
@@ -714,7 +728,7 @@ Scoring determinístico multi-nivel:
 | **Proximidad temporal**: 2-6h | +10 |
 | **Proximidad temporal**: más tarde hoy | +5 |
 
-Filtra candidatos con `canBeFocused: true` y no terminales. Retorna top 1 con `reason` y `reasonCode` human-readable.
+Filtra candidatos con `canBeFocused: true` y no terminales; si se pasa `allowedStatuses`, además restringe a esa allowlist (configurable en Settings). Retorna top 1 con `reason` y `reasonCode` human-readable.
 
 ### 8.2 `taskStatusCascade.js` — Cascada de Estado
 
@@ -764,13 +778,20 @@ Dentro del grupo: por prioridad (critical > high > medium > low).
 
 ### 8.9 `todayViewHelpers.js`
 
-- `getDisplayDescription(notes)` — sanitiza notas ocultando payloads cifrados (prefijos `v1.`, `eyJ`, tokens >30 chars sin espacio)
+- `getDisplayDescription(task)` — sanitiza notas ocultando payloads cifrados (prefijos `v1.`, `eyJ`, tokens >30 chars sin espacio)
+- `canonicalizeDateOnly(value)` — normaliza a `YYYY-MM-DD` fechas de IA/import (`YYYY-M-D`, `YYYY/MM/DD`, ISO datetime); devuelve `''` si son inválidas
+- `isDateOnlyString` / `isRequiredDateOnlyString` — validación de forma de fecha
+- `fmtDate(s)` — label defensivo `d Mmm yyyy`; devuelve `''` ante fechas malformadas
+- `parseLocalDateOnly(dateStr)` — parsea `YYYY-MM-DD` en fecha local a mediodía (evita desfase UTC)
+- `getNextBusinessDayStrings(fromDate, count)` / `getUpcomingTasks(tasks, todayStr, days = 5, statuses)` — ventana de próximos días laborables y tareas no terminales agrupables por fecha
+- `normalizeTaskUrl` / `formatTaskUrlLabel` — normalización y label de URLs de tarea
 
 ### 8.10 Kanban Helpers
 
-- **`kanbanDoneRange.js`**: Filtro de completados por rango (`week`, `two_weeks`, `month`, `all`). Calcula inicio de semana ISO (lunes).
+- **`kanbanDoneRange.js`**: Filtro de completados por rango (`week`, `two_weeks`, `month`, `all`). Calcula inicio de semana ISO (lunes). Fallback de fecha de completado: `completedAt` → `updatedAt` → `statusLog` → `createdAt`.
 - **`kanbanTaskLimit.js`**: `KANBAN_COLLAPSED_TASK_LIMIT = 5`. Ordena por recencia de entrada al status (via `statusLog`). Colapsa columnas mostrando solo 5 tareas.
-- **`kanbanTaskVisibility.js`**: En columna Done, muestra root tasks done pero oculta child tasks si su padre ya está done.
+- **`kanbanTaskVisibility.js`**: En columna Done, muestra root tasks done pero oculta child tasks si su padre ya está done. Cycle-safe (set de visitados).
+- **`kanbanColumnOrganize.js`**: `organizeKanbanColumnOrder(statuses, countByStatus)` — orden inteligente (anchors `not_done`/`in_progress`, luego columnas con items, `blocked`/`paused`/`done` al final). Persiste el orden por perfil en la key `${kanbanColumnsStorageKey}_order` y reordena la subvista visible con `orderVisibleColumnsByFullOrder`.
 
 ### 8.11 `core/history/undoManager.js` — Undo Transaccional
 
@@ -817,10 +838,12 @@ Usado al eliminar tareas/notas/eventos y al convertir nota → tarea.
 - Un parent task **no puede** moverse a `done` ni **eliminarse** si tiene hijos abiertos (no-done)
 - Se muestra un toast (`showParentBlockedMessage` via `showToast`) y se bloquea la operación
 
-### 9.3 Drag-and-Drop para Dependencias
+### 9.3 Drag-and-Drop para Dependencias y Tareas Hijas
 
 - En las vistas Lista y Kanban, arrastrar una tarea standalone sobre otra crea una relación padre-hijo
-- `linkStandaloneTaskAsChild(sourceTaskId, targetTaskId)` — valida links circulares e inválidos, hereda ticket Jira
+- `linkStandaloneTaskAsChild(sourceTaskId, targetTaskId)` — valida links circulares/inválidos y devuelve booleano puro; hereda ticket Jira
+- `applyStandaloneChildLink(previousTasks, { sourceTaskId, targetTaskId, targetTask })` (`taskLinking.js`) — mutación pura e idempotente: deduplica `dependencyTaskIds` y normaliza ticket/nombre (`normalizeTaskTicketFields`)
+- **Tareas hijas reales**: la jerarquía se modela con `dependencyTaskIds` (tareas independientes). `TaskModal` y `TaskSheetDrawer` seleccionan tareas existentes como hijas; ya no se crean subtareas por título desde el drawer. `subtasks` legacy se conserva sin editar.
 
 ### 9.4 Papelera (Task Trash Drop Zone)
 
@@ -880,6 +903,18 @@ Pipeline async server-side (Queue / `waitUntil`) disparado por sync de notes.
 - Chat contextual `POST /api/notes/chat`: responde **solo** desde notas recuperadas (sin memoria de chat genérica)
 - Gateado por prefs `graph` y `ragChat`
 
+### 9.11 Próximas tareas (vista Hoy)
+
+- `getUpcomingTasks(focusTasks, todayStr, 5, statuses)` calcula las tareas no terminales con `date` en los **próximos 5 días laborables** (excluye hoy y fines de semana), ordenadas por fecha → prioridad → hora.
+- `TodayView` las agrupa por fecha y las renderiza en la sección “Próximas tareas”, después de atrasadas. No alteran la recomendación de foco ni la agenda.
+- Requiere `todayViewHelpers.js` y no toca Worker/D1/storage; funciona offline.
+
+### 9.12 Allowlists de status configurables
+
+- **Siguiente foco** (`nextFocusStatusPrefs.js`): filtra candidatos en `recommendNextFocusTask`; sin configurar = todos los statuses no terminales.
+- **Tareas hijas** (`childTaskStatusPrefs.js`): `isChildTaskStatusAllowed(statusId, allowed)` filtra las tareas existentes ofrecibles como hijas; las ya seleccionadas siempre se muestran.
+- Ambas se editan en `SettingsModal` y se persisten en `localStorage` (keys globales, no por perfil). Se normalizan contra los statuses válidos del perfil.
+
 ---
 
 ## 10. Estilos y Diseño
@@ -888,7 +923,7 @@ Pipeline async server-side (Queue / `waitUntil`) disparado por sync de notes.
 
 | Archivo | Propósito | Tamaño |
 |---|---|---|
-| `src/index.css` | Sistema de diseño global: variables, dark mode, density, componentes, layouts, responsive | ~79KB |
+| `src/index.css` | Sistema de diseño global: variables, dark mode, density, componentes, layouts, responsive | ~85KB |
 | `src/App.css` | Estilos específicos del componente App | ~3KB |
 | `src/ui-cleanup.css` | Ajustes adicionales de limpieza visual | ~14KB |
 | `src/components/TimelineView.css` | Estilos del timeline | ~12KB |
@@ -975,9 +1010,9 @@ En `main.jsx`:
 
 - **Runner**: Node.js built-in (`node --test`)
 - **Comando**: `npm test`
-- **Ubicación**: `tests/*.test.js` (23 archivos)
+- **Ubicación**: `tests/*.test.js` (28 archivos)
 - **Sin dependencias** de testing (no Jest, no Vitest, solo `node:assert` y `node:test`)
-- **Cobertura**: storage, focus recommendation, daily status, kanban helpers, task sorting, status cascade, today view, jira ticket, status log, calendar tasks, command menu, copy ticket, external app drawer, task sheet drawer, status change comment modal, density, task trash drop zone, undo manager, **noteAi** (fallbacks/prefs/clustering/duplicates/organize), **noteAi-phase3** (graph layout + RAG)
+- **Cobertura**: storage, focus recommendation, daily status, kanban helpers (visibilidad/limit/done-window/organizar columnas), task sorting, status cascade, today view (incl. próximas tareas), jira ticket, status log, calendar tasks, command menu, copy ticket, external app drawer, task sheet drawer, task linking, next-focus/child-task status prefs, status change comment modal, density, task trash drop zone, undo manager, **noteAi** (fallbacks/prefs/clustering/duplicates/organize), **noteAi-phase3** (graph layout + RAG), **noteAi-fixes** (namespace/lotes/pipeline)
 
 ### 13.2 Tests E2E
 
@@ -1006,6 +1041,8 @@ En `main.jsx`:
 - Cambio entre workspaces con actualización de estado
 - Export/Import multi-workspace JSON con custom statuses metadata
 - Recomendación de foco y cambio rápido de status
+- Sección "Próximas tareas" en Hoy (ventana de 5 días laborables)
+- Selección de tareas hijas existentes en el drawer (sin duplicados) y autofill Jira al pegar URL
 
 ### 13.3 Verificación Completa
 
@@ -1222,3 +1259,7 @@ npm run deploy   # = vite build && wrangler deploy
 31. **Prefs Note AI son gates de UX**: desactivar un toggle oculta UI / salta paths de feature; el analyze de fondo puede seguir en cola de forma no bloqueante según el diseño actual.
 
 32. **Grafo es sub-vista de Notas**: `view === 'graph'` vive con `board` y `timeline`; no crear un área top-level nueva.
+
+33. **Jerarquía de tareas = `dependencyTaskIds`**: las tareas hijas son tareas independientes enlazadas por ID. No reintroducir la creación de subtareas por título desde la UI; `subtasks` legacy se conserva sin editar (no migrar silenciosamente).
+
+34. **Allowlists de status**: filtrar candidatos con `isChildTaskStatusAllowed` / `allowedStatuses` y normalizar contra los statuses válidos del perfil. Las keys de localStorage (`childTaskAllowedStatuses`, `nextFocusAllowedStatuses`) son globales, no por perfil.
