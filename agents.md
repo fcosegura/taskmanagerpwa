@@ -54,9 +54,9 @@ taskmanagerpwa/
 │   ├── main.jsx                # Entry point React + registro de Service Worker + detección de updates
 │   ├── App.jsx                 # ⭐ Componente raíz (~101KB). Todo el estado vive aquí.
 │   ├── App.css                 # Estilos específicos de App
-│   ├── index.css               # ⭐ Estilos globales (~85KB). Sistema de diseño completo.
+│   ├── index.css               # ⭐ Estilos globales (~83KB). Design system Material Design 3 + tokens.
 │   ├── ui-cleanup.css          # Estilos adicionales de limpieza UI
-│   ├── worker.js               # ⭐ Cloudflare Worker (~80KB). API + auth + sync + cifrado + queue consumer.
+│   ├── worker.js               # ⭐ Cloudflare Worker (~81KB). API + auth + sync + cifrado + queue consumer.
 │   ├── storage.js              # ⭐ Capa de persistencia (localStorage + sync cloud + AI + Note AI + auth client)
 │   ├── constants.js            # Constantes: statuses, prioridades, categorías, normalización
 │   ├── utils.jsx               # Utilidades: IDs, fechas, parsing NLP, linkificación
@@ -130,7 +130,8 @@ taskmanagerpwa/
 │   │   ├── shared/
 │   │   │   └── index.jsx       # Pill, CategoryPill, NBtn, Chip + re-exports de ui/
 │   │   └── ui/
-│   │       └── index.jsx       # Button, IconButton, Input, Modal, Sheet (design system)
+│   │       ├── index.jsx       # Button, IconButton, Input, Modal, Sheet, Spinner (design system)
+│   │       └── Spinner.jsx     # SVG spinner reutilizable para acciones async
 │   │
 │   ├── hooks/
 │   │   └── useModalDialog.js   # Hook: focus trap, Escape, focus restore, tab cycling
@@ -466,6 +467,7 @@ Todas las respuestas incluyen **security headers** (CSP, COOP, X-Frame-Options: 
 **Auth dual en `authenticate()`:**
 1. Primero intenta validar como token opaco hex 64-chars contra tabla `sessions`
 2. Si no es hex, intenta validación directa como Google ID Token via API de Google
+3. La validación Google solo se intenta para valores con forma JWT (`GOOGLE_ID_TOKEN_PATTERN`, 3 segmentos) y con `GOOGLE_CLIENT_ID` configurado; el token se envía con `encodeURIComponent`
 
 ### 5.2 Datos y Workspace
 
@@ -550,6 +552,8 @@ El worker ejecuta auto-migraciones al recibir requests protegidos (y en el queue
 - `ensureProfilesSchema` — crea tabla `profiles` y agrega columnas nuevas via `ALTER TABLE`
 - `ensureDefaultProfile` — crea perfil por defecto (`${userId}:work`, nombre "Trabajo") y migra filas legacy con `profile_id` NULL
 - `ensureNoteAiSchema` — crea `note_ai_meta` + índices + columna `vector_schema` via `ALTER TABLE` si falta
+
+Los helpers `safeExec` ignoran únicamente errores esperados de schema repetido (`already exists`, `duplicate column`); cualquier otro fallo se registra como warning (`Schema migration warning:`) sin abortar el request.
 
 ---
 
@@ -680,6 +684,7 @@ Implementa:
 - `Input` — Input con label wrapper
 - `Modal` — Backdrop dialog (`role="dialog"`, `aria-modal="true"`)
 - `Sheet` — Drawer/sheet con card header
+- `Spinner` — SVG spinner reutilizable (`size`, `color`) para acciones async
 
 **Domain-specific (`shared/index.jsx`)**:
 - `Pill` — Badge de status/prioridad con CSS vars
@@ -784,7 +789,8 @@ Dentro del grupo: por prioridad (critical > high > medium > low).
 - `fmtDate(s)` — label defensivo `d Mmm yyyy`; devuelve `''` ante fechas malformadas
 - `parseLocalDateOnly(dateStr)` — parsea `YYYY-MM-DD` en fecha local a mediodía (evita desfase UTC)
 - `getNextBusinessDayStrings(fromDate, count)` / `getUpcomingTasks(tasks, todayStr, days = 5, statuses)` — ventana de próximos días laborables y tareas no terminales agrupables por fecha
-- `normalizeTaskUrl` / `formatTaskUrlLabel` — normalización y label de URLs de tarea
+- `normalizeTaskUrl(url)` — limpia caracteres de control y bloquea esquemas peligrosos (`javascript:`, `data:`, `vbscript:`); añade `https://` si falta
+- `formatTaskUrlLabel(url)` — label con hostname (sin `www.`) o texto truncado
 
 ### 8.10 Kanban Helpers
 
@@ -923,7 +929,7 @@ Pipeline async server-side (Queue / `waitUntil`) disparado por sync de notes.
 
 | Archivo | Propósito | Tamaño |
 |---|---|---|
-| `src/index.css` | Sistema de diseño global: variables, dark mode, density, componentes, layouts, responsive | ~85KB |
+| `src/index.css` | Sistema de diseño global (Material Design 3): tokens, variables, dark mode, density, componentes, layouts, responsive | ~83KB |
 | `src/App.css` | Estilos específicos del componente App | ~3KB |
 | `src/ui-cleanup.css` | Ajustes adicionales de limpieza visual | ~14KB |
 | `src/components/TimelineView.css` | Estilos del timeline | ~12KB |
@@ -933,6 +939,7 @@ Pipeline async server-side (Queue / `waitUntil`) disparado por sync de notes.
 ### 10.2 Convenciones CSS
 
 - **Vanilla CSS** — No usa Tailwind, SASS, ni CSS-in-JS
+- **Material Design 3**: `index.css` define tokens M3 (color roles, elevation, shape) y los aplica a componentes
 - **Variables CSS** para temas (light/dark)
 - **Dark mode**: clase en root + variables CSS
 - **Densidad**: atributo `data-density="comfortable|compact"` en `.app-shell`
@@ -946,7 +953,7 @@ Pipeline async server-side (Queue / `waitUntil`) disparado por sync de notes.
 ### 11.1 Security Headers (Worker)
 
 Aplicados a TODAS las respuestas via `withSecurityHeaders`:
-- **CSP**: Permite Google Auth scripts/frames, self-hosted assets, inline styles, Google avatar images
+- **CSP**: Permite Google Auth scripts/frames, self-hosted assets, inline styles y avatares de Google; `frame-src` incluye `accounts.google.com` y el host de MyNotebook (`https://mynotebook.fcovidalsegura.workers.dev`)
 - **COOP**: `same-origin-allow-popups`
 - **Referrer-Policy**: `strict-origin-when-cross-origin`
 - **X-Content-Type-Options**: `nosniff`
@@ -991,6 +998,7 @@ El worker anonimiza user IDs en logs usando SHA-256 truncado (`shortHashForLog`)
 | Assets estáticos (mismo origen) | Cache First → fallback network |
 
 - **Pre-cache on install**: `/`, `/index.html`, `/manifest.json`, iconos
+- **Métodos**: solo se interceptan/cachean `GET` y `HEAD`; el resto pasa directo a red
 - **`skipWaiting()`** + **`clients.claim()`** en activación
 - **Purga** de caches antiguas en activación
 
@@ -1159,7 +1167,7 @@ npm run deploy   # = vite build && wrangler deploy
 
 - Componentes funcionales con hooks.
 - Modales usan `useModalDialog` hook (focus trap, no `<dialog>` nativo).
-- Design system en `components/ui/` (Button, IconButton, Input, Modal, Sheet).
+- Design system en `components/ui/` (Button, IconButton, Input, Modal, Sheet, Spinner).
 - Domain components en `components/shared/` (Pill, CategoryPill, NBtn, Chip).
 - Feedback de usuario via `showToast` (`useToasts`), no `setBackupMessage` ad-hoc.
 - Undo destructivo via `pushUndoTransaction` + `UndoToast`; limpiar con `clearUndoTransaction` al cambiar workspace/import/logout.
@@ -1218,7 +1226,7 @@ npm run deploy   # = vite build && wrangler deploy
 
 11. **Content hash** (`content_hash`) debe generarse con `stableStringify` + `sha256HexOfUtf8` del snapshot normalizado. Es la base del sync eficiente.
 
-12. **IDs** se generan con `uid()` (base-36 random) en el cliente. En D1 se almacenan con scoping `profileId::entityId`.
+12. **IDs** se generan con `uid()` (UUID vía `crypto.randomUUID()`) en el cliente; `statusLog` y los subtasks legacy también usan `crypto.randomUUID()`. En D1 se almacenan con scoping `profileId::entityId`.
 
 13. **La app es offline-first**. Toda nueva funcionalidad debe funcionar sin conexión (localStorage como fallback).
 

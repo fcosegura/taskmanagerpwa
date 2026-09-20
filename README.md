@@ -38,7 +38,7 @@ Aplicación de gestión de tareas de tipo **Progressive Web App (PWA)** con sopo
 
 | Capa | Tecnología |
 |---|---|
-| **Frontend** | React 19 (JSX, sin TypeScript), CSS Vanilla |
+| **Frontend** | React 19 (JSX, sin TypeScript), CSS Vanilla con tokens Material Design 3 |
 | **Build & Tooling** | Vite 8, ESLint 9 (Flat Config), Husky |
 | **Backend & API** | Cloudflare Workers (`src/worker.js`) |
 | **Base de Datos** | Cloudflare D1 (SQLite serverless) |
