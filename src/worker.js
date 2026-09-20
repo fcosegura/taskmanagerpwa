@@ -140,8 +140,11 @@ const ensureSecuritySchema = createSchemaCache(async (env) => {
   const safeExec = async (statement) => {
     try {
       await env.DB.prepare(statement).run();
-    } catch {
-      // ignore duplicate schema
+    } catch (err) {
+      const msg = err?.message || String(err);
+      if (!msg.toLowerCase().includes('already exists') && !msg.toLowerCase().includes('duplicate column')) {
+        console.warn('Schema migration warning:', msg);
+      }
     }
   };
   await safeExec(
@@ -686,8 +689,12 @@ const ensureProfilesSchema = createSchemaCache(async (env) => {
   const safeExec = async (statement, ...bindings) => {
     try {
       await env.DB.prepare(statement).bind(...bindings).run();
-    } catch {
+    } catch (err) {
       // Keep schema bootstrap resilient across mixed DB versions.
+      const msg = err?.message || String(err);
+      if (!msg.toLowerCase().includes('already exists') && !msg.toLowerCase().includes('duplicate column')) {
+        console.warn('Schema migration warning:', msg);
+      }
     }
   };
 
