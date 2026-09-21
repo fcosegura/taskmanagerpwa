@@ -207,8 +207,39 @@ export default function TasksView({
       </div>
 
       {tasks.length === 0 ? (
-        <div className="empty-state" style={{ padding: '60px 0', textAlign: 'center', color: 'var(--color-text-secondary)', fontSize: 14 }}>
-          {searchQuery ? 'No hay tareas que coincidan con tu búsqueda.' : filter !== 'all' ? 'No hay tareas con este filtro.' : 'Sin tareas aún. Usa el campo inferior para crear la primera!'}
+        <div className="empty-state-card" style={{
+          background: 'var(--color-background-secondary)',
+          borderRadius: 'var(--border-radius-xl)',
+          padding: '48px 24px',
+          textAlign: 'center',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: 16,
+          boxShadow: 'var(--shadow-card)'
+        }}>
+          <div style={{
+            width: 64,
+            height: 64,
+            borderRadius: '50%',
+            background: 'var(--color-background-tertiary)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: 28
+          }}>
+            {searchQuery ? '🔍' : filter !== 'all' || categoryFilter !== 'all' ? '🎛️' : '📝'}
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-text-primary)' }}>
+              {searchQuery ? 'Sin resultados' : filter !== 'all' || categoryFilter !== 'all' ? 'Vista filtrada' : 'Todo en blanco'}
+            </div>
+            <div style={{ fontSize: 14, color: 'var(--color-text-secondary)', maxWidth: 280, margin: '0 auto', lineHeight: 1.5 }}>
+              {searchQuery ? 'No hay tareas que coincidan con tu búsqueda. Intenta con otras palabras.'
+               : filter !== 'all' || categoryFilter !== 'all' ? 'No hay tareas activas para los filtros seleccionados actualmente.'
+               : 'Aún no tienes tareas. Usa la barra inferior para agregar la primera y empezar a organizarte.'}
+            </div>
+          </div>
         </div>
       ) : (
         <div className="task-list" style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
