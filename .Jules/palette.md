@@ -2,3 +2,6 @@
 ## 2024-05-18 - Empty State Cards
 **Learning:** Empty states are a common micro-UX oversight. Replacing generic "no results" text with contextual cards (differentiating between "no search results", "no filtered results", and "no items at all") with matching icons (🔍, 🎛️, 📝) provides significantly better user guidance and visual polish without requiring new components.
 **Action:** Always check for plain text empty states in list views and upgrade them to use the `empty-state-card` pattern with contextual messaging.
+## 2024-05-18 - [Button Interaction Polish]
+**Learning:** Hardcoded inline styles on interactive elements (like the Copy Ticket button) prevent crucial visual feedback states (`:hover`, `:active`), making the UI feel rigid.
+**Action:** Always extract recurring utility buttons to the central stylesheet (e.g., `index.css`) to enforce uniform `:hover` and `:active` transitions, maintaining the app's overall "calm and pleasant" interactive feel.
