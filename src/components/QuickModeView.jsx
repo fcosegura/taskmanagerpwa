@@ -2,6 +2,7 @@
 import { PRIORITY, STATUS, normalizeStatuses } from '../constants.js';
 import { recommendNextFocusTask } from '../focusRecommendation.js';
 import { getStatusInfo } from '../statusHelpers.js';
+import { applyJiraAutofillFromUrl } from '../jiraTicket.js';
 import './QuickModeView.css';
 
 function toDateStr(date) {
@@ -29,6 +30,9 @@ export default function QuickModeView({
   const [name, setName] = useState('');
   const [date, setDate] = useState(todayStr);
   const [priority, setPriority] = useState('medium');
+  const [url, setUrl] = useState('');
+  const [category, setCategory] = useState('');
+  const [ticketNumber, setTicketNumber] = useState('');
   const nameInputRef = useRef(null);
 
   const normalizedStatuses = useMemo(() => normalizeStatuses(statuses), [statuses]);
@@ -73,14 +77,29 @@ export default function QuickModeView({
     });
   };
 
+  const handleUrlChange = (value) => {
+    setUrl(value);
+    const next = applyJiraAutofillFromUrl(
+      { name, category, priority, ticketNumber, url: value },
+      value,
+    );
+    setName(next.name || '');
+    setCategory(next.category || '');
+    setPriority(next.priority || 'medium');
+    setTicketNumber(next.ticketNumber || '');
+  };
+
   const handleSubmit = (event) => {
     event.preventDefault();
     const trimmed = name.trim();
     if (!trimmed) return;
-    if (onCreateTask) onCreateTask({ name: trimmed, date, priority });
+    if (onCreateTask) onCreateTask({ name: trimmed, date, priority, url, category, ticketNumber });
     setName('');
     setDate(todayStr);
     setPriority('medium');
+    setUrl('');
+    setCategory('');
+    setTicketNumber('');
     nameInputRef.current?.focus();
   };
 
@@ -175,6 +194,23 @@ export default function QuickModeView({
               value={date}
               onChange={(e) => setDate(e.target.value)}
               aria-label="Fecha"
+            />
+            <input
+              type="text"
+              inputMode="url"
+              className="quick-mode-input"
+              value={url}
+              onChange={(e) => handleUrlChange(e.target.value)}
+              placeholder="https://..."
+              aria-label="URL"
+            />
+            <input
+              type="text"
+              className="quick-mode-input"
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              placeholder="Categoría"
+              aria-label="Categoría"
             />
             <div className="quick-mode-priority" role="group" aria-label="Prioridad">
               {PRIORITY.map((p) => (

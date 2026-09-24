@@ -1580,7 +1580,7 @@ export default function App() {
     navigateToView('today');
   };
 
-  const handleQuickModeCreate = ({ name, date, priority }) => {
+  const handleQuickModeCreate = ({ name, date, priority, url, category, ticketNumber }) => {
     const trimmed = typeof name === 'string' ? name.trim() : '';
     if (!trimmed) return;
     upsert({
@@ -1591,8 +1591,9 @@ export default function App() {
       priority: ['low', 'medium', 'high', 'critical'].includes(priority) ? priority : 'medium',
       subtasks: [],
       dependencyTaskIds: [],
-      category: '',
-      url: '',
+      category: typeof category === 'string' ? category : '',
+      url: typeof url === 'string' ? url : '',
+      ticketNumber: typeof ticketNumber === 'string' ? ticketNumber : '',
       notes: '',
     });
   };

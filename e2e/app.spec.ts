@@ -550,6 +550,28 @@ test.describe('selector de modo y modo rápido', () => {
     await expect(todaySection.locator('.today-task-card', { hasText: name })).not.toBeVisible();
   });
 
+  test('pegar una URL MAPP en modo rápido autorrellena categoría y título', async ({ page }) => {
+    await page.goto('/');
+    await page.getByRole('button', { name: /Modo rápido/i }).click();
+
+    const nameInput = page.getByLabel('Nombre de la tarea');
+    await nameInput.fill('Revisar ticket');
+    await page.getByLabel('URL').fill('https://acme.atlassian.net/browse/MAPP-123');
+
+    await expect(nameInput).toHaveValue(/\[MAPP-123\]/);
+    await expect(page.getByLabel('Categoría')).toHaveValue('Jira Task');
+    await expect(page.getByRole('button', { name: 'Alta' })).toHaveAttribute('aria-pressed', 'true');
+
+    await page.getByRole('button', { name: 'Añadir' }).click();
+    const todaySection = page.locator('.quick-mode-section').filter({
+      has: page.getByRole('heading', { name: /Tareas de hoy/i }),
+    });
+    const card = todaySection.locator('.today-task-card', { hasText: 'Revisar ticket' });
+    await expect(card).toBeVisible();
+    await expect(card).toContainText('Jira Task');
+    await expect(card).toContainText('[MAPP-123]');
+  });
+
   test('el enlace de versión completa navega a la vista Hoy', async ({ page }) => {
     await page.goto('/');
     await page.getByRole('button', { name: /Modo rápido/i }).click();
