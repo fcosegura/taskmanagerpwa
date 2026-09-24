@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { STATUS, PRIORITY, isTerminalStatus } from '../constants.js';
 import { fmtDate, parseDateTimeFromDescription, parseDescriptionDateResult, cleanDescriptionSegment } from '../utils.jsx';
 import { isJiraCategory, normalizeTicketNumber, applyTicketNumberToTaskName, extractJiraTicketFromUrl, getJiraTaskDefaultsFromUrl } from '../jiraTicket.js';
@@ -37,6 +37,14 @@ export default function TaskModal({ task, categories, allTasks = [], onSave, onD
   const [newCategory, setNewCategory] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
   const [aiFeedback, setAiFeedback] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const deleteTimeoutRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (deleteTimeoutRef.current) clearTimeout(deleteTimeoutRef.current);
+    };
+  }, []);
 
   const handleNameChange = (value) => {
     setForm((prev) => ({ ...prev, name: value }));
@@ -353,7 +361,31 @@ export default function TaskModal({ task, categories, allTasks = [], onSave, onD
 
       <div style={{ display: 'flex', gap: 10 }}>
         {onDelete ? (
-          <button type="button" onClick={onDelete} style={{ flex: 1, borderRadius: 'var(--border-radius-md)', border: '0.5px solid var(--color-border-secondary)', background: 'var(--color-background-danger)', color: 'var(--color-text-danger)', padding: '11px 0', cursor: 'pointer' }}>Eliminar</button>
+          <button
+            type="button"
+            onClick={(e) => {
+              if (!confirmDelete) {
+                setConfirmDelete(true);
+                deleteTimeoutRef.current = setTimeout(() => setConfirmDelete(false), 3000);
+              } else {
+                if (deleteTimeoutRef.current) clearTimeout(deleteTimeoutRef.current);
+                onDelete(e);
+              }
+            }}
+            style={{
+              flex: 1,
+              borderRadius: 'var(--border-radius-md)',
+              border: '0.5px solid var(--color-border-secondary)',
+              background: confirmDelete ? 'var(--color-error)' : 'var(--color-background-danger)',
+              color: confirmDelete ? '#ffffff' : 'var(--color-text-danger)',
+              padding: '11px 0',
+              cursor: 'pointer',
+              fontWeight: confirmDelete ? 700 : 'normal',
+              transition: 'all 0.2s ease'
+            }}
+          >
+            {confirmDelete ? '¿Seguro?' : 'Eliminar'}
+          </button>
         ) : (
           <button type="button" onClick={onClose} style={{ flex: 1, borderRadius: 'var(--border-radius-md)', border: '0.5px solid var(--color-border-secondary)', background: 'var(--color-background-secondary)', color: 'var(--color-text-secondary)', padding: '11px 0', cursor: 'pointer' }}>Cancelar</button>
         )}
