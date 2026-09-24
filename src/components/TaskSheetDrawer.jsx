@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { STATUS, PRIORITY } from '../constants.js';
 import { isJiraCategory, applyJiraAutofillFromUrl, normalizeTicketNumber, applyTicketNumberToTaskName } from '../jiraTicket.js';
 import { useModalDialog } from '../hooks/useModalDialog.js';
@@ -22,6 +22,14 @@ export default function TaskSheetDrawer({
     onClose,
     initialFocusRef: titleInputRef
   });
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const deleteTimeoutRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (deleteTimeoutRef.current) clearTimeout(deleteTimeoutRef.current);
+    };
+  }, []);
 
   const [form, setForm] = useState(() => ({
     name: task?.name || '',
@@ -272,11 +280,23 @@ export default function TaskSheetDrawer({
                 type="button"
                 className="ghost-button danger"
                 onClick={() => {
-                  onDelete(task.id);
-                  onClose();
+                  if (!confirmDelete) {
+                    setConfirmDelete(true);
+                    deleteTimeoutRef.current = setTimeout(() => setConfirmDelete(false), 3000);
+                  } else {
+                    if (deleteTimeoutRef.current) clearTimeout(deleteTimeoutRef.current);
+                    onDelete(task.id);
+                    onClose();
+                  }
+                }}
+                style={{
+                  background: confirmDelete ? 'var(--color-error)' : 'transparent',
+                  color: confirmDelete ? '#ffffff' : 'var(--color-text-danger)',
+                  borderColor: confirmDelete ? 'var(--color-error)' : 'rgba(194, 65, 75, 0.3)',
+                  transition: 'all 0.2s ease'
                 }}
               >
-                Eliminar
+                {confirmDelete ? '¿Seguro?' : 'Eliminar'}
               </button>
             )}
             <div className="right-actions">
