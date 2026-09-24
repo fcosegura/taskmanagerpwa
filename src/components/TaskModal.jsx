@@ -329,13 +329,19 @@ export default function TaskModal({ task, categories, allTasks = [], onSave, onD
           Dependencias (esta tarea depende de)
         </div>
         {isChildTask ? (
-          <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>
-            Esta tarea es hija de: {parentTasks.map((parentTask) => parentTask.name).join(', ')}.
-            Solo la tarea padre puede elegir sus hijas.
+          <div className="empty-state-card" style={{ padding: '16px', gap: '8px', background: 'var(--color-background-secondary)', borderRadius: 'var(--border-radius-md)' }}>
+            <div className="empty-icon" style={{ fontSize: '24px' }}>🔗</div>
+            <div style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>
+              Esta tarea es hija de: {parentTasks.map((parentTask) => parentTask.name).join(', ')}.
+              Solo la tarea padre puede elegir sus hijas.
+            </div>
           </div>
         ) : availableDependencyTasks.length === 0 ? (
-          <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>
-            No hay tareas abiertas disponibles para depender.
+          <div className="empty-state-card" style={{ padding: '16px', gap: '8px', background: 'var(--color-background-secondary)', borderRadius: 'var(--border-radius-md)' }}>
+            <div className="empty-icon" style={{ fontSize: '24px' }}>🗂️</div>
+            <div style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>
+              No hay tareas abiertas disponibles para depender.
+            </div>
           </div>
         ) : (
           <div style={{ maxHeight: 130, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6, padding: '8px 10px', border: '0.5px solid var(--color-border-secondary)', borderRadius: 'var(--border-radius-md)' }}>

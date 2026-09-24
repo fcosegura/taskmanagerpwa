@@ -248,12 +248,20 @@ export default function TaskSheetDrawer({
           <div className="form-group subtasks-group">
             <label>Tareas hijas ({form.dependencyTaskIds.length})</label>
             {parentTasks.length > 0 ? (
-              <p className="subtask-hint">
-                Esta tarea es hija de: {parentTasks.map((parentTask) => parentTask.name).join(', ')}.
-                Solo la tarea padre puede elegir sus hijas.
-              </p>
+              <div className="empty-state-card" style={{ padding: '16px', gap: '8px', background: 'var(--color-background-secondary)', borderRadius: 'var(--border-radius-md)' }}>
+                <div className="empty-icon" style={{ fontSize: '24px' }}>🔗</div>
+                <div style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>
+                  Esta tarea es hija de: {parentTasks.map((parentTask) => parentTask.name).join(', ')}.
+                  Solo la tarea padre puede elegir sus hijas.
+                </div>
+              </div>
             ) : availableChildTasks.length === 0 ? (
-              <p className="subtask-hint">No hay tareas abiertas disponibles para vincular.</p>
+              <div className="empty-state-card" style={{ padding: '16px', gap: '8px', background: 'var(--color-background-secondary)', borderRadius: 'var(--border-radius-md)' }}>
+                <div className="empty-icon" style={{ fontSize: '24px' }}>🗂️</div>
+                <div style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>
+                  No hay tareas abiertas disponibles para vincular.
+                </div>
+              </div>
             ) : (
               <div className="subtasks-list">
                 {availableChildTasks.map((candidate) => {
