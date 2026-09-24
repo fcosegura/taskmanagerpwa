@@ -33,6 +33,7 @@ import { UndoToast } from './core/history/UndoToast.jsx';
 import { pushUndoTransaction, performUndo, clearUndoTransaction } from './core/history/undoManager.js';
 import { useToasts } from './components/Toast/useToasts.js';
 import ToastContainer from './components/Toast/index.jsx';
+import ModeSelector from './components/ModeSelector.jsx';
 
 const TodayView = lazy(() => import('./components/TodayView.jsx'));
 const TasksView = lazy(() => import('./components/TasksView.jsx'));
@@ -43,6 +44,7 @@ const TimelineView = lazy(() => import('./components/TimelineView.jsx'));
 const GraphView = lazy(() => import('./components/GraphView.jsx'));
 const CommandMenu = lazy(() => import('./components/CommandMenu.jsx'));
 const TaskSheetDrawer = lazy(() => import('./components/TaskSheetDrawer.jsx'));
+const QuickModeView = lazy(() => import('./components/QuickModeView.jsx'));
 
 function serializePayload(payload) {
   try {
@@ -168,6 +170,7 @@ export default function App() {
   const [ready, setReady] = useState(false);
   const [hydratedSession, setHydratedSession] = useState(null);
   const [view, setView] = useState('tasks');
+  const [uiMode, setUiMode] = useState(null); // null = selector | 'full' | 'quick'
   const [modal, setModal] = useState(null);
   const [showCommandMenu, setShowCommandMenu] = useState(false);
   const [taskSheetDrawerTask, setTaskSheetDrawerTask] = useState(null);
@@ -518,6 +521,7 @@ export default function App() {
     }
     setSessionExpiredLoggedOut(false);
     setReady(false);
+    setUiMode(null);
     setAuthenticated(true);
     setAuthVersion((version) => version + 1);
   }, []);
@@ -529,6 +533,7 @@ export default function App() {
       // Best-effort flush before ending session.
     }
     await logoutSession();
+    setUiMode(null);
     setAuthenticated(false);
     setReady(false);
     setHydratedSession(null);
@@ -558,6 +563,7 @@ export default function App() {
       // ignore
     }
     setSessionExpiredLoggedOut(true);
+    setUiMode(null);
     setAuthenticated(false);
     setReady(false);
     setHydratedSession(null);
@@ -1561,6 +1567,36 @@ export default function App() {
     setView(nextView);
   }, [setTaskPreviewId, setView]);
 
+  const enterFullMode = () => {
+    setUiMode('full');
+  };
+
+  const enterQuickMode = () => {
+    setUiMode('quick');
+  };
+
+  const switchToFullFromQuick = () => {
+    setUiMode('full');
+    navigateToView('today');
+  };
+
+  const handleQuickModeCreate = ({ name, date, priority }) => {
+    const trimmed = typeof name === 'string' ? name.trim() : '';
+    if (!trimmed) return;
+    upsert({
+      name: trimmed,
+      date: date || '',
+      time: '',
+      status: 'not_done',
+      priority: ['low', 'medium', 'high', 'critical'].includes(priority) ? priority : 'medium',
+      subtasks: [],
+      dependencyTaskIds: [],
+      category: '',
+      url: '',
+      notes: '',
+    });
+  };
+
   const handleSelectProfile = (profileId) => {
     if (!profileId || profileId === activeProfileId) {
       setShowProfileMenu(false);
@@ -1851,6 +1887,54 @@ export default function App() {
     return <Login onLoginSuccess={handleLoginSuccess} notice={sessionExpired ? 'Tu sesión expiró. Inicia sesión para continuar. Tus datos están seguros.' : ''} />;
   }
 
+  if (uiMode === null) {
+    return (
+      <>
+        <ModeSelector onSelectFull={enterFullMode} onSelectQuick={enterQuickMode} />
+        <ToastContainer toasts={toasts} onDismiss={dismissToast} />
+      </>
+    );
+  }
+
+  if (uiMode === 'quick') {
+    return (
+      <>
+        <Suspense fallback={(
+          <div className="app-loader">
+            <div className="app-loader-spinner" aria-label="Cargando modo rápido">
+              <div className="app-loader-logo">T</div>
+              <div className="app-loader-bar"></div>
+            </div>
+          </div>
+        )}>
+          <QuickModeView
+            todayTasks={todayTasks}
+            overdueTasks={overdueTasks}
+            upcomingTasks={upcomingTasks}
+            todayEvents={todayEvents}
+            focusTasks={focusTasks}
+            statuses={statuses}
+            nextFocusAllowedStatuses={nextFocusAllowedStatuses}
+            onToggleComplete={toggleDone}
+            onCreateTask={handleQuickModeCreate}
+            onSwitchToFull={switchToFullFromQuick}
+          />
+        </Suspense>
+        {pendingStatusChange && (
+          <StatusChangeCommentModal
+            taskName={tasks.find((item) => item.id === pendingStatusChange.taskId)?.name}
+            fromStatus={pendingStatusChange.fromStatus}
+            toStatus={pendingStatusChange.toStatus}
+            onConfirm={handleStatusCommentConfirm}
+            onClose={handleStatusCommentCancel}
+            statuses={statuses}
+          />
+        )}
+        <ToastContainer toasts={toasts} onDismiss={dismissToast} />
+      </>
+    );
+  }
+
   const hasAnyData = tasks.length > 0 || boardNotes.length > 0 || events.length > 0;
 
   return (
@@ -2058,6 +2142,19 @@ export default function App() {
             aria-label="Alternar modo focus"
           >
             Focus
+          </button>
+
+          <button
+            type="button"
+            className="ghost-button quick-mode-toggle"
+            onClick={enterQuickMode}
+            aria-label="Modo rápido"
+            title="Modo rápido"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z" />
+            </svg>
+            <span className="hide-mobile">Rápido</span>
           </button>
 
           {/* Persistent Action + Button */}

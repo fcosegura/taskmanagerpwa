@@ -68,6 +68,7 @@ taskmanagerpwa/
 │   ├── dailyStatusFallback.js  # Daily status markdown sin IA (fallback Scrum report)
 │   ├── plannedSlots.js         # Validación y normalización de bloques de tiempo
 │   ├── statusLog.js            # Registro auditado de cambios de estado (max 100 entries)
+│   ├── statusHelpers.js        # getStatusInfo compartido (status pill + fallback de status huérfanos)
 │   ├── taskSorter.js           # Comparador multi-nivel de tareas (grupo + prioridad)
 │   ├── taskStatusCascade.js    # Cascada de estado padre→hijos (blocked, paused, done)
 │   ├── taskLinking.js          # Link puro/idempotente hijo↔dependencia + normalización de ticket
@@ -108,6 +109,8 @@ taskmanagerpwa/
 │   │   ├── BoardView.jsx       # Tablero de notas + UI Note AI (tags, related, search, organize, duplicates)
 │   │   ├── GraphView.jsx       # Grafo de relaciones entre notas + chat RAG contextual (Phase 3)
 │   │   ├── GraphView.css       # Estilos del grafo / panel de chat
+│   │   ├── ModeSelector.jsx    # Selector de modo al abrir la app (completo vs rápido)
+│   │   ├── QuickModeView.jsx   # Vista minimalista de "Hoy" en tarjeta estrecha (modo rápido)
 │   │   ├── TaskModal.jsx       # Modal crear/editar tarea (NLP dates, IA parsing, Jira, tareas hijas)
 │   │   ├── EventModal.jsx      # Modal crear/editar evento (recurrencia, colores)
 │   │   ├── TaskRow.jsx         # Componente de fila de tarea reutilizable (lista y board)
@@ -230,6 +233,8 @@ La app **no usa** React Router ni ningún router. Es un **SPA de una sola ruta**
 
 **Navegación mobile**: `<BottomNav>` con tabs Hoy, Tareas, Calendario, Notas + botón central Quick Add. El tab Notas queda activo para `board | graph | timeline`. Command Menu incluye `nav-graph` → “Ir a Grafo de Notas”.
 
+**Selector de modo**: al abrir la app tras autenticación se muestra siempre `ModeSelector`. "Modo completo" entra en el shell actual (preserva la vista actual/por defecto); "Modo rápido" muestra `QuickModeView`. El header del modo completo incluye el botón "Modo rápido"; el enlace "Versión completa →" del modo rápido vuelve al modo completo con `view='today'`.
+
 ### 3.3 State Management
 
 **No se usa ninguna librería de estado** (ni Redux, ni Zustand, ni Context). Todo el estado reside en `App.jsx` mediante `useState`, `useRef`, `useCallback`, `useMemo`.
@@ -242,6 +247,7 @@ Estado principal en `App.jsx`:
 | `boardNotes` | `Note[]` | Notas adhesivas del perfil actual |
 | `events` | `Event[]` | Eventos de calendario del perfil actual |
 | `view` | `string` | Vista activa (`'today'`, `'tasks'`, `'kanban'`, `'calendar'`, `'daily'`, `'board'`, `'graph'`, `'timeline'`) |
+| `uiMode` | `string\|null` | `null` = selector de modo; `'full'` = app completa; `'quick'` = modo rápido (no persistido) |
 | `authenticated` | `null\|boolean` | `null` = verificando, `false` = no auth, `true` = logueado |
 | `authVersion` | `number` | Trigger para recargar datos del cloud |
 | `profiles` | `Profile[]` | Todos los workspaces del usuario |
@@ -656,6 +662,8 @@ Implementa:
 | `BoardView` | `components/BoardView.jsx` | Canvas de notas adhesivas (Pointer Events). UI Note AI: classification/tags/summary, related panel, búsqueda semántica, organizar tablero, duplicados, sugerencias → tarea. |
 | `GraphView` | `components/GraphView.jsx` | Grafo de relaciones entre notas (layout offline desde `relatedIds`). Pan/zoom/select + panel de detalle. Chat RAG contextual opcional (`POST /api/notes/chat`). |
 | `TimelineView` | `components/TimelineView.jsx` | Timeline de auditoría cronológica: creación, cambios de status, completados. Sidebar de selección. |
+| `QuickModeView` | `components/QuickModeView.jsx` | Vista minimalista de "Hoy" en tarjeta estrecha (modo rápido): foco, mini-form de creación, tareas de hoy/atrasadas/próximas y agenda en solo lectura. |
+| `ModeSelector` | `components/ModeSelector.jsx` | Pantalla inicial post-login: dos tarjetas "Modo completo" / "Modo rápido" (sin estado, autofocus en "Modo completo"). |
 
 ### 7.2 Modales y Drawers
 
@@ -921,6 +929,16 @@ Pipeline async server-side (Queue / `waitUntil`) disparado por sync de notes.
 - **Tareas hijas** (`childTaskStatusPrefs.js`): `isChildTaskStatusAllowed(statusId, allowed)` filtra las tareas existentes ofrecibles como hijas; las ya seleccionadas siempre se muestran.
 - Ambas se editan en `SettingsModal` y se persisten en `localStorage` (keys globales, no por perfil). Se normalizan contra los statuses válidos del perfil.
 
+### 9.13 Modo Rápido vs Modo Completo
+
+- **Selector siempre al abrir**: tras autenticación se muestra `ModeSelector`; la elección **no se persiste** (vive en `uiMode`), por lo que recargar vuelve a mostrar el selector.
+- **Modo completo**: el shell existente (todas las vistas, modales y drawers). `enterFullMode()` fija `uiMode='full'` preservando la vista actual/por defecto.
+- **Modo rápido**: `QuickModeView`, tarjeta centrada (max-width ~440px, `data-density="compact"`) con secciones: header (fecha + "Versión completa →"), Siguiente foco, Añadir tarea, Tareas de hoy, Atrasadas (solo si hay), Próximas tareas y Agenda/eventos (**solo lectura**).
+- **Acciones permitidas**: completar una tarea con el checkbox (`toggleDone`, abre `StatusChangeCommentModal`) y crear tareas desde el mini-form (`handleQuickModeCreate` → `upsert` existente; nombre requerido, fecha default hoy, prioridad default medium).
+- **Botón header**: en modo completo el header incluye "Modo rápido" (`aria-label="Modo rápido"`, SVG bolt inline, visible en desktop y mobile) que llama a `enterQuickMode()`. En modo rápido, "Versión completa →" vuelve a modo completo con `view='today'`.
+- **Aislamiento UI**: en modo rápido solo se montan `StatusChangeCommentModal` + `ToastContainer`; los modales/drawers pesados quedan en modo completo.
+- **Sin cambios en datos/auth**: comparte los mismos handlers de sync/offline/auth y la recomendación de foco; no toca Worker/D1/storage/sw/manifest/vite.
+
 ---
 
 ## 10. Estilos y Diseño
@@ -935,6 +953,7 @@ Pipeline async server-side (Queue / `waitUntil`) disparado por sync de notes.
 | `src/components/TimelineView.css` | Estilos del timeline | ~12KB |
 | `src/components/GraphView.css` | Estilos del grafo de notas + panel de chat RAG | ~6KB |
 | `src/components/ExternalAppDrawer.css` | Estilos del drawer de apps externas | ~4KB |
+| `src/components/QuickModeView.css` | Estilos compartidos del modo rápido (`ModeSelector` + `QuickModeView`) | ~4KB |
 
 ### 10.2 Convenciones CSS
 
@@ -1051,6 +1070,8 @@ En `main.jsx`:
 - Recomendación de foco y cambio rápido de status
 - Sección "Próximas tareas" en Hoy (ventana de 5 días laborables)
 - Selección de tareas hijas existentes en el drawer (sin duplicados) y autofill Jira al pegar URL
+- Helper `enterFullMode(page)` en `e2e/app.spec.ts` (click en "Modo completo" tras el login mockeado) usado por los tests existentes
+- Modo rápido: selector al recargar, secciones de la tarjeta, creación desde el mini-form, completado con checkbox, navegación "Versión completa →" y botón "Modo rápido" del header
 
 ### 13.3 Verificación Completa
 
@@ -1271,3 +1292,5 @@ npm run deploy   # = vite build && wrangler deploy
 33. **Jerarquía de tareas = `dependencyTaskIds`**: las tareas hijas son tareas independientes enlazadas por ID. No reintroducir la creación de subtareas por título desde la UI; `subtasks` legacy se conserva sin editar (no migrar silenciosamente).
 
 34. **Allowlists de status**: filtrar candidatos con `isChildTaskStatusAllowed` / `allowedStatuses` y normalizar contra los statuses válidos del perfil. Las keys de localStorage (`childTaskAllowedStatuses`, `nextFocusAllowedStatuses`) son globales, no por perfil.
+
+35. **Selector de modo**: `ModeSelector` se muestra en cada apertura tras autenticación y `uiMode` es estado **en memoria** (no persistido; recargar vuelve al selector). No mover `uiMode` ni el flujo de modos fuera de `App.jsx`.
