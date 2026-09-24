@@ -662,7 +662,7 @@ Implementa:
 | `BoardView` | `components/BoardView.jsx` | Canvas de notas adhesivas (Pointer Events). UI Note AI: classification/tags/summary, related panel, búsqueda semántica, organizar tablero, duplicados, sugerencias → tarea. |
 | `GraphView` | `components/GraphView.jsx` | Grafo de relaciones entre notas (layout offline desde `relatedIds`). Pan/zoom/select + panel de detalle. Chat RAG contextual opcional (`POST /api/notes/chat`). |
 | `TimelineView` | `components/TimelineView.jsx` | Timeline de auditoría cronológica: creación, cambios de status, completados. Sidebar de selección. |
-| `QuickModeView` | `components/QuickModeView.jsx` | Vista minimalista de "Hoy" en tarjeta estrecha (modo rápido): foco, mini-form de creación, tareas de hoy/atrasadas/próximas y agenda en solo lectura. |
+| `QuickModeView` | `components/QuickModeView.jsx` | Vista minimalista de "Hoy" en tarjeta estrecha (modo rápido): foco, mini-form de creación (nombre, fecha, URL, categoría, prioridad + autofill Jira), tareas de hoy/atrasadas/próximas y agenda en solo lectura. |
 | `ModeSelector` | `components/ModeSelector.jsx` | Pantalla inicial post-login: dos tarjetas "Modo completo" / "Modo rápido" (sin estado, autofocus en "Modo completo"). |
 
 ### 7.2 Modales y Drawers
@@ -934,7 +934,7 @@ Pipeline async server-side (Queue / `waitUntil`) disparado por sync de notes.
 - **Selector siempre al abrir**: tras autenticación se muestra `ModeSelector`; la elección **no se persiste** (vive en `uiMode`), por lo que recargar vuelve a mostrar el selector.
 - **Modo completo**: el shell existente (todas las vistas, modales y drawers). `enterFullMode()` fija `uiMode='full'` preservando la vista actual/por defecto.
 - **Modo rápido**: `QuickModeView`, tarjeta centrada (max-width ~440px, `data-density="compact"`) con secciones: header (fecha + "Versión completa →"), Siguiente foco, Añadir tarea, Tareas de hoy, Atrasadas (solo si hay), Próximas tareas y Agenda/eventos (**solo lectura**).
-- **Acciones permitidas**: completar una tarea con el checkbox (`toggleDone`, abre `StatusChangeCommentModal`) y crear tareas desde el mini-form (`handleQuickModeCreate` → `upsert` existente; nombre requerido, fecha default hoy, prioridad default medium).
+- **Acciones permitidas**: completar una tarea con el checkbox (`toggleDone`, abre `StatusChangeCommentModal`) y crear tareas desde el mini-form (`handleQuickModeCreate` → `upsert` existente; nombre requerido, fecha default hoy, prioridad default medium, más URL y categoría opcionales). Al pegar una URL Jira `/browse/MAPP-…` en el campo URL se aplica `applyJiraAutofillFromUrl` (mismo comportamiento que el modo completo): rellena `ticketNumber`, categoría "Jira Task", prioridad "high" si era medium, y añade `[MAPP-…]` al título.
 - **Botón header**: en modo completo el header incluye "Modo rápido" (`aria-label="Modo rápido"`, SVG bolt inline, visible en desktop y mobile) que llama a `enterQuickMode()`. En modo rápido, "Versión completa →" vuelve a modo completo con `view='today'`.
 - **Aislamiento UI**: en modo rápido solo se montan `StatusChangeCommentModal` + `ToastContainer`; los modales/drawers pesados quedan en modo completo.
 - **Sin cambios en datos/auth**: comparte los mismos handlers de sync/offline/auth y la recomendación de foco; no toca Worker/D1/storage/sw/manifest/vite.
