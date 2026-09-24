@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { STATUS, normalizeStatuses } from '../constants.js';
 import { getDisplayDescription, normalizeTaskUrl, formatTaskUrlLabel } from '../todayViewHelpers.js';
 import { recommendNextFocusTask } from '../focusRecommendation.js';
+import { getStatusInfo } from '../statusHelpers.js';
 
 export default function TodayView({
   todayTasks = [],
@@ -26,21 +27,6 @@ export default function TodayView({
       return acc;
     }, {});
   }, [normalizedStatuses]);
-
-  const getStatusInfo = (statusKey) => {
-    if (!statusKey) return null;
-    if (statusMap[statusKey]) return statusMap[statusKey];
-    const formattedLabel = statusKey
-      .replace(/_/g, ' ')
-      .replace(/\b\w/g, (char) => char.toUpperCase());
-    return {
-      v: statusKey,
-      label: formattedLabel,
-      tv: '--color-text-info',
-      bv: '--color-background-info',
-      bov: '--color-border-info'
-    };
-  };
 
   const todayDateFormatted = useMemo(() => {
     const now = new Date();
@@ -135,7 +121,7 @@ export default function TodayView({
   };
 
   const renderTaskCard = (task, { overdue = false } = {}) => {
-    const sInfo = getStatusInfo(task.status);
+    const sInfo = getStatusInfo(task.status, statusMap);
     return (
       <div key={task.id} className={`today-task-card material-elevated${overdue ? ' overdue' : ''}`}>
         <button

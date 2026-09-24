@@ -1,4 +1,4 @@
-import { test, expect, type Download } from '@playwright/test';
+import { test, expect, type Download, type Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import { installApiMocks, installUnauthorizedMocks, E2E_TASK_NAME, SECOND_TASK_NAME } from './api-mock';
 
@@ -21,26 +21,30 @@ async function readDownloadedText(download: Download): Promise<string> {
   throw new Error('No se pudo leer el archivo descargado.');
 }
 
+// La app muestra siempre un selector de modo tras autenticarse; entra en el modo
+// completo y espera al shell principal.
+async function enterFullMode(page: Page) {
+  await page.goto('/');
+  await page.getByRole('button', { name: /Modo completo/i }).click();
+  await expect(page.getByRole('heading', { name: /Prioriza lo importante/i })).toBeVisible({
+    timeout: 30_000,
+  });
+}
+
 test.beforeEach(async ({ page }) => {
   await installApiMocks(page);
 });
 
 test.describe('autenticación simulada', () => {
   test('muestra el shell principal con resumen de tareas', async ({ page }) => {
-    await page.goto('/');
-    await expect(page.getByRole('heading', { name: /Prioriza lo importante/i })).toBeVisible({
-      timeout: 30_000,
-    });
+    await enterFullMode(page);
     await expect(page.getByText('Sincroniza tus tareas', { exact: false })).not.toBeVisible();
   });
 });
 
 test.describe('tareas', () => {
   test('crea una tarea desde el modal y aparece en la lista', async ({ page }) => {
-    await page.goto('/');
-    await expect(page.getByRole('heading', { name: /Prioriza lo importante/i })).toBeVisible({
-      timeout: 30_000,
-    });
+    await enterFullMode(page);
 
     await page.getByRole('button', { name: /crear nueva tarea/i }).click();
     await expect(page.locator('.sheet-drawer-overlay')).toBeVisible();
@@ -53,10 +57,7 @@ test.describe('tareas', () => {
   });
 
   test('crea una tarea padre vinculando tareas existentes desde el drawer', async ({ page }) => {
-    await page.goto('/');
-    await expect(page.getByRole('heading', { name: /Prioriza lo importante/i })).toBeVisible({
-      timeout: 30_000,
-    });
+    await enterFullMode(page);
 
     await page.getByRole('button', { name: /crear nueva tarea/i }).click();
     await expect(page.locator('.sheet-drawer-overlay')).toBeVisible();
@@ -77,10 +78,7 @@ test.describe('tareas', () => {
   });
 
   test('permite desvincular una tarea hija existente al editar', async ({ page }) => {
-    await page.goto('/');
-    await expect(page.getByRole('heading', { name: /Prioriza lo importante/i })).toBeVisible({
-      timeout: 30_000,
-    });
+    await enterFullMode(page);
 
     await page.getByRole('button', { name: /crear nueva tarea/i }).click();
     await expect(page.locator('.sheet-drawer-overlay')).toBeVisible();
@@ -106,10 +104,7 @@ test.describe('tareas', () => {
   });
 
   test('cancelar el drawer no persiste la selección de hijas', async ({ page }) => {
-    await page.goto('/');
-    await expect(page.getByRole('heading', { name: /Prioriza lo importante/i })).toBeVisible({
-      timeout: 30_000,
-    });
+    await enterFullMode(page);
 
     await page.getByRole('button', { name: /crear nueva tarea/i }).click();
     await expect(page.locator('.sheet-drawer-overlay')).toBeVisible();
@@ -125,10 +120,7 @@ test.describe('tareas', () => {
   });
 
   test('permite introducir un comentario presionando Enter en el textarea', async ({ page }) => {
-    await page.goto('/');
-    await expect(page.getByRole('heading', { name: /Prioriza lo importante/i })).toBeVisible({
-      timeout: 30_000,
-    });
+    await enterFullMode(page);
 
     const name = `E2E comment enter ${Date.now()}`;
     await page.getByRole('button', { name: /crear nueva tarea/i }).click();
@@ -180,10 +172,7 @@ test.describe('navegación', () => {
 
 test.describe('panel MyNotebook', () => {
   test('abre MyNotebook desde el header y cierra con Escape y click fuera', async ({ page }) => {
-    await page.goto('/');
-    await expect(page.getByRole('heading', { name: /Prioriza lo importante/i })).toBeVisible({
-      timeout: 30_000,
-    });
+    await enterFullMode(page);
 
     await page.getByRole('button', { name: 'Notebook' }).click();
     await expect(page.locator('.external-app-drawer')).toBeVisible();
@@ -204,8 +193,7 @@ test.describe('panel MyNotebook', () => {
 
 test.describe('Fase 3 — Flujos E2E de Tareas, Command Menu y Accesibilidad', () => {
   test('crea una tarea desde Hoy y verifica la fecha de hoy preseleccionada', async ({ page }) => {
-    await page.goto('/');
-    await expect(page.getByRole('heading', { name: /Prioriza lo importante/i })).toBeVisible({ timeout: 30_000 });
+    await enterFullMode(page);
 
     // Navegar a la vista Hoy
     await page.getByRole('button', { name: 'Hoy', exact: true }).first().click();
@@ -227,8 +215,7 @@ test.describe('Fase 3 — Flujos E2E de Tareas, Command Menu y Accesibilidad', (
   });
 
   test('muestra tareas pendientes de los próximos cinco días en Hoy', async ({ page }) => {
-    await page.goto('/');
-    await expect(page.getByRole('heading', { name: /Prioriza lo importante/i })).toBeVisible({ timeout: 30_000 });
+    await enterFullMode(page);
 
     // La vista Hoy solo muestra los próximos 5 días laborables: elegimos el siguiente
     // día laborable para que el test no dependa del día de la semana en que se ejecute.
@@ -257,8 +244,7 @@ test.describe('Fase 3 — Flujos E2E de Tareas, Command Menu y Accesibilidad', (
   });
 
   test('edita una tarea existente sin duplicarla', async ({ page }) => {
-    await page.goto('/');
-    await expect(page.getByRole('heading', { name: /Prioriza lo importante/i })).toBeVisible({ timeout: 30_000 });
+    await enterFullMode(page);
 
     const name = `E2E Edit Check ${Date.now()}`;
 
@@ -284,7 +270,7 @@ test.describe('Fase 3 — Flujos E2E de Tareas, Command Menu y Accesibilidad', (
   });
 
   test('cierra TaskSheetDrawer y CommandMenu con tecla Escape', async ({ page }) => {
-    await page.goto('/');
+    await enterFullMode(page);
 
     // Abrir Command Menu con ⌘K / Control+K
     await page.keyboard.press('Control+k');
@@ -305,8 +291,7 @@ test.describe('Fase 3 — Flujos E2E de Tareas, Command Menu y Accesibilidad', (
 
 test.describe('workspaces y sincronización', () => {
   test('cambia de workspace y carga los datos del workspace seleccionado', async ({ page }) => {
-    await page.goto('/');
-    await expect(page.getByRole('heading', { name: /Prioriza lo importante/i })).toBeVisible({ timeout: 30_000 });
+    await enterFullMode(page);
     await expect(page.getByText(E2E_TASK_NAME)).toBeVisible();
 
     await page.getByRole('button', { name: /Cambiar workspace/i }).click();
@@ -318,8 +303,7 @@ test.describe('workspaces y sincronización', () => {
 
 test.describe('backup e importación', () => {
   test('exporta un backup multi-workspace con los estados custom de cada workspace', async ({ page }) => {
-    await page.goto('/');
-    await expect(page.getByRole('heading', { name: /Prioriza lo importante/i })).toBeVisible({ timeout: 30_000 });
+    await enterFullMode(page);
 
     await page.getByRole('button', { name: 'Acciones' }).click();
 
@@ -370,8 +354,7 @@ test.describe('backup e importación', () => {
   });
 
   test('importa un backup multi-workspace y muestra los datos importados', async ({ page }) => {
-    await page.goto('/');
-    await expect(page.getByRole('heading', { name: /Prioriza lo importante/i })).toBeVisible({ timeout: 30_000 });
+    await enterFullMode(page);
 
     const backup = {
       version: 2,
@@ -434,8 +417,7 @@ test.describe('backup e importación', () => {
 
     // Tras recargar, la app vuelve a pedir los datos del workspace: la etiqueta debe seguir
     // visible, lo que demuestra que los estados custom se persistieron de verdad.
-    await page.reload();
-    await expect(page.getByRole('heading', { name: /Prioriza lo importante/i })).toBeVisible({ timeout: 30_000 });
+    await enterFullMode(page);
     await expect(page.getByText('Tarea importada E2E')).toBeVisible();
     await expect(page.getByText('Estado E2E')).toBeVisible();
     await expect(page.getByText('Custom Imported')).not.toBeVisible();
@@ -452,8 +434,7 @@ test.describe('autenticación', () => {
 
 test.describe('Siguiente Foco Recomendado y Cambio Rápido de Estado', () => {
   test('muestra la razón de recomendación, procesa el modal de comentario y revierte si se cancela', async ({ page }) => {
-    await page.goto('/');
-    await expect(page.getByRole('heading', { name: /Prioriza lo importante/i })).toBeVisible({ timeout: 30_000 });
+    await enterFullMode(page);
 
     // Navegar a la vista Hoy
     await page.getByRole('button', { name: 'Hoy', exact: true }).first().click();
@@ -495,10 +476,7 @@ test.describe('Siguiente Foco Recomendado y Cambio Rápido de Estado', () => {
 
 test.describe('Notas AI Fase 3 — Grafo y chat RAG', () => {
   test('abre la vista Grafo y permite usar el chat de notas', async ({ page }) => {
-    await page.goto('/');
-    await expect(page.getByRole('heading', { name: /Prioriza lo importante/i })).toBeVisible({
-      timeout: 30_000,
-    });
+    await enterFullMode(page);
 
     await page.locator('.desktop-tabs').getByRole('button', { name: 'Notas' }).click();
     await expect(page.locator('.subview-pills').getByRole('button', { name: 'Grafo' })).toBeVisible();
@@ -515,3 +493,73 @@ test.describe('Notas AI Fase 3 — Grafo y chat RAG', () => {
   });
 });
 
+test.describe('selector de modo y modo rápido', () => {
+  test('muestra el selector de modo tras el login y de nuevo al recargar', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.getByRole('button', { name: /Modo completo/i })).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole('button', { name: /Modo rápido/i })).toBeVisible();
+    await page.reload();
+    await expect(page.getByRole('button', { name: /Modo completo/i })).toBeVisible({ timeout: 30_000 });
+  });
+
+  test('muestra las secciones del día en modo rápido', async ({ page }) => {
+    await page.goto('/');
+    await page.getByRole('button', { name: /Modo rápido/i }).click();
+    await expect(page.locator('.quick-mode-card')).toBeVisible();
+    await expect(page.getByRole('heading', { name: /Siguiente foco/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /Tareas de hoy/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /Próximas tareas/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /Agenda y eventos/i })).toBeVisible();
+
+    // Una tarea con fecha pasada revela la sección "Atrasadas".
+    await page.getByLabel('Nombre de la tarea').fill('Atrasada E2E');
+    await page.getByLabel('Fecha').fill('2020-01-01');
+    await page.getByRole('button', { name: 'Añadir' }).click();
+    await expect(page.getByRole('heading', { name: /Atrasadas/i })).toBeVisible();
+
+    // La agenda es solo lectura: no hay botones de edición/borrado dentro de la tarjeta de eventos.
+    await expect(page.locator('.quick-mode-section').filter({ hasText: 'Agenda y eventos' }).getByRole('button')).toHaveCount(0);
+  });
+
+  test('crea una tarea desde el mini-formulario del modo rápido', async ({ page }) => {
+    await page.goto('/');
+    await page.getByRole('button', { name: /Modo rápido/i }).click();
+    const name = `Rápida E2E ${Date.now()}`;
+    await page.getByLabel('Nombre de la tarea').fill(name);
+    await page.getByRole('button', { name: 'Añadir' }).click();
+    const todaySection = page.locator('.quick-mode-section').filter({
+      has: page.getByRole('heading', { name: /Tareas de hoy/i }),
+    });
+    await expect(todaySection.locator('.today-task-card', { hasText: name })).toBeVisible();
+  });
+
+  test('completa una tarea con el checkbox en modo rápido', async ({ page }) => {
+    await page.goto('/');
+    await page.getByRole('button', { name: /Modo rápido/i }).click();
+    const name = `Completar E2E ${Date.now()}`;
+    await page.getByLabel('Nombre de la tarea').fill(name);
+    await page.getByRole('button', { name: 'Añadir' }).click();
+    const todaySection = page.locator('.quick-mode-section').filter({
+      has: page.getByRole('heading', { name: /Tareas de hoy/i }),
+    });
+    const card = todaySection.locator('.today-task-card', { hasText: name });
+    await expect(card).toBeVisible();
+    await card.getByRole('button', { name: /Completar/ }).click();
+    await page.getByPlaceholder('¿Qué cambió y por qué?').fill('Listo');
+    await page.keyboard.press('Enter');
+    await expect(todaySection.locator('.today-task-card', { hasText: name })).not.toBeVisible();
+  });
+
+  test('el enlace de versión completa navega a la vista Hoy', async ({ page }) => {
+    await page.goto('/');
+    await page.getByRole('button', { name: /Modo rápido/i }).click();
+    await page.getByRole('button', { name: /Versión completa/i }).click();
+    await expect(page.locator('.today-view-container')).toBeVisible({ timeout: 10_000 });
+  });
+
+  test('el botón del header vuelve al modo rápido', async ({ page }) => {
+    await enterFullMode(page);
+    await page.getByRole('button', { name: 'Modo rápido' }).click();
+    await expect(page.locator('.quick-mode-card')).toBeVisible();
+  });
+});
