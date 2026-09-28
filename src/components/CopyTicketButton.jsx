@@ -34,7 +34,7 @@ export default function CopyTicketButton({ ticketNumber }) {
   return (
     <button
       type="button"
-      className="copy-ticket-button"
+      className={`copy-ticket-button ${copied ? 'copy-ticket-button--copied' : ''}`}
       draggable={false}
       onClick={copyTicket}
       onMouseDown={stopCardInteraction}
@@ -45,22 +45,6 @@ export default function CopyTicketButton({ ticketNumber }) {
       }}
       aria-label={`Copiar ticket ${ticketNumber}`}
       title={copied ? 'Ticket copiado' : `Copiar ticket ${ticketNumber}`}
-      style={{
-        border: '1px solid var(--color-border-tertiary)',
-        borderRadius: 999,
-        padding: '4px 8px',
-        background: copied ? 'var(--color-background-success)' : 'var(--color-background-secondary)',
-        color: copied ? 'var(--color-text-success)' : 'var(--color-text-secondary)',
-        cursor: 'pointer',
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 4,
-        flexShrink: 0,
-        fontSize: 11,
-        fontWeight: 700,
-        lineHeight: 1,
-        whiteSpace: 'nowrap',
-      }}
     >
       <span aria-hidden>{copied ? '✓' : '⧉'}</span>
       <span>{copied ? 'copiado' : ticketNumber}</span>

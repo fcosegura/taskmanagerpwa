@@ -8,3 +8,4 @@
 ## 2024-05-18 - Inline delete confirmation
 **Learning:** Users often click destructive action buttons by accident. Adding a simple, inline confirmation toggle before triggering the deletion is less intrusive than a full modal dialog and provides immediate context.
 **Action:** I will consider adding inline confirmations for destructive actions to avoid the use of obtrusive native modals or overlays whenever appropriate.
+## 2026-09-28 - Adding Hover States to Inline Styles **Learning:** Components originally built with extensive inline styling for quick iteration often lack basic interaction feedback (hover, active states). Moving these to external CSS is necessary for a polished UX. **Action:** Always check interactive elements that use inline styles and migrate them to CSS classes to enable pseudo-classes like :hover and :active.
