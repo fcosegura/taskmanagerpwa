@@ -11,3 +11,7 @@
 ## 2026-09-28 - [Input Focus Preservation]
 **Learning:** When adding clear buttons (`×`) to inputs, clicking the button typically causes the input to lose focus. Using `onPointerDown={(e) => e.preventDefault()}` on the clear button intercepts the event before focus is lost, maintaining the user's workflow seamlessly.
 **Action:** Always apply this focus-preservation pattern when building "clear text" buttons for search fields or inputs to keep the interaction feeling smooth and professional.
+
+## 2026-09-27 - [Animated Subtask Chevron]
+**Learning:** Static text characters (like ▲/▼) for toggle states feel rigid; replacing them with smoothly animated SVG icons significantly elevates perceived polish without adding structural complexity.
+**Action:** Look for other hardcoded text indicators used for state changes and consider replacing them with SVGs with simple CSS transitions.
