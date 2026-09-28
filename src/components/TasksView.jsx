@@ -149,10 +149,39 @@ export default function TasksView({
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Buscar tareas..."
-              style={{ width: '100%', height: 42, padding: '10px 14px 10px 40px', borderRadius: '999px', border: '1px solid rgba(148,163,184,0.25)', background: 'var(--color-background-primary)', color: 'var(--color-text-primary)', fontSize: 13, boxShadow: '0 2px 8px rgba(15,23,42,0.02)', transition: 'border 0.2s, box-shadow 0.2s' }}
+              style={{ width: '100%', height: 42, padding: '10px 36px 10px 40px', borderRadius: '999px', border: '1px solid rgba(148,163,184,0.25)', background: 'var(--color-background-primary)', color: 'var(--color-text-primary)', fontSize: 13, boxShadow: '0 2px 8px rgba(15,23,42,0.02)', transition: 'border 0.2s, box-shadow 0.2s' }}
               onFocus={(e) => { e.target.style.borderColor = 'var(--color-border-info)'; e.target.style.boxShadow = '0 4px 12px rgba(56,189,248,0.1)'; }}
               onBlur={(e) => { e.target.style.borderColor = 'rgba(148,163,184,0.25)'; e.target.style.boxShadow = '0 2px 8px rgba(15,23,42,0.02)'; }}
             />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                onPointerDown={(e) => e.preventDefault()}
+                aria-label="Limpiar búsqueda"
+                style={{
+                  position: 'absolute',
+                  right: 12,
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'var(--color-text-secondary)',
+                  cursor: 'pointer',
+                  fontSize: 16,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: 4,
+                  borderRadius: '50%',
+                  opacity: 0.6
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.opacity = 1)}
+                onMouseLeave={(e) => (e.currentTarget.style.opacity = 0.6)}
+              >
+                ×
+              </button>
+            )}
           </div>
           <div className="toolbar-actions">
             <TaskTrashDropZone
