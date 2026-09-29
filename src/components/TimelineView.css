@@ -331,43 +331,6 @@
   border-color: var(--color-border-primary);
 }
 
-/* Empty States */
-.timeline-empty-state {
-  background: var(--color-background-primary);
-  border: 1px solid var(--color-border-tertiary);
-  border-radius: var(--border-radius-lg);
-  padding: 60px 40px;
-  text-align: center;
-  box-shadow: var(--shadow-soft);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 16px;
-}
-
-.empty-state-icon {
-  width: 64px;
-  height: 64px;
-  color: var(--color-text-secondary);
-  opacity: 0.4;
-}
-
-.empty-state-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--color-text-primary);
-  margin: 0;
-}
-
-.empty-state-desc {
-  font-size: 13px;
-  color: var(--color-text-secondary);
-  max-width: 400px;
-  line-height: 1.5;
-  margin: 0;
-}
-
 /* Vertical Timeline list */
 .timeline-list {
   position: relative;

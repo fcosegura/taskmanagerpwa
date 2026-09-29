@@ -411,28 +411,70 @@ export default function TimelineView({
         </div>
 
         {selectedTaskIds.size === 0 ? (
-          <div className="timeline-empty-state">
-            <svg className="empty-state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="10" />
-              <polyline points="12 6 12 12 16 14" />
-            </svg>
-            <h3 className="empty-state-title">Ninguna tarea seleccionada</h3>
-            <p className="empty-state-desc">
-              Selecciona una o más tareas de la barra lateral para visualizar de forma gráfica su historial de cambios y flujo de estados.
-            </p>
+          <div className="empty-state-card" style={{
+            background: 'var(--color-background-secondary)',
+            borderRadius: 'var(--border-radius-xl)',
+            padding: '48px 24px',
+            textAlign: 'center',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 16,
+            boxShadow: 'var(--shadow-card)'
+          }}>
+            <div style={{
+              width: 64,
+              height: 64,
+              borderRadius: '50%',
+              background: 'var(--color-background-tertiary)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 28
+            }}>
+              ⏳
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-text-primary)' }}>
+                Ninguna tarea seleccionada
+              </div>
+              <div style={{ fontSize: 14, color: 'var(--color-text-secondary)', maxWidth: 280, margin: '0 auto', lineHeight: 1.5 }}>
+                Selecciona una o más tareas de la barra lateral para visualizar de forma gráfica su historial de cambios y flujo de estados.
+              </div>
+            </div>
           </div>
         ) : timelineEvents.length === 0 ? (
-          <div className="timeline-empty-state">
-            <svg className="empty-state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="3" width="18" height="18" rx="2" />
-              <line x1="9" y1="9" x2="15" y2="9" />
-              <line x1="9" y1="13" x2="15" y2="13" />
-              <line x1="9" y1="17" x2="13" y2="17" />
-            </svg>
-            <h3 className="empty-state-title">Sin eventos registrados</h3>
-            <p className="empty-state-desc">
-              Las tareas seleccionadas no registran eventos de cambio de estado o creación que coincidan con los filtros de búsqueda establecidos.
-            </p>
+          <div className="empty-state-card" style={{
+            background: 'var(--color-background-secondary)',
+            borderRadius: 'var(--border-radius-xl)',
+            padding: '48px 24px',
+            textAlign: 'center',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 16,
+            boxShadow: 'var(--shadow-card)'
+          }}>
+            <div style={{
+              width: 64,
+              height: 64,
+              borderRadius: '50%',
+              background: 'var(--color-background-tertiary)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 28
+            }}>
+              📭
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-text-primary)' }}>
+                Sin eventos registrados
+              </div>
+              <div style={{ fontSize: 14, color: 'var(--color-text-secondary)', maxWidth: 280, margin: '0 auto', lineHeight: 1.5 }}>
+                Las tareas seleccionadas no registran eventos de cambio de estado o creación que coincidan con los filtros de búsqueda establecidos.
+              </div>
+            </div>
           </div>
         ) : (
           <div className="timeline-list">
