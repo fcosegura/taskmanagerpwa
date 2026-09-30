@@ -94,6 +94,12 @@ body {
   background: linear-gradient(135deg, var(--color-text-primary), var(--color-accent));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
+  white-space: nowrap;
+  padding-right: 2px;
+}
+
+.brand-copy {
+  min-width: max-content;
 }
 
 .brand-subtitle,
