@@ -143,7 +143,7 @@ export default function QuickModeView({
         <header className="quick-mode-header">
           <div className="quick-mode-header-text">
             <span className="eyebrow">Hoy</span>
-            <h1 className="quick-mode-date">{todayDateFormatted}</h1>
+            <h1 className="quick-mode-title">{todayDateFormatted}</h1>
           </div>
           <button
             type="button"
@@ -190,7 +190,7 @@ export default function QuickModeView({
             />
             <input
               type="date"
-              className="quick-mode-date"
+              className="quick-mode-input quick-mode-date-input"
               value={date}
               onChange={(e) => setDate(e.target.value)}
               aria-label="Fecha"
