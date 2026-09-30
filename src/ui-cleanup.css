@@ -550,4 +550,48 @@ nav.show-mobile {
   .task-card {
     padding: 14px;
   }
+
+  /* Header: el título no debe quedar recortado por los botones de acción */
+  .app-header {
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .brand-block {
+    flex-shrink: 0;
+  }
+
+  .brand-copy {
+    min-width: max-content;
+  }
+
+  .brand-title {
+    white-space: nowrap;
+    padding-right: 2px;
+  }
+
+  .header-actions {
+    justify-self: end;
+    min-width: 0;
+  }
+
+  /* Barra inferior: el + se centra vertical y horizontalmente */
+  nav.show-mobile {
+    align-items: center;
+  }
+
+  nav.show-mobile .mobile-fab-button {
+    flex: 0 0 auto;
+    width: 48px;
+    height: 48px;
+    padding: 0;
+    margin: 0 4px;
+    border-radius: 50% !important;
+    align-self: center;
+    line-height: 1;
+  }
+
+  nav.show-mobile .mobile-nav-item {
+    align-self: stretch;
+  }
 }
