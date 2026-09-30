@@ -586,24 +586,27 @@ nav.show-mobile {
     display: none;
   }
 
-  /* Barra inferior: columnas iguales para que el + quede centrado en su hueco */
+  /* Barra inferior: 5 pestañas iguales; el + flota centrado sobre la barra */
   nav.show-mobile {
     display: grid;
-    grid-template-columns: 1fr 1fr 64px 1fr 1fr 1fr;
+    grid-template-columns: repeat(5, 1fr);
     align-items: center;
     justify-items: stretch;
     padding-inline: 6px;
   }
 
   nav.show-mobile .mobile-fab-button {
-    width: 48px;
-    height: 48px;
+    position: absolute;
+    left: 50%;
+    bottom: calc(100% + 10px);
+    transform: translateX(-50%);
+    width: 52px;
+    height: 52px;
     padding: 0;
     margin: 0;
-    justify-self: center;
-    align-self: center;
     border-radius: 50% !important;
     line-height: 1;
+    z-index: 1;
   }
 
   nav.show-mobile .mobile-nav-item {
