@@ -16,3 +16,6 @@
 ## 2026-09-27 - [Animated Subtask Chevron]
 **Learning:** Static text characters (like ▲/▼) for toggle states feel rigid; replacing them with smoothly animated SVG icons significantly elevates perceived polish without adding structural complexity.
 **Action:** Look for other hardcoded text indicators used for state changes and consider replacing them with SVGs with simple CSS transitions.
+## 2024-09-29 - Animated Chevrons for Toggles
+**Learning:** Text-only toggles ("Mostrar opciones avanzadas" / "Ocultar opciones avanzadas") lack immediate visual affordance for state changes, requiring users to read the text fully.
+**Action:** Enhance text toggles with an animated SVG chevron that rotates 180 degrees. It aligns perfectly with existing micro-UX patterns across the app (like in the TimelineView sidebar) and makes state transitions visually explicit.
