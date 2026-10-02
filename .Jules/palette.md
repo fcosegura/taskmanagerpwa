@@ -19,3 +19,7 @@
 ## 2024-09-29 - Animated Chevrons for Toggles
 **Learning:** Text-only toggles ("Mostrar opciones avanzadas" / "Ocultar opciones avanzadas") lack immediate visual affordance for state changes, requiring users to read the text fully.
 **Action:** Enhance text toggles with an animated SVG chevron that rotates 180 degrees. It aligns perfectly with existing micro-UX patterns across the app (like in the TimelineView sidebar) and makes state transitions visually explicit.
+
+## 2024-10-01 - Kanban Toggle Animated Chevron
+**Learning:** Animated SVG chevrons significantly improve visual polish and affordance over basic text symbols (like "Mostrar todo / Colapsar") without overcomplicating the layout.
+**Action:** Use CSS transition `transform: rotate(...)` on an inline `<svg>` for UI toggle elements to add micro-interactions that feel delightful and smooth.

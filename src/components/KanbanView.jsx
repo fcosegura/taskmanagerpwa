@@ -688,24 +688,33 @@ export default function KanbanView({
                 {hoverStatus === status.v && hoverIndex === columnTasks.length && (
                   <div className={`kanban-drop-indicator${isSuctionDrop ? ' suction-slot' : ''}`} />
                 )}
-                {hiddenTaskCount > 0 && (
+                {(hiddenTaskCount > 0 || (isExpanded && columnTasks.length > 5)) && (
                   <button
                     type="button"
                     className="kanban-column-toggle-tasks"
                     onClick={() => toggleColumnTasks(status.v)}
-                    aria-expanded={false}
+                    aria-expanded={isExpanded}
+                    style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'center' }}
                   >
-                    Mostrar todo ({hiddenTaskCount} más)
-                  </button>
-                )}
-                {isExpanded && columnTasks.length > 5 && (
-                  <button
-                    type="button"
-                    className="kanban-column-toggle-tasks"
-                    onClick={() => toggleColumnTasks(status.v)}
-                    aria-expanded
-                  >
-                    Colapsar
+                    <span style={{ textDecoration: 'underline' }}>
+                      {isExpanded ? 'Colapsar' : `Mostrar todo (${hiddenTaskCount} más)`}
+                    </span>
+                    <svg
+                      width="12"
+                      height="12"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      style={{
+                        transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                        transition: 'transform 0.2s ease',
+                      }}
+                    >
+                      <path d="M6 9l6 6 6-6" />
+                    </svg>
                   </button>
                 )}
                 {columnTasks.length === 0 && (
