@@ -268,11 +268,19 @@ export default function TaskSheetDrawer({
                   const checked = form.dependencyTaskIds.includes(candidate.id);
                   return (
                     <label key={candidate.id} className="subtask-item dependency-task-item">
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => toggleChildTask(candidate.id)}
-                      />
+                      <button
+                        type="button"
+                        role="checkbox"
+                        aria-checked={checked}
+                        className={`task-checkbox-animated subtask-animated-checkbox ${checked ? 'checked' : ''}`}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          toggleChildTask(candidate.id);
+                        }}
+                        aria-label={checked ? 'Desvincular tarea' : 'Vincular tarea'}
+                      >
+                        {checked ? '✓' : ''}
+                      </button>
                       <span>{candidate.name || '(sin nombre)'}</span>
                     </label>
                   );

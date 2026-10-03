@@ -56,7 +56,7 @@ describe('TaskSheetDrawer data model preservation & options', () => {
     assert.match(taskSheetDrawerSource, /availableChildTasks/);
     assert.match(taskSheetDrawerSource, /form\.dependencyTaskIds/);
     assert.match(taskSheetDrawerSource, /toggleChildTask/);
-    assert.match(taskSheetDrawerSource, /type="checkbox"/);
+    assert.match(taskSheetDrawerSource, /subtask-animated-checkbox/);
   });
 
   test('TaskSheetDrawer excludes done tasks and parent tasks from candidates', () => {
