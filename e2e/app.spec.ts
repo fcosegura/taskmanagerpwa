@@ -67,8 +67,8 @@ test.describe('tareas', () => {
 
     const childOption = page.locator('.dependency-task-item', { hasText: E2E_TASK_NAME });
     await expect(childOption).toBeVisible();
-    await childOption.getByRole('checkbox').check();
-    await expect(childOption.getByRole('checkbox')).toBeChecked();
+    await childOption.getByRole('checkbox').click();
+    await expect(childOption.getByRole('checkbox')).toHaveAttribute('aria-checked', 'true');
 
     await page.getByRole('button', { name: /^Guardar$/i }).click();
 
@@ -85,7 +85,7 @@ test.describe('tareas', () => {
 
     const parentName = `E2E unlink ${Date.now()}`;
     await page.getByLabel(/Nombre/i).fill(parentName);
-    await page.locator('.dependency-task-item', { hasText: E2E_TASK_NAME }).getByRole('checkbox').check();
+    await page.locator('.dependency-task-item', { hasText: E2E_TASK_NAME }).getByRole('checkbox').click();
     await page.getByRole('button', { name: /^Guardar$/i }).click();
 
     const parentCard = page.locator('.task-card', { hasText: parentName });
@@ -96,8 +96,8 @@ test.describe('tareas', () => {
     await expect(page.locator('.sheet-drawer-overlay')).toBeVisible();
 
     const childOption = page.locator('.dependency-task-item', { hasText: E2E_TASK_NAME });
-    await expect(childOption.getByRole('checkbox')).toBeChecked();
-    await childOption.getByRole('checkbox').uncheck();
+    await expect(childOption.getByRole('checkbox')).toHaveAttribute('aria-checked', 'true');
+    await childOption.getByRole('checkbox').click();
     await page.getByRole('button', { name: /Guardar Cambios/i }).click();
 
     await expect(parentCard.locator('.dependency-rail')).not.toBeVisible();
@@ -111,7 +111,7 @@ test.describe('tareas', () => {
 
     const parentName = `E2E cancel ${Date.now()}`;
     await page.getByLabel(/Nombre/i).fill(parentName);
-    await page.locator('.dependency-task-item', { hasText: E2E_TASK_NAME }).getByRole('checkbox').check();
+    await page.locator('.dependency-task-item', { hasText: E2E_TASK_NAME }).getByRole('checkbox').click();
 
     await page.getByRole('button', { name: /Cancelar/i }).click();
     await expect(page.locator('.sheet-drawer-overlay')).not.toBeVisible();

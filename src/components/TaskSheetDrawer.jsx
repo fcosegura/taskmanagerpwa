@@ -270,6 +270,8 @@ export default function TaskSheetDrawer({
                     <label key={candidate.id} className="subtask-item dependency-task-item">
                       <button
                         type="button"
+                        role="checkbox"
+                        aria-checked={checked}
                         className={`task-checkbox-animated subtask-animated-checkbox ${checked ? 'checked' : ''}`}
                         onClick={(e) => {
                           e.preventDefault();
