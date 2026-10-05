@@ -73,7 +73,7 @@ body {
 .workspace-option,
 .workspace-create,
 .workspace-logout {
-  transition: all 0.2s ease;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease, transform 0.2s ease;
   border-radius: 10px;
 }
 
@@ -199,7 +199,7 @@ body {
   border: 1px solid transparent;
   background: transparent;
   color: var(--color-text-secondary);
-  transition: all 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: background-color 0.28s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.28s cubic-bezier(0.16, 1, 0.3, 1), color 0.28s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.28s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.28s cubic-bezier(0.16, 1, 0.3, 1), transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
   cursor: pointer;
   position: relative;
   overflow: hidden;
@@ -239,7 +239,7 @@ body {
   color: #ffffff;
   box-shadow: 0 8px 20px -2px rgba(23, 107, 135, 0.35), inset 0 1px 0 0 rgba(255, 255, 255, 0.35);
   cursor: pointer;
-  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: background-color 0.22s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.22s cubic-bezier(0.16, 1, 0.3, 1), color 0.22s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.22s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.22s cubic-bezier(0.16, 1, 0.3, 1), transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .primary-button:hover {
@@ -268,7 +268,7 @@ body {
   color: var(--color-text-primary);
   box-shadow: var(--material-base-shadow);
   cursor: pointer;
-  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: background-color 0.22s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.22s cubic-bezier(0.16, 1, 0.3, 1), color 0.22s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.22s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.22s cubic-bezier(0.16, 1, 0.3, 1), transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .ghost-button:hover {
@@ -296,7 +296,7 @@ body {
   place-items: center;
   font-size: 18px;
   cursor: pointer;
-  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: background-color 0.22s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.22s cubic-bezier(0.16, 1, 0.3, 1), color 0.22s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.22s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.22s cubic-bezier(0.16, 1, 0.3, 1), transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .icon-button:hover {
@@ -324,7 +324,7 @@ body {
   -webkit-backdrop-filter: var(--material-elevated-blur);
   border: var(--material-elevated-border);
   box-shadow: var(--material-elevated-shadow);
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: background-color 0.3s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.3s cubic-bezier(0.16, 1, 0.3, 1), color 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1), transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .toolbar-panel {
@@ -346,7 +346,7 @@ textarea {
   border: 1px solid rgba(148, 163, 184, 0.28);
   background: var(--material-base-bg);
   box-shadow: var(--shadow-3d-inset);
-  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: background-color 0.22s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.22s cubic-bezier(0.16, 1, 0.3, 1), color 0.22s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.22s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.22s cubic-bezier(0.16, 1, 0.3, 1), transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
   color: var(--color-text-primary);
 }
 
@@ -638,4 +638,39 @@ nav.show-mobile {
   .mobile-tab-label {
     font-size: 12px;
   }
+}
+
+/* ── Transición de vista: entrada corta y ligera (solo opacity/transform → compositor) ── */
+.view-stage {
+  animation: viewStageEnter 0.18s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes viewStageEnter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ── Respuesta táctil inmediata: feedback de pulsación sin esperar al click ── */
+.primary-button,
+.ghost-button,
+.subview-pills button,
+.desktop-tabs button,
+nav.show-mobile button {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.primary-button:active,
+.ghost-button:active,
+.subview-pills button:active,
+.desktop-tabs button:active,
+nav.show-mobile button:active {
+  transform: scale(0.97);
+  transition-duration: 0.08s;
 }

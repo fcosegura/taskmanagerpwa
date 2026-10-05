@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, lazy, Suspense } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, lazy, Suspense, startTransition } from 'react';
 import { STATUS, PRIORITY, normalizeStatuses, isTerminalStatus } from './constants.js';
 import { uid, toDateStr, compareTasksForTaskList, parseDateTimeFromDescription, parseDescriptionDateResult, cleanDescriptionSegment, mergeTaskCompletionMeta } from './utils.jsx';
 import { loadData, saveData, validateBackupPayload, normalizeDataPayload, loginWithGoogleCredential, logoutSession, createProfile, deleteProfile, updateProfileStatuses, parseTaskWithAI, checkSession, generateTasksFromText, generateDailyStatus, fetchWorkspaceData, isMultiBackupPayload, validateMultiBackupPayload, normalizeMultiBackupPayload, fetchNoteAiMeta, loadCachedNoteAiMeta, searchNotesSemantic, fetchRelatedNotes, dismissNoteAiSuggestionClient, fetchNoteDuplicates, fetchNotesOrganizeLayout, didLastLoadPreferLocal } from './storage.js';
@@ -35,15 +35,44 @@ import { useToasts } from './components/Toast/useToasts.js';
 import ToastContainer from './components/Toast/index.jsx';
 import ModeSelector from './components/ModeSelector.jsx';
 
-const TodayView = lazy(() => import('./components/TodayView.jsx'));
-const TasksView = lazy(() => import('./components/TasksView.jsx'));
-const KanbanView = lazy(() => import('./components/KanbanView.jsx'));
-const CalendarView = lazy(() => import('./components/CalendarView.jsx'));
-const DailyAgendaView = lazy(() => import('./components/DailyAgendaView.jsx'));
-const TimelineView = lazy(() => import('./components/TimelineView.jsx'));
-const GraphView = lazy(() => import('./components/GraphView.jsx'));
-const CommandMenu = lazy(() => import('./components/CommandMenu.jsx'));
-const TaskSheetDrawer = lazy(() => import('./components/TaskSheetDrawer.jsx'));
+const importTodayView = () => import('./components/TodayView.jsx');
+const importTasksView = () => import('./components/TasksView.jsx');
+const importKanbanView = () => import('./components/KanbanView.jsx');
+const importCalendarView = () => import('./components/CalendarView.jsx');
+const importDailyAgendaView = () => import('./components/DailyAgendaView.jsx');
+const importTimelineView = () => import('./components/TimelineView.jsx');
+const importGraphView = () => import('./components/GraphView.jsx');
+const importCommandMenu = () => import('./components/CommandMenu.jsx');
+const importTaskSheetDrawer = () => import('./components/TaskSheetDrawer.jsx');
+
+const TodayView = lazy(importTodayView);
+const TasksView = lazy(importTasksView);
+const KanbanView = lazy(importKanbanView);
+const CalendarView = lazy(importCalendarView);
+const DailyAgendaView = lazy(importDailyAgendaView);
+const TimelineView = lazy(importTimelineView);
+const GraphView = lazy(importGraphView);
+const CommandMenu = lazy(importCommandMenu);
+const TaskSheetDrawer = lazy(importTaskSheetDrawer);
+// Precarga por vista: los chunks se descargan en idle para que navegar sea instantáneo.
+const VIEW_PRELOADERS = {
+  today: importTodayView,
+  tasks: importTasksView,
+  kanban: importKanbanView,
+  calendar: importCalendarView,
+  daily: importDailyAgendaView,
+  timeline: importTimelineView,
+  graph: importGraphView,
+};
+const preloadView = (viewId) => {
+  VIEW_PRELOADERS[viewId]?.()?.catch?.(() => {});
+};
+const preloadAllViews = () => {
+  Object.values(VIEW_PRELOADERS).forEach((load) => load().catch(() => {}));
+  importCommandMenu().catch(() => {});
+  importTaskSheetDrawer().catch(() => {});
+};
+
 const QuickModeView = lazy(() => import('./components/QuickModeView.jsx'));
 
 function serializePayload(payload) {
@@ -68,6 +97,17 @@ const DENSITY_STORAGE_KEY = 'taskmanager_density';
 
 export default function App() {
   const [authenticated, setAuthenticated] = useState(null);
+
+  useEffect(() => {
+    if (!authenticated) return undefined;
+    const run = () => preloadAllViews();
+    if (typeof window.requestIdleCallback === 'function') {
+      const id = window.requestIdleCallback(run, { timeout: 2500 });
+      return () => window.cancelIdleCallback?.(id);
+    }
+    const t = window.setTimeout(run, 800);
+    return () => window.clearTimeout(t);
+  }, [authenticated]);
   const [authVersion, setAuthVersion] = useState(0);
   const [tasks, setTasks] = useState([]);
   const [statuses, setStatuses] = useState(() => {
@@ -169,7 +209,12 @@ export default function App() {
   const [events, setEvents] = useState([]);
   const [ready, setReady] = useState(false);
   const [hydratedSession, setHydratedSession] = useState(null);
-  const [view, setView] = useState('tasks');
+  const [view, setViewImmediate] = useState('tasks');
+  // Transición no bloqueante: React mantiene la vista actual en pantalla hasta que la nueva está lista (sin skeleton).
+  const setView = useCallback((nextView) => {
+    preloadView(typeof nextView === 'string' ? nextView : '');
+    startTransition(() => setViewImmediate(nextView));
+  }, []);
   const [uiMode, setUiMode] = useState(null); // null = selector | 'full' | 'quick'
   const [modal, setModal] = useState(null);
   const [showCommandMenu, setShowCommandMenu] = useState(false);
@@ -2271,6 +2316,7 @@ export default function App() {
         )}
 
         <Suspense fallback={<div className="view-skeleton" role="status"><div className="view-skeleton-pulse" aria-label="Cargando vista..."></div></div>}>
+        <div key={view} className="view-stage">
         {view === 'today'
           ? <TodayView
               todayTasks={todayTasks}
@@ -2392,6 +2438,7 @@ export default function App() {
                   onDismissSuggestion={handleDismissNoteAiSuggestion}
                 />
         }
+        </div>
         </Suspense>
       </main>
 
