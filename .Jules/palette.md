@@ -23,3 +23,7 @@
 ## 2024-10-01 - Kanban Toggle Animated Chevron
 **Learning:** Animated SVG chevrons significantly improve visual polish and affordance over basic text symbols (like "Mostrar todo / Colapsar") without overcomplicating the layout.
 **Action:** Use CSS transition `transform: rotate(...)` on an inline `<svg>` for UI toggle elements to add micro-interactions that feel delightful and smooth.
+
+## 2024-10-24 - [Consistent Transition SVG Arrows]
+**Learning:** Hardcoded text arrows (like `➔`) create visual inconsistencies when other states use SVG icons. Using identical SVGs across all similar transition states improves visual cohesion.
+**Action:** Always verify if there are other states rendering similar concepts (like arrows) and use the exact same SVG element to ensure consistent stroke width and styling.
