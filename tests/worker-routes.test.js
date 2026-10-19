@@ -122,6 +122,29 @@ test('Worker rejects malformed sync and keeps deterministic task AI fallback and
   assert.equal(parsed.source, 'fallback');
   assert.equal(typeof parsed.task.title, 'string');
   assert.equal((await call('/ai/parse-task', { text: '' })).status, 400);
+  const generated = await (await call('/ai/generate-tasks', { text: 'Preparar informe y revisar datos' })).json();
+  assert.equal(generated.source, 'fallback');
+  assert.ok(generated.mainTasks.length > 0);
+  const daily = await (await call('/ai/daily-status', {
+    days: 2, activities: [{ name: 'Informe', currentStatus: 'in_progress' }],
+  })).json();
+  assert.equal(daily.source, 'fallback');
+  assert.match(daily.report, /Hoy/);
   sql.prepare('UPDATE ai_rate_limits SET request_count = 48 WHERE user_id = ?').run('user-a');
   assert.equal((await call('/ai/parse-task', { text: 'Otra tarea' })).status, 429);
+});
+
+
+test('Worker preserves Note AI route dispatch and disabled-feature responses', async (t) => {
+  const { call } = createEnvironment(t);
+  const meta = await (await call('/notes/ai')).json();
+  assert.deepEqual(meta.meta, []);
+  const search = await (await call('/notes/search', { query: 'informe', prefs: { semanticSearch: false } })).json();
+  assert.equal(search.source, 'disabled');
+  const duplicates = await (await call('/notes/duplicates', { prefs: { duplicates: false } })).json();
+  assert.equal(duplicates.source, 'disabled');
+  const organize = await (await call('/notes/organize', { prefs: { organizeBoard: false } })).json();
+  assert.equal(organize.source, 'disabled');
+  const chat = await (await call('/notes/chat', { question: '¿Qué tengo pendiente?', prefs: { ragChat: false } })).json();
+  assert.equal(chat.source, 'disabled');
 });
