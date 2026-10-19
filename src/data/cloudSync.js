@@ -121,7 +121,7 @@ export async function saveData(payload, authenticated = false, profileId = null)
         : { profileId, payload };
       const resp = await fetch('/api/sync', {
         method: 'POST',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
         },
         credentials: 'same-origin',

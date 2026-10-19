@@ -1,10 +1,9 @@
-import { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { loginWithGoogleCredential, logoutSession, checkSession } from '../api/auth.js';
 import { ACTIVE_PROFILE_STORAGE_KEY } from '../data/localStore.js';
 
-export function useSession({ onLogin, onSessionEnd, beforeLogout }) {
-  const callbacks = useRef({ onLogin, onSessionEnd, beforeLogout });
-  useLayoutEffect(() => { callbacks.current = { onLogin, onSessionEnd, beforeLogout }; });
+export function useSession() {
+  const [sessionEndVersion, setSessionEndVersion] = useState(0);
   const [authenticated, setAuthenticated] = useState(null);
   const [authVersion, setAuthVersion] = useState(0);
   const [sessionExpiredLoggedOut, setSessionExpiredLoggedOut] = useState(() => {
@@ -23,20 +22,14 @@ export function useSession({ onLogin, onSessionEnd, beforeLogout }) {
       // ignore
     }
     setSessionExpiredLoggedOut(false);
-    callbacks.current.onLogin();
     setAuthenticated(true);
     setAuthVersion((version) => version + 1);
   }, []);
 
   const logout = async () => {
-    try {
-      await callbacks.current.beforeLogout();
-    } catch {
-      // Best-effort flush before ending session.
-    }
     await logoutSession();
     setAuthenticated(false);
-    callbacks.current.onSessionEnd(false);
+    setSessionEndVersion((version) => version + 1);
     try {
       localStorage.removeItem('taskmanager_session_expired');
     } catch {
@@ -53,7 +46,7 @@ export function useSession({ onLogin, onSessionEnd, beforeLogout }) {
     }
     setSessionExpiredLoggedOut(true);
     setAuthenticated(false);
-    callbacks.current.onSessionEnd(true);
+    setSessionEndVersion((version) => version + 1);
     // Keep ACTIVE_PROFILE_STORAGE_KEY so the last workspace can be restored on re-login.
   }, []);
 
@@ -83,5 +76,5 @@ export function useSession({ onLogin, onSessionEnd, beforeLogout }) {
     };
   }, [authenticated, forceLogout]);
 
-  return { authenticated, setAuthenticated, authVersion, setAuthVersion, sessionExpiredLoggedOut, login, logout };
+  return { authenticated, setAuthenticated, authVersion, setAuthVersion, sessionExpiredLoggedOut, sessionEndVersion, login, logout };
 }

@@ -2,7 +2,7 @@ import { json } from '../http.js';
 import { consumeAiRateLimit } from '../rateLimits.js';
 import { buildDailyStatusFallbackReport } from '../../dailyStatusFallback.js';
 import {
-  parseTaskFallback, parseTaskWithAi, sanitizeParsedTask, generateTaskPlanFallback,
+  parseTaskFallback, parseTaskWithAi, sanitizeParsedTask,
   generateTasksFromTextWithAi, normalizeGeneratedTaskPlan, clampDailyStatusDaysInput,
   sanitizeDailyStatusActivities, generateDailyStatusWithAi,
 } from '../taskAi.js';

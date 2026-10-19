@@ -98,41 +98,15 @@ export default function App() {
   const { toasts, showToast, dismiss: dismissToast, clearToasts } = useToasts();
   const {
     authenticated, setAuthenticated, authVersion, setAuthVersion, sessionExpiredLoggedOut,
-    login: handleLoginSuccess, logout: handleLogout,
-  } = useSession({
-    onLogin: () => { setReady(false); setUiMode(null); },
-    beforeLogout: () => syncNow({ immediate: true }),
-    onSessionEnd: () => {
-      setUiMode(null);
-      setReady(false);
-      setHydratedSession(null);
-      setTasks([]);
-      setBoardNotes([]);
-      setEvents([]);
-      setModal(null);
-      setTaskPreviewId(null);
-      setProfiles([]);
-      setActiveProfileId(null);
-      setSyncState('idle');
-      setShowProfileMenu(false);
-      clearToasts();
-      clearUndoTransaction();
-    },
-  });
+    sessionEndVersion, login, logout,
+  } = useSession();
   const {
     tasks, setTasks, boardNotes, setBoardNotes, events, setEvents, ready, setReady,
-    hydratedSession, setHydratedSession, profiles, setProfiles,
+    hydratedSession, setHydratedSession, profiles, setProfiles, hydration,
     activeProfileId, setActiveProfileId, statuses, setStatuses,
-  } = useWorkspace({
-    authVersion,
-    onAuthenticated: setAuthenticated,
-    showToast,
-    onHydrated: (data, payload) => {
-      markHydrated(data, payload);
-    },
-  });
-  const { syncState, setSyncState, isOnline, reconnecting, syncNow, markHydrated } = useCloudSync({
-    tasks, boardNotes, events, ready, authenticated, hydratedSession, activeProfileId,
+  } = useWorkspace({ authVersion, onAuthenticated: setAuthenticated, showToast });
+  const { syncState, setSyncState, isOnline, reconnecting, syncNow } = useCloudSync({
+    tasks, boardNotes, events, ready, authenticated, hydratedSession, activeProfileId, hydration,
   });
 
   useEffect(() => {
@@ -346,6 +320,37 @@ export default function App() {
     if (typeof window === 'undefined') return false;
     return window.matchMedia?.('(display-mode: standalone)').matches || false;
   });
+  // Session state flows down from useSession; UI cleanup stays in App.
+  useEffect(() => {
+    if (sessionEndVersion === 0) return;
+    setUiMode(null);
+    setReady(false);
+    setHydratedSession(null);
+    setTasks([]);
+    setBoardNotes([]);
+    setEvents([]);
+    setModal(null);
+    setTaskPreviewId(null);
+    setProfiles([]);
+    setActiveProfileId(null);
+    setSyncState('idle');
+    setShowProfileMenu(false);
+    clearToasts();
+    clearUndoTransaction();
+  }, [sessionEndVersion, setReady, setHydratedSession, setTasks, setBoardNotes,
+    setEvents, setProfiles, setActiveProfileId, setSyncState, clearToasts]);
+
+  const handleLoginSuccess = async (credential) => {
+    await login(credential);
+    setReady(false);
+    setUiMode(null);
+  };
+
+  const handleLogout = async () => {
+    await syncNow({ immediate: true });
+    await logout();
+  };
+
   useEffect(() => {
     const onSwUpdate = () => setSwUpdateAvailable(true);
     window.addEventListener('taskmanager-sw-update', onSwUpdate);

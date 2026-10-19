@@ -9,8 +9,9 @@ function serializePayload(payload) {
   }
 }
 
-export function useCloudSync({ tasks, boardNotes, events, ready, authenticated, hydratedSession, activeProfileId }) {
+export function useCloudSync({ tasks, boardNotes, events, ready, authenticated, hydratedSession, activeProfileId, hydration }) {
   const [syncState, setSyncState] = useState('idle');
+  const lastHydrationRef = useRef(null);
   const syncFeedbackTimerRef = useRef(null);
   const syncDebounceTimerRef = useRef(null);
   const lastSyncedPayloadRef = useRef('');
@@ -22,6 +23,13 @@ export function useCloudSync({ tasks, boardNotes, events, ready, authenticated, 
 
   const [isOnline, setIsOnline] = useState(() => (typeof navigator !== 'undefined' ? navigator.onLine : true));
   const [reconnecting, setReconnecting] = useState(false);
+  useLayoutEffect(() => {
+    if (!hydration || hydration === lastHydrationRef.current) return;
+    lastHydrationRef.current = hydration;
+    latestPayloadRef.current = hydration.payload;
+    lastSyncedPayloadRef.current = hydration.preferredLocal ? '' : serializePayload(hydration.payload);
+  }, [hydration]);
+
   const clearSyncDebounce = useCallback(() => {
     if (syncDebounceTimerRef.current) {
       window.clearTimeout(syncDebounceTimerRef.current);
@@ -133,10 +141,5 @@ export function useCloudSync({ tasks, boardNotes, events, ready, authenticated, 
   }, [clearSyncDebounce]);
 
   const syncNow = useCallback((options) => syncNowRef.current(options), []);
-  const markHydrated = useCallback((data, payload) => {
-    latestPayloadRef.current = payload;
-    lastSyncedPayloadRef.current = data.preferredLocal ? '' : serializePayload(payload);
-  }, []);
-
-  return { syncState, setSyncState, isOnline, reconnecting, syncNow, markHydrated };
+  return { syncState, setSyncState, isOnline, reconnecting, syncNow };
 }

@@ -28,11 +28,6 @@ function indexById(list = []) {
   return index;
 }
 
-/** Guards normalize* calls so a null/non-object array entry is dropped, not fatal. */
-function isPlainObject(value) {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
-}
-
 function diffEntityOps(previousList = [], nextList = []) {
   const previous = indexById(previousList);
   const next = indexById(nextList);

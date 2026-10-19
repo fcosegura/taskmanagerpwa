@@ -1,12 +1,11 @@
-import { useState, useRef, useEffect, useLayoutEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { STATUS, normalizeStatuses } from '../constants.js';
 import { loadData } from '../data/cloudSync.js';
 
 import { ACTIVE_PROFILE_STORAGE_KEY } from '../data/localStore.js';
 
-export function useWorkspace({ authVersion, onAuthenticated, onHydrated, showToast }) {
-  const onHydratedRef = useRef(onHydrated);
-  useLayoutEffect(() => { onHydratedRef.current = onHydrated; });
+export function useWorkspace({ authVersion, onAuthenticated, showToast }) {
+  const [hydration, setHydration] = useState(null);
   const [tasks, setTasks] = useState([]);
   const [boardNotes, setBoardNotes] = useState([]);
   const [events, setEvents] = useState([]);
@@ -40,7 +39,7 @@ export function useWorkspace({ authVersion, onAuthenticated, onHydrated, showToa
         boardNotes: data.boardNotes,
         events: data.events || []
       };
-      onHydratedRef.current(data, loadedPayload);
+      setHydration({ payload: loadedPayload, preferredLocal: data.preferredLocal === true });
       const resolvedId = data.activeProfileId || activeProfileId;
       const loadLocalStatuses = (profileId) => {
         const stored = localStorage.getItem(`taskmanager_custom_statuses_${profileId || 'default'}`) || localStorage.getItem('taskmanager_custom_statuses');
@@ -87,5 +86,5 @@ export function useWorkspace({ authVersion, onAuthenticated, onHydrated, showToa
     return () => { cancelled = true; };
   }, [authVersion, activeProfileId, showToast, onAuthenticated]);
 
-  return { tasks, setTasks, boardNotes, setBoardNotes, events, setEvents, ready, setReady, hydratedSession, setHydratedSession, profiles, setProfiles, activeProfileId, setActiveProfileId, statuses, setStatuses };
+  return { hydration, tasks, setTasks, boardNotes, setBoardNotes, events, setEvents, ready, setReady, hydratedSession, setHydratedSession, profiles, setProfiles, activeProfileId, setActiveProfileId, statuses, setStatuses };
 }
