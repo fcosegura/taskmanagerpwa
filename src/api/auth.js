@@ -18,5 +18,9 @@ export async function logoutSession() {
 
 export async function checkSession() {
   const resp = await fetch('/api/session', { credentials: 'same-origin' });
-  return resp.ok;
+  // Only 401 means the session is gone; any other failure is transient and must
+  // not log the user out.
+  if (resp.status === 401) return false;
+  if (!resp.ok) throw new Error(`Session check failed (${resp.status})`);
+  return true;
 }

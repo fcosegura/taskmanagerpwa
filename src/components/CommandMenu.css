@@ -1,3 +1,5 @@
+/* Global stylesheet: imported from src/index.css to keep the original cascade.
+   Do not import it from CommandMenu.jsx (it would load twice and reorder the rules). */
 /* Command Menu Modal */
 .command-menu-overlay {
   position: fixed;

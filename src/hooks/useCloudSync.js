@@ -133,7 +133,7 @@ export function useCloudSync({ tasks, boardNotes, events, ready, authenticated, 
       document.removeEventListener('visibilitychange', onVisibilityChange);
       window.removeEventListener('beforeunload', onBeforeUnload);
     };
-  }, [authenticated, ready, hydratedSession, activeProfileId]);
+  }, [authenticated]);
 
   useEffect(() => () => {
     if (syncFeedbackTimerRef.current) window.clearTimeout(syncFeedbackTimerRef.current);
@@ -141,5 +141,17 @@ export function useCloudSync({ tasks, boardNotes, events, ready, authenticated, 
   }, [clearSyncDebounce]);
 
   const syncNow = useCallback((options) => syncNowRef.current(options), []);
-  return { syncState, setSyncState, isOnline, reconnecting, syncNow };
+
+  /** Clears pending sync work and feedback at the end of a session. */
+  const resetSync = useCallback(() => {
+    clearSyncDebounce();
+    if (syncFeedbackTimerRef.current) {
+      window.clearTimeout(syncFeedbackTimerRef.current);
+      syncFeedbackTimerRef.current = null;
+    }
+    pendingSyncRef.current = false;
+    setSyncState('idle');
+  }, [clearSyncDebounce]);
+
+  return { syncState, isOnline, reconnecting, syncNow, resetSync };
 }

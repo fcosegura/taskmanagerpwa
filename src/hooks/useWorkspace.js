@@ -1,11 +1,20 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { STATUS, normalizeStatuses } from '../constants.js';
 import { loadData } from '../data/cloudSync.js';
 
-import { ACTIVE_PROFILE_STORAGE_KEY } from '../data/localStore.js';
+import { ACTIVE_PROFILE_STORAGE_KEY, readLocalCustomStatuses, writeLocalCustomStatuses } from '../data/localStore.js';
+
+function persistActiveProfileId(profileId) {
+  try {
+    localStorage.setItem(ACTIVE_PROFILE_STORAGE_KEY, profileId);
+  } catch {
+    // ignore
+  }
+}
 
 export function useWorkspace({ authVersion, onAuthenticated, showToast }) {
   const [hydration, setHydration] = useState(null);
+  const [reloadVersion, setReloadVersion] = useState(0);
   const [tasks, setTasks] = useState([]);
   const [boardNotes, setBoardNotes] = useState([]);
   const [events, setEvents] = useState([]);
@@ -13,20 +22,9 @@ export function useWorkspace({ authVersion, onAuthenticated, showToast }) {
   const [hydratedSession, setHydratedSession] = useState(null);
   const [profiles, setProfiles] = useState([]);
   const [activeProfileId, setActiveProfileId] = useState(() => localStorage.getItem(ACTIVE_PROFILE_STORAGE_KEY) || null);
-  const [statuses, setStatuses] = useState(() => {
-    try {
-      const activeId = localStorage.getItem(ACTIVE_PROFILE_STORAGE_KEY) || null;
-      const key = activeId ? `taskmanager_custom_statuses_${activeId}` : 'taskmanager_custom_statuses';
-      const stored = localStorage.getItem(key) || localStorage.getItem('taskmanager_custom_statuses');
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) return normalizeStatuses(parsed);
-      }
-    } catch {
-      // ignore
-    }
-    return normalizeStatuses(STATUS);
-  });
+  const [statuses, setStatuses] = useState(() => normalizeStatuses(
+    readLocalCustomStatuses(localStorage.getItem(ACTIVE_PROFILE_STORAGE_KEY) || null) || STATUS
+  ));
   useEffect(() => {
     let cancelled = false;
     loadData(activeProfileId).then((data) => {
@@ -41,40 +39,22 @@ export function useWorkspace({ authVersion, onAuthenticated, showToast }) {
       };
       setHydration({ payload: loadedPayload, preferredLocal: data.preferredLocal === true });
       const resolvedId = data.activeProfileId || activeProfileId;
-      const loadLocalStatuses = (profileId) => {
-        const stored = localStorage.getItem(`taskmanager_custom_statuses_${profileId || 'default'}`) || localStorage.getItem('taskmanager_custom_statuses');
-        if (stored) {
-          try {
-            const parsed = JSON.parse(stored);
-            if (Array.isArray(parsed) && parsed.length > 0) {
-              setStatuses(normalizeStatuses(parsed));
-              return;
-            }
-          } catch {
-            // ignore
-          }
-        }
-        setStatuses(normalizeStatuses(STATUS));
-      };
 
-      if (Array.isArray(data.profiles) && data.profiles.length > 0) {
+      if (Array.isArray(data.profiles)) {
         setProfiles(data.profiles);
-        const activeProfile = data.profiles.find((p) => p.id === resolvedId);
-        if (activeProfile && Array.isArray(activeProfile.customStatuses)) {
-          setStatuses(normalizeStatuses(activeProfile.customStatuses));
-          localStorage.setItem(`taskmanager_custom_statuses_${activeProfile.id}`, JSON.stringify(activeProfile.customStatuses));
-        } else {
-          loadLocalStatuses(resolvedId);
-        }
+      }
+      const activeProfile = Array.isArray(data.profiles)
+        ? data.profiles.find((p) => p.id === resolvedId)
+        : null;
+      if (activeProfile && Array.isArray(activeProfile.customStatuses)) {
+        setStatuses(normalizeStatuses(activeProfile.customStatuses));
+        writeLocalCustomStatuses(activeProfile.id, activeProfile.customStatuses);
       } else {
-        if (Array.isArray(data.profiles)) {
-          setProfiles(data.profiles);
-        }
-        loadLocalStatuses(resolvedId);
+        setStatuses(normalizeStatuses(readLocalCustomStatuses(resolvedId) || STATUS));
       }
       if (data.activeProfileId && data.activeProfileId !== activeProfileId) {
         setActiveProfileId(data.activeProfileId);
-        localStorage.setItem(ACTIVE_PROFILE_STORAGE_KEY, data.activeProfileId);
+        persistActiveProfileId(data.activeProfileId);
       }
       onAuthenticated(data.authenticated);
       setHydratedSession(data.authenticated);
@@ -84,7 +64,50 @@ export function useWorkspace({ authVersion, onAuthenticated, showToast }) {
       setReady(true);
     });
     return () => { cancelled = true; };
-  }, [authVersion, activeProfileId, showToast, onAuthenticated]);
+  }, [authVersion, reloadVersion, activeProfileId, showToast, onAuthenticated]);
 
-  return { hydration, tasks, setTasks, boardNotes, setBoardNotes, events, setEvents, ready, setReady, hydratedSession, setHydratedSession, profiles, setProfiles, activeProfileId, setActiveProfileId, statuses, setStatuses };
+  const clearWorkspaceData = useCallback(() => {
+    setReady(false);
+    setTasks([]);
+    setBoardNotes([]);
+    setEvents([]);
+  }, []);
+
+  /** Drops every piece of workspace state at the end of a session. */
+  const resetWorkspace = useCallback(() => {
+    clearWorkspaceData();
+    setHydratedSession(null);
+    setProfiles([]);
+    setActiveProfileId(null);
+  }, [clearWorkspaceData]);
+
+  /** Activates another workspace; its data is loaded by the effect above. */
+  const switchProfile = useCallback((profileId) => {
+    if (!profileId || profileId === activeProfileId) return false;
+    clearWorkspaceData();
+    setActiveProfileId(profileId);
+    persistActiveProfileId(profileId);
+    return true;
+  }, [activeProfileId, clearWorkspaceData]);
+
+  /** Marks the workspace as loading until the next load completes. */
+  const invalidateWorkspace = useCallback(() => setReady(false), []);
+
+  /** Reloads the active workspace from the cloud (e.g. after an import). */
+  const reloadWorkspace = useCallback(() => {
+    setReady(false);
+    setReloadVersion((version) => version + 1);
+  }, []);
+
+  /** Updates the active workspace statuses and their local cache. */
+  const saveStatuses = useCallback((nextStatuses, profileId = activeProfileId) => {
+    setStatuses(nextStatuses);
+    writeLocalCustomStatuses(profileId, nextStatuses);
+  }, [activeProfileId]);
+
+  return {
+    hydration, tasks, setTasks, boardNotes, setBoardNotes, events, setEvents, ready, hydratedSession,
+    profiles, setProfiles, activeProfileId, statuses,
+    resetWorkspace, switchProfile, invalidateWorkspace, reloadWorkspace, saveStatuses,
+  };
 }

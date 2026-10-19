@@ -1,3 +1,5 @@
+/* Global stylesheet: imported from src/index.css to keep the original cascade.
+   Do not import it from TodayView.jsx (it would load twice and reorder the rules). */
 /* TodayView Styles */
 .today-view-container {
   display: flex;

@@ -10,9 +10,12 @@ formatos de sincronización y cifrado AES-GCM. No se añaden dependencias.
 - `hooks/useSession.js`: autenticación, login/logout y verificación de sesión;
   notifica a App para limpiar su interfaz.
 - `hooks/useWorkspace.js`: estado de los datos del workspace, perfiles y estados
-  personalizados; carga y descarta respuestas de cargas canceladas.
+  personalizados; carga y descarta respuestas de cargas canceladas. Expone
+  `resetWorkspace`, `switchProfile`, `invalidateWorkspace`, `reloadWorkspace` y
+  `saveStatuses` en lugar de los setters internos (`ready`, `hydratedSession`).
 - `hooks/useCloudSync.js`: debounce, exclusión de escrituras concurrentes,
   seguimiento de cambios pendientes, reconexión y eventos de visibilidad.
+  `resetSync` limpia el trabajo pendiente al cerrar la sesión.
 - `api/`: clientes HTTP de autenticación, perfiles, Task AI, Note AI y reintentos
   de lectura. No contienen estado React.
 - `data/localStore.js`: acceso a localStorage, claves por perfil y cache Note AI.
@@ -62,4 +65,6 @@ anterior y evitar diferencias entre vistas cargadas con React.lazy.
 
 Este refactor conserva el comportamiento anterior. Los problemas de resolución
 de conflictos offline y de validación de sesión descritos en la revisión requieren
-cambios funcionales independientes.
+cambios funcionales independientes. Dos excepciones ya aplicadas en el cliente:
+`checkSession` solo considera expirada la sesión ante un 401 (los 5xx son
+transitorios) y el logout local se completa aunque `/api/logout` falle sin red.

@@ -9,7 +9,7 @@ import { validateBackupPayload, normalizeDataPayload, isMultiBackupPayload, vali
 import { createProfile, deleteProfile, updateProfileStatuses } from './api/profiles.js';
 import { parseTaskWithAI, generateTasksFromText, generateDailyStatus } from './api/taskAi.js';
 import { fetchNoteAiMeta, searchNotesSemantic, fetchRelatedNotes, dismissNoteAiSuggestionClient, fetchNoteDuplicates, fetchNotesOrganizeLayout } from './api/noteAi.js';
-import { loadCachedNoteAiMeta, ACTIVE_PROFILE_STORAGE_KEY } from './data/localStore.js';
+import { loadCachedNoteAiMeta, writeLocalCustomStatuses } from './data/localStore.js';
 import { appendStatusLogEntry } from './statusLog.js';
 import { collectDailyStatusActivities } from './dailyStatusActivities.js';
 import { getUpcomingTasks, canonicalizeDateOnly } from './todayViewHelpers.js';
@@ -97,15 +97,15 @@ const DENSITY_STORAGE_KEY = 'taskmanager_density';
 export default function App() {
   const { toasts, showToast, dismiss: dismissToast, clearToasts } = useToasts();
   const {
-    authenticated, setAuthenticated, authVersion, setAuthVersion, sessionExpiredLoggedOut,
+    authenticated, setAuthenticated, authVersion, sessionExpiredLoggedOut,
     login, logout, expireSession,
   } = useSession();
   const {
-    tasks, setTasks, boardNotes, setBoardNotes, events, setEvents, ready, setReady,
-    hydratedSession, setHydratedSession, profiles, setProfiles, hydration,
-    activeProfileId, setActiveProfileId, statuses, setStatuses,
+    tasks, setTasks, boardNotes, setBoardNotes, events, setEvents, ready,
+    hydratedSession, profiles, setProfiles, hydration, activeProfileId, statuses,
+    resetWorkspace, switchProfile, invalidateWorkspace, reloadWorkspace, saveStatuses,
   } = useWorkspace({ authVersion, onAuthenticated: setAuthenticated, showToast });
-  const { syncState, setSyncState, isOnline, reconnecting, syncNow } = useCloudSync({
+  const { syncState, isOnline, reconnecting, syncNow, resetSync } = useCloudSync({
     tasks, boardNotes, events, ready, authenticated, hydratedSession, activeProfileId, hydration,
   });
 
@@ -185,8 +185,7 @@ export default function App() {
         void e;
       }
     }
-    setStatuses(newStatuses);
-    localStorage.setItem(`taskmanager_custom_statuses_${activeProfileId || 'default'}`, JSON.stringify(newStatuses));
+    saveStatuses(newStatuses);
 
     if (authenticated && activeProfileId) {
       try {
@@ -322,21 +321,14 @@ export default function App() {
   });
   const resetSessionUi = useCallback(() => {
     setUiMode(null);
-    setReady(false);
-    setHydratedSession(null);
-    setTasks([]);
-    setBoardNotes([]);
-    setEvents([]);
+    resetWorkspace();
+    resetSync();
     setModal(null);
     setTaskPreviewId(null);
-    setProfiles([]);
-    setActiveProfileId(null);
-    setSyncState('idle');
     setShowProfileMenu(false);
     clearToasts();
     clearUndoTransaction();
-  }, [setUiMode, setReady, setHydratedSession, setTasks, setBoardNotes, setEvents,
-    setModal, setTaskPreviewId, setProfiles, setActiveProfileId, setSyncState,
+  }, [setUiMode, resetWorkspace, resetSync, setModal, setTaskPreviewId,
     setShowProfileMenu, clearToasts]);
 
   const handleSessionExpired = useCallback(() => {
@@ -347,7 +339,7 @@ export default function App() {
 
   const handleLoginSuccess = async (credential) => {
     await login(credential);
-    setReady(false);
+    invalidateWorkspace();
     setUiMode(null);
   };
 
@@ -735,12 +727,7 @@ export default function App() {
     setBoardNotes(normalized.boardNotes);
     setEvents(normalized.events);
     if (normalized.customStatuses) {
-      setStatuses(normalizeStatuses(normalized.customStatuses));
-      try {
-        localStorage.setItem(`taskmanager_custom_statuses_${activeProfileId || 'default'}`, JSON.stringify(normalized.customStatuses));
-      } catch {
-        // El guardado local puede fallar por cuota o modo privado.
-      }
+      saveStatuses(normalizeStatuses(normalized.customStatuses));
       if (authenticated && activeProfileId) {
         updateProfileStatuses(activeProfileId, normalized.customStatuses).catch(console.error);
       }
@@ -788,11 +775,7 @@ export default function App() {
         await saveData(payload, true, targetProfile.id);
         if (workspace.customStatuses) {
           await updateProfileStatuses(targetProfile.id, workspace.customStatuses);
-          try {
-            localStorage.setItem(`taskmanager_custom_statuses_${targetProfile.id}`, JSON.stringify(workspace.customStatuses));
-          } catch {
-            // El guardado local puede fallar por cuota o modo privado.
-          }
+          writeLocalCustomStatuses(targetProfile.id, workspace.customStatuses);
         }
         restoredCount += 1;
       } catch (err) {
@@ -808,8 +791,7 @@ export default function App() {
     setSummaryFilter('none');
     clearUndoTransaction();
     clearToasts();
-    setReady(false);
-    setAuthVersion((version) => version + 1);
+    reloadWorkspace();
 
     if (errors.length === 0) {
       showToast(`Importados ${restoredCount} workspace${restoredCount === 1 ? '' : 's'} correctamente.`, { type: 'success', duration: 4500 });
@@ -1389,8 +1371,7 @@ export default function App() {
     }
     clearUndoTransaction();
     clearToasts();
-    setActiveProfileId(profileId);
-    localStorage.setItem(ACTIVE_PROFILE_STORAGE_KEY, profileId);
+    switchProfile(profileId);
     setView('tasks');
     setFilter('all');
     setCategoryFilter('all');
@@ -1399,12 +1380,8 @@ export default function App() {
     setModal(null);
     setTaskPreviewId(null);
     setEventModal(null);
-    setTasks([]);
-    setBoardNotes([]);
-    setEvents([]);
     setAiGenerationError('');
     setAiPlanPreview(null);
-    setReady(false);
     setShowProfileMenu(false);
   };
 
@@ -1550,10 +1527,7 @@ export default function App() {
         try {
           const data = await loadData(activeProfileId);
           if (Array.isArray(data?.profiles)) setProfiles(data.profiles);
-          if (typeof data?.activeProfileId === 'string') {
-            setActiveProfileId(data.activeProfileId);
-            localStorage.setItem(ACTIVE_PROFILE_STORAGE_KEY, data.activeProfileId);
-          }
+          if (typeof data?.activeProfileId === 'string') switchProfile(data.activeProfileId);
         } catch {
           // Keep original error toast if refresh fails.
         }

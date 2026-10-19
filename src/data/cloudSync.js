@@ -6,16 +6,6 @@ import { fetchCloudReadWithRetry, TRANSIENT_READ_STATUSES } from '../api/cloudRe
 
 const lastCloudSnapshotByProfile = new Map();
 
-/**
- * Whether the most recent `loadData` kept local data because the cloud copy was
- * empty/invalid. Consumers (App) can use this to avoid marking the kept payload
- * as already synced and to re-push it to the cloud.
- */
-let lastLoadPreferLocal = false;
-
-export function didLastLoadPreferLocal() {
-  return lastLoadPreferLocal;
-}
 export async function fetchWorkspaceData(profileId) {
   if (!profileId) throw new Error('profileId es requerido para fetchWorkspaceData.');
   const resp = await fetchCloudReadWithRetry(`/api/data?profileId=${encodeURIComponent(profileId)}`, { credentials: 'same-origin' });
@@ -41,7 +31,6 @@ export async function fetchWorkspaceData(profileId) {
 
 export async function loadData(profileId = null) {
   const localData = readLocalPayload(profileId);
-  lastLoadPreferLocal = false;
 
   try {
     const query = profileId ? `?profileId=${encodeURIComponent(profileId)}` : '';
@@ -56,7 +45,6 @@ export async function loadData(profileId = null) {
       const cloudHasData = hasAnyData(safeCloudData);
       const shouldPreferLocal = localHasData && !cloudHasData;
       const effectiveData = shouldPreferLocal ? localData : safeCloudData;
-      lastLoadPreferLocal = shouldPreferLocal;
       if (resolvedProfileId) {
         // When local wins over an empty cloud, record the real (empty) cloud snapshot
         // so the next saveData pushes local up instead of treating it as synced.

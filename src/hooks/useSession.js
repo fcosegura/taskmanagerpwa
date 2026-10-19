@@ -25,16 +25,20 @@ export function useSession() {
     setAuthVersion((version) => version + 1);
   }, []);
 
-  const logout = async () => {
-    await logoutSession();
+  const logout = useCallback(async () => {
+    try {
+      await logoutSession();
+    } catch {
+      // Best-effort: the local logout must happen even offline.
+    }
     setAuthenticated(false);
     try {
       localStorage.removeItem('taskmanager_session_expired');
+      localStorage.removeItem(ACTIVE_PROFILE_STORAGE_KEY);
     } catch {
       // ignore
     }
-    localStorage.removeItem(ACTIVE_PROFILE_STORAGE_KEY);
-  };
+  }, []);
 
   const expireSession = useCallback(() => {
     try {
@@ -48,7 +52,9 @@ export function useSession() {
   }, []);
 
 
-  return { authenticated, setAuthenticated, authVersion, setAuthVersion, sessionExpiredLoggedOut, login, logout, expireSession };
+  // setAuthenticated is only handed to useWorkspace, which reports the session
+  // state observed while loading the workspace.
+  return { authenticated, setAuthenticated, authVersion, sessionExpiredLoggedOut, login, logout, expireSession };
 }
 
 // Called after App has initialized its UI state, so expiration can clear both

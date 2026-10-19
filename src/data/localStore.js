@@ -39,6 +39,33 @@ export function writeLocalPayload(payload, profileId = null) {
   localStorage.setItem(profileStorageKey(profileId), JSON.stringify(payload));
 }
 
+const CUSTOM_STATUSES_STORAGE_KEY = 'taskmanager_custom_statuses';
+
+function customStatusesStorageKey(profileId) {
+  return `${CUSTOM_STATUSES_STORAGE_KEY}_${profileId || 'default'}`;
+}
+
+/** Custom statuses cached for a profile (falls back to the legacy global key), or null. */
+export function readLocalCustomStatuses(profileId) {
+  try {
+    const stored = localStorage.getItem(customStatusesStorageKey(profileId))
+      || localStorage.getItem(CUSTOM_STATUSES_STORAGE_KEY);
+    if (!stored) return null;
+    const parsed = JSON.parse(stored);
+    return Array.isArray(parsed) && parsed.length > 0 ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+export function writeLocalCustomStatuses(profileId, statuses) {
+  try {
+    localStorage.setItem(customStatusesStorageKey(profileId), JSON.stringify(statuses));
+  } catch {
+    // El guardado local puede fallar por cuota o modo privado.
+  }
+}
+
 const NOTE_AI_META_CACHE_PREFIX = 'taskmanager_note_ai_meta:';
 
 export function cacheNoteAiMetaLocal(profileId, metaList) {
