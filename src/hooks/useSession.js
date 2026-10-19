@@ -3,7 +3,6 @@ import { loginWithGoogleCredential, logoutSession, checkSession } from '../api/a
 import { ACTIVE_PROFILE_STORAGE_KEY } from '../data/localStore.js';
 
 export function useSession() {
-  const [sessionEndVersion, setSessionEndVersion] = useState(0);
   const [authenticated, setAuthenticated] = useState(null);
   const [authVersion, setAuthVersion] = useState(0);
   const [sessionExpiredLoggedOut, setSessionExpiredLoggedOut] = useState(() => {
@@ -29,7 +28,6 @@ export function useSession() {
   const logout = async () => {
     await logoutSession();
     setAuthenticated(false);
-    setSessionEndVersion((version) => version + 1);
     try {
       localStorage.removeItem('taskmanager_session_expired');
     } catch {
@@ -38,7 +36,7 @@ export function useSession() {
     localStorage.removeItem(ACTIVE_PROFILE_STORAGE_KEY);
   };
 
-  const forceLogout = useCallback(() => {
+  const expireSession = useCallback(() => {
     try {
       localStorage.setItem('taskmanager_session_expired', '1');
     } catch {
@@ -46,10 +44,16 @@ export function useSession() {
     }
     setSessionExpiredLoggedOut(true);
     setAuthenticated(false);
-    setSessionEndVersion((version) => version + 1);
     // Keep ACTIVE_PROFILE_STORAGE_KEY so the last workspace can be restored on re-login.
   }, []);
 
+
+  return { authenticated, setAuthenticated, authVersion, setAuthVersion, sessionExpiredLoggedOut, login, logout, expireSession };
+}
+
+// Called after App has initialized its UI state, so expiration can clear both
+// auth and interface state directly in the asynchronous session-check callback.
+export function useSessionLiveness(authenticated, onExpired) {
   useEffect(() => {
     if (!authenticated) return undefined;
     let cancelled = false;
@@ -57,7 +61,7 @@ export function useSession() {
       try {
         const active = await checkSession();
         if (!cancelled && !active) {
-          forceLogout();
+          onExpired();
         }
       } catch {
         // Ignore transient network errors and keep current session state.
@@ -74,7 +78,6 @@ export function useSession() {
       window.clearInterval(intervalId);
       document.removeEventListener('visibilitychange', onVisibilityChange);
     };
-  }, [authenticated, forceLogout]);
+  }, [authenticated, onExpired]);
 
-  return { authenticated, setAuthenticated, authVersion, setAuthVersion, sessionExpiredLoggedOut, sessionEndVersion, login, logout };
 }

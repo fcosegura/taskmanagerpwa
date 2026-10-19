@@ -1,4 +1,4 @@
-import { useSession } from './hooks/useSession.js';
+import { useSession, useSessionLiveness } from './hooks/useSession.js';
 import { useWorkspace } from './hooks/useWorkspace.js';
 import { useCloudSync } from './hooks/useCloudSync.js';
 import { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense, startTransition } from 'react';
@@ -98,7 +98,7 @@ export default function App() {
   const { toasts, showToast, dismiss: dismissToast, clearToasts } = useToasts();
   const {
     authenticated, setAuthenticated, authVersion, setAuthVersion, sessionExpiredLoggedOut,
-    sessionEndVersion, login, logout,
+    login, logout, expireSession,
   } = useSession();
   const {
     tasks, setTasks, boardNotes, setBoardNotes, events, setEvents, ready, setReady,
@@ -320,9 +320,7 @@ export default function App() {
     if (typeof window === 'undefined') return false;
     return window.matchMedia?.('(display-mode: standalone)').matches || false;
   });
-  // Session state flows down from useSession; UI cleanup stays in App.
-  useEffect(() => {
-    if (sessionEndVersion === 0) return;
+  const resetSessionUi = useCallback(() => {
     setUiMode(null);
     setReady(false);
     setHydratedSession(null);
@@ -337,8 +335,13 @@ export default function App() {
     setShowProfileMenu(false);
     clearToasts();
     clearUndoTransaction();
-  }, [sessionEndVersion, setReady, setHydratedSession, setTasks, setBoardNotes,
-    setEvents, setProfiles, setActiveProfileId, setSyncState, clearToasts]);
+  }, [setReady, setHydratedSession, setTasks, setBoardNotes, setEvents, setProfiles, setActiveProfileId, setSyncState, clearToasts]);
+
+  const handleSessionExpired = useCallback(() => {
+    expireSession();
+    resetSessionUi();
+  }, [expireSession, resetSessionUi]);
+  useSessionLiveness(authenticated, handleSessionExpired);
 
   const handleLoginSuccess = async (credential) => {
     await login(credential);
@@ -349,6 +352,7 @@ export default function App() {
   const handleLogout = async () => {
     await syncNow({ immediate: true });
     await logout();
+    resetSessionUi();
   };
 
   useEffect(() => {
