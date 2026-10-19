@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { STATUS, PRIORITY, isTerminalStatus } from '../constants.js';
 import { fmtDate, parseDateTimeFromDescription, parseDescriptionDateResult, cleanDescriptionSegment } from '../utils.jsx';
 import { isJiraCategory, normalizeTicketNumber, applyTicketNumberToTaskName, extractJiraTicketFromUrl, getJiraTaskDefaultsFromUrl } from '../jiraTicket.js';
-import { parseTaskWithAI } from '../storage.js';
+import { parseTaskWithAI } from '../api/taskAi.js';
 import { isChildTaskStatusAllowed } from '../childTaskStatusPrefs.js';
 import { useModalDialog } from '../hooks/useModalDialog.js';
 import { Spinner } from './ui/index.jsx';
@@ -420,3 +420,4 @@ export default function TaskModal({ task, categories, allTasks = [], onSave, onD
     </form>
   );
 }
+

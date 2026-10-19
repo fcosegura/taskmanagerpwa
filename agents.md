@@ -1,6 +1,7 @@
 # agents.md — Task Manager PWA
 
 > Guía comprensiva del proyecto para agentes de IA. Lee este archivo completo antes de modificar cualquier código.
+> Arquitectura actual tras el refactor autorizado: [docs/architecture.md](docs/architecture.md). Esta referencia actualiza el mapa histórico y los tamaños mostrados abajo.
 
 ---
 
@@ -237,7 +238,7 @@ La app **no usa** React Router ni ningún router. Es un **SPA de una sola ruta**
 
 ### 3.3 State Management
 
-**No se usa ninguna librería de estado** (ni Redux, ni Zustand, ni Context). Todo el estado reside en `App.jsx` mediante `useState`, `useRef`, `useCallback`, `useMemo`.
+**No se usa ninguna librería de estado** (ni Redux, ni Zustand, ni Context). `App.jsx` compone hooks propios: `useSession` gestiona auth, `useWorkspace` gestiona datos/perfiles y `useCloudSync` gestiona sincronización. El estado de navegación, modos e interacción permanece en App.
 
 Estado principal en `App.jsx`:
 
@@ -567,7 +568,7 @@ Los helpers `safeExec` ignoran únicamente errores esperados de schema repetido 
 
 ### 6.1 Persistencia Local
 
-`storage.js` es la capa de persistencia. Keys en `localStorage`: `taskmanager_v1:<profileId>` (con fallback a `taskmanager_v1`).
+`storage.js` es una fachada de compatibilidad. `data/localStore.js` accede a localStorage; `data/cloudSync.js` coordina lecturas/escrituras cloud; `api/` contiene los clientes HTTP. Keys en `localStorage`: `taskmanager_v1:<profileId>` (con fallback a `taskmanager_v1`).
 
 ```
 Acción del usuario (ej: crear tarea)
@@ -958,7 +959,7 @@ Pipeline async server-side (Queue / `waitUntil`) disparado por sync de notes.
 ### 10.2 Convenciones CSS
 
 - **Vanilla CSS** — No usa Tailwind, SASS, ni CSS-in-JS
-- **Material Design 3**: `index.css` define tokens M3 (color roles, elevation, shape) y los aplica a componentes
+- **Material Design 3**: `styles/tokens.css` define tokens M3 (color roles, elevation, shape); `index.css` importa los módulos CSS en el orden de cascada establecido
 - **Variables CSS** para temas (light/dark)
 - **Dark mode**: clase en root + variables CSS
 - **Densidad**: atributo `data-density="comfortable|compact"` en `.app-shell`
@@ -1179,7 +1180,7 @@ npm run deploy   # = vite build && wrangler deploy
 
 - **JavaScript puro** (no TypeScript). Componentes usan `.jsx`, lógica usa `.js`.
 - **ESModules** (`"type": "module"` en package.json).
-- **App.jsx contiene TODO el estado**. No refactorizar a Context/Redux sin aprobación explícita.
+- **Estado con hooks propios**: App conserva navegación/modos/interacción; `useSession`, `useWorkspace` y `useCloudSync` separan los ciclos de vida. No migrar a Context/Redux sin aprobación explícita.
 - **Props drilling** es el patrón establecido.
 - **React.lazy + Suspense** para code-splitting de vistas.
 - **Vite manual chunks**: `vendor-react`, `vendor-react-dom`, `vendor-chrono`.
@@ -1203,7 +1204,7 @@ npm run deploy   # = vite build && wrangler deploy
 
 ### 17.4 Backend
 
-- Worker como un solo archivo (`src/worker.js`) con `export default { fetch, queue }`.
+- Entry point `src/worker.js` con `export default { fetch, queue }`; rutas y servicios en `src/worker/`, repositorio de entidades en `src/worker/repositories/`.
 - Lógica Note AI en `src/noteAi/` (pipeline importado por el worker); **no** dividir `pipeline.js` sin aprobación.
 - Router manual (switch sobre pathname y method).
 - Queries parametrizadas con `.bind(...)`.
@@ -1225,15 +1226,15 @@ npm run deploy   # = vite build && wrangler deploy
 
 > **⚠️ LEER ANTES DE HACER CUALQUIER CAMBIO**
 
-1. **No cambiar la arquitectura de estado**. El estado centralizado en `App.jsx` con props drilling es intencional. No migrar a Context, Redux, Zustand, etc.
+1. **Conservar props drilling y hooks propios**. El estado se reparte entre App y los hooks de sesión/workspace/sync. No migrar a Context, Redux, Zustand, etc.
 
 2. **No migrar a TypeScript** sin instrucción explícita del usuario.
 
 3. **No agregar dependencias** sin justificación. El proyecto es intencionalmente minimal (`react`, `react-dom`, `chrono-node`).
 
-4. **No dividir `worker.js`** en múltiples archivos sin aprobación. Es un solo archivo por diseño (`fetch` + `queue`). La lógica Note AI vive en `src/noteAi/` importada por el worker.
+4. **Conservar el entry point del Worker** (`fetch` + `queue`) y la separación de rutas, servicios y repositorios en `src/worker/`. La lógica Note AI sigue en `src/noteAi/`.
 
-5. **No dividir `App.jsx`** en múltiples archivos de estado sin aprobación.
+5. **Mantener los límites de los hooks**: sesión en `useSession`, carga/datos de workspace en `useWorkspace`, guardado/reconexión en `useCloudSync`; navegación y modos permanecen en App.
 
 6. **Respetar el sistema de estilos**. No introducir Tailwind, CSS modules, styled-components, etc.
 
@@ -1294,3 +1295,4 @@ npm run deploy   # = vite build && wrangler deploy
 34. **Allowlists de status**: filtrar candidatos con `isChildTaskStatusAllowed` / `allowedStatuses` y normalizar contra los statuses válidos del perfil. Las keys de localStorage (`childTaskAllowedStatuses`, `nextFocusAllowedStatuses`) son globales, no por perfil.
 
 35. **Selector de modo**: `ModeSelector` se muestra en cada apertura tras autenticación y `uiMode` es estado **en memoria** (no persistido; recargar vuelve al selector). No mover `uiMode` ni el flujo de modos fuera de `App.jsx`.
+

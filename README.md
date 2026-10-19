@@ -34,6 +34,10 @@ Aplicación de gestión de tareas de tipo **Progressive Web App (PWA)** con sopo
 
 ---
 
+## Arquitectura
+
+La separación de hooks, clientes de API, persistencia, rutas del Worker y estilos está documentada en [docs/architecture.md](docs/architecture.md).
+
 ## 🛠️ Stack Tecnológico
 
 | Capa | Tecnología |
@@ -144,4 +148,5 @@ npx wrangler secret put DATA_ENCRYPTION_KEY   # clave AES-256 de 32 bytes
 ## 📄 Licencia
 
 Este proyecto es privado. Todos los derechos reservados.
+
 

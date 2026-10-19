@@ -1,7 +1,15 @@
-import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, lazy, Suspense, startTransition } from 'react';
+import { useSession } from './hooks/useSession.js';
+import { useWorkspace } from './hooks/useWorkspace.js';
+import { useCloudSync } from './hooks/useCloudSync.js';
+import { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense, startTransition } from 'react';
 import { STATUS, PRIORITY, normalizeStatuses, isTerminalStatus } from './constants.js';
 import { uid, toDateStr, compareTasksForTaskList, parseDateTimeFromDescription, parseDescriptionDateResult, cleanDescriptionSegment, mergeTaskCompletionMeta } from './utils.jsx';
-import { loadData, saveData, validateBackupPayload, normalizeDataPayload, loginWithGoogleCredential, logoutSession, createProfile, deleteProfile, updateProfileStatuses, parseTaskWithAI, checkSession, generateTasksFromText, generateDailyStatus, fetchWorkspaceData, isMultiBackupPayload, validateMultiBackupPayload, normalizeMultiBackupPayload, fetchNoteAiMeta, loadCachedNoteAiMeta, searchNotesSemantic, fetchRelatedNotes, dismissNoteAiSuggestionClient, fetchNoteDuplicates, fetchNotesOrganizeLayout, didLastLoadPreferLocal } from './storage.js';
+import { loadData, saveData, fetchWorkspaceData } from './data/cloudSync.js';
+import { validateBackupPayload, normalizeDataPayload, isMultiBackupPayload, validateMultiBackupPayload, normalizeMultiBackupPayload } from './data/normalize.js';
+import { createProfile, deleteProfile, updateProfileStatuses } from './api/profiles.js';
+import { parseTaskWithAI, generateTasksFromText, generateDailyStatus } from './api/taskAi.js';
+import { fetchNoteAiMeta, searchNotesSemantic, fetchRelatedNotes, dismissNoteAiSuggestionClient, fetchNoteDuplicates, fetchNotesOrganizeLayout } from './api/noteAi.js';
+import { loadCachedNoteAiMeta, ACTIVE_PROFILE_STORAGE_KEY } from './data/localStore.js';
 import { appendStatusLogEntry } from './statusLog.js';
 import { collectDailyStatusActivities } from './dailyStatusActivities.js';
 import { getUpcomingTasks, canonicalizeDateOnly } from './todayViewHelpers.js';
@@ -75,14 +83,6 @@ const preloadAllViews = () => {
 
 const QuickModeView = lazy(() => import('./components/QuickModeView.jsx'));
 
-function serializePayload(payload) {
-  try {
-    return JSON.stringify(payload);
-  } catch {
-    return '';
-  }
-}
-
 /** Compares an ISO timestamp's LOCAL calendar date against a `YYYY-MM-DD` string. */
 function isCompletedAtOnLocalDate(completedAt, dateStr) {
   if (!completedAt || !dateStr) return false;
@@ -91,12 +91,49 @@ function isCompletedAtOnLocalDate(completedAt, dateStr) {
   return toDateStr(date.getFullYear(), date.getMonth(), date.getDate()) === dateStr;
 }
 
-const ACTIVE_PROFILE_STORAGE_KEY = 'taskmanager_active_profile';
 const THEME_STORAGE_KEY = 'taskmanager_theme';
 const DENSITY_STORAGE_KEY = 'taskmanager_density';
 
 export default function App() {
-  const [authenticated, setAuthenticated] = useState(null);
+  const { toasts, showToast, dismiss: dismissToast, clearToasts } = useToasts();
+  const {
+    authenticated, setAuthenticated, authVersion, setAuthVersion, sessionExpiredLoggedOut,
+    login: handleLoginSuccess, logout: handleLogout,
+  } = useSession({
+    onLogin: () => { setReady(false); setUiMode(null); },
+    beforeLogout: () => syncNow({ immediate: true }),
+    onSessionEnd: () => {
+      setUiMode(null);
+      setReady(false);
+      setHydratedSession(null);
+      setTasks([]);
+      setBoardNotes([]);
+      setEvents([]);
+      setModal(null);
+      setTaskPreviewId(null);
+      setProfiles([]);
+      setActiveProfileId(null);
+      setSyncState('idle');
+      setShowProfileMenu(false);
+      clearToasts();
+      clearUndoTransaction();
+    },
+  });
+  const {
+    tasks, setTasks, boardNotes, setBoardNotes, events, setEvents, ready, setReady,
+    hydratedSession, setHydratedSession, profiles, setProfiles,
+    activeProfileId, setActiveProfileId, statuses, setStatuses,
+  } = useWorkspace({
+    authVersion,
+    onAuthenticated: setAuthenticated,
+    showToast,
+    onHydrated: (data, payload) => {
+      markHydrated(data, payload);
+    },
+  });
+  const { syncState, setSyncState, isOnline, reconnecting, syncNow, markHydrated } = useCloudSync({
+    tasks, boardNotes, events, ready, authenticated, hydratedSession, activeProfileId,
+  });
 
   useEffect(() => {
     if (!authenticated) return undefined;
@@ -108,22 +145,6 @@ export default function App() {
     const t = window.setTimeout(run, 800);
     return () => window.clearTimeout(t);
   }, [authenticated]);
-  const [authVersion, setAuthVersion] = useState(0);
-  const [tasks, setTasks] = useState([]);
-  const [statuses, setStatuses] = useState(() => {
-    try {
-      const activeId = localStorage.getItem(ACTIVE_PROFILE_STORAGE_KEY) || null;
-      const key = activeId ? `taskmanager_custom_statuses_${activeId}` : 'taskmanager_custom_statuses';
-      const stored = localStorage.getItem(key) || localStorage.getItem('taskmanager_custom_statuses');
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) return normalizeStatuses(parsed);
-      }
-    } catch {
-      // ignore
-    }
-    return normalizeStatuses(STATUS);
-  });
   const [showStatusManagerModal, setShowStatusManagerModal] = useState(false);
 
   const handleSaveStatuses = async (newStatuses) => {
@@ -205,10 +226,6 @@ export default function App() {
     }
   };
 
-  const [boardNotes, setBoardNotes] = useState([]);
-  const [events, setEvents] = useState([]);
-  const [ready, setReady] = useState(false);
-  const [hydratedSession, setHydratedSession] = useState(null);
   const [view, setViewImmediate] = useState('tasks');
   // Transición no bloqueante: React mantiene la vista actual en pantalla hasta que la nueva está lista (sin skeleton).
   const setView = useCallback((nextView) => {
@@ -282,9 +299,6 @@ export default function App() {
   const [noteOrganizeBusy, setNoteOrganizeBusy] = useState(false);
   const [boardLayoutAnimating, setBoardLayoutAnimating] = useState(false);
   const [backupMessage, setBackupMessage] = useState('');
-  const [syncState, setSyncState] = useState('idle');
-  const [profiles, setProfiles] = useState([]);
-  const [activeProfileId, setActiveProfileId] = useState(() => localStorage.getItem(ACTIVE_PROFILE_STORAGE_KEY) || null);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showActionsMenu, setShowActionsMenu] = useState(false);
   const [externalAppOpen, setExternalAppOpen] = useState(false);
@@ -323,111 +337,19 @@ export default function App() {
   const fileInputRef = useRef(null);
   const profileMenuRef = useRef(null);
   const actionsMenuRef = useRef(null);
-  const syncFeedbackTimerRef = useRef(null);
-  const syncDebounceTimerRef = useRef(null);
   const boardLayoutTimerRef = useRef(null);
-  const lastSyncedPayloadRef = useRef('');
-  const latestPayloadRef = useRef({ tasks: [], boardNotes: [], events: [] });
-  const syncInFlightRef = useRef(false);
-  const pendingSyncRef = useRef(false);
-  const syncNowRef = useRef(async () => false);
-  const isOnlineRef = useRef(typeof navigator !== 'undefined' ? navigator.onLine : true);
-
-  const { toasts, showToast, dismiss: dismissToast, clearToasts } = useToasts();
-  const [isOnline, setIsOnline] = useState(() => (typeof navigator !== 'undefined' ? navigator.onLine : true));
-  const [reconnecting, setReconnecting] = useState(false);
+  useEffect(() => () => {
+    if (boardLayoutTimerRef.current) window.clearTimeout(boardLayoutTimerRef.current);
+  }, []);
   const [installPromptEvent, setInstallPromptEvent] = useState(null);
   const [isInstalled, setIsInstalled] = useState(() => {
     if (typeof window === 'undefined') return false;
     return window.matchMedia?.('(display-mode: standalone)').matches || false;
   });
-  const [sessionExpiredLoggedOut, setSessionExpiredLoggedOut] = useState(() => {
-    try {
-      return localStorage.getItem('taskmanager_session_expired') === '1';
-    } catch {
-      return false;
-    }
-  });
-
-  const clearSyncDebounce = useCallback(() => {
-    if (syncDebounceTimerRef.current) {
-      window.clearTimeout(syncDebounceTimerRef.current);
-      syncDebounceTimerRef.current = null;
-    }
-  }, []);
-
-  useLayoutEffect(() => {
-    syncNowRef.current = async ({ immediate = false } = {}) => {
-      if (!ready || !authenticated || hydratedSession !== authenticated || !activeProfileId) return false;
-      const payload = latestPayloadRef.current;
-      const serialized = serializePayload(payload);
-      if (!serialized || serialized === lastSyncedPayloadRef.current) return false;
-
-      if (syncInFlightRef.current) {
-        pendingSyncRef.current = true;
-        return false;
-      }
-
-      if (immediate) clearSyncDebounce();
-
-      syncInFlightRef.current = true;
-      setSyncState('saving');
-      try {
-        await saveData(payload, authenticated, activeProfileId);
-        lastSyncedPayloadRef.current = serialized;
-        setSyncState('saved');
-        if (syncFeedbackTimerRef.current) window.clearTimeout(syncFeedbackTimerRef.current);
-        syncFeedbackTimerRef.current = window.setTimeout(() => setSyncState('idle'), 1600);
-        return true;
-      } catch {
-        setSyncState(isOnlineRef.current ? 'error' : 'offline');
-        return false;
-      } finally {
-        syncInFlightRef.current = false;
-        if (pendingSyncRef.current) {
-          pendingSyncRef.current = false;
-          void syncNowRef.current({ immediate: true });
-        }
-      }
-    };
-  }, [ready, authenticated, hydratedSession, activeProfileId, clearSyncDebounce]);
-
   useEffect(() => {
     const onSwUpdate = () => setSwUpdateAvailable(true);
     window.addEventListener('taskmanager-sw-update', onSwUpdate);
     return () => window.removeEventListener('taskmanager-sw-update', onSwUpdate);
-  }, []);
-
-  useEffect(() => {
-    const onOnline = () => {
-      isOnlineRef.current = true;
-      setIsOnline(true);
-      // Only show "Reconectando" if there is actually pending data to flush.
-      // We compare against lastSyncedPayloadRef but guard against the case where
-      // lastSyncedPayloadRef is still empty (first load) so we don't get stuck.
-      const currentSerialized = serializePayload(latestPayloadRef.current);
-      const hasPending =
-        currentSerialized !== '' &&
-        currentSerialized !== lastSyncedPayloadRef.current;
-      if (hasPending) {
-        setReconnecting(true);
-        void syncNowRef.current({ immediate: true })
-          .then(() => setReconnecting(false))
-          .catch(() => setReconnecting(false))
-          .finally(() => setReconnecting(false));
-      }
-    };
-    const onOffline = () => {
-      isOnlineRef.current = false;
-      setIsOnline(false);
-      setReconnecting(false);
-    };
-    window.addEventListener('online', onOnline);
-    window.addEventListener('offline', onOffline);
-    return () => {
-      window.removeEventListener('online', onOnline);
-      window.removeEventListener('offline', onOffline);
-    };
   }, []);
 
   useEffect(() => {
@@ -473,69 +395,6 @@ export default function App() {
   }, [theme]);
 
   useEffect(() => {
-    let cancelled = false;
-    loadData(activeProfileId).then((data) => {
-      if (cancelled) return;
-      setTasks(data.tasks);
-      setBoardNotes(data.boardNotes);
-      setEvents(data.events || []);
-      const loadedPayload = {
-        tasks: data.tasks,
-        boardNotes: data.boardNotes,
-        events: data.events || []
-      };
-      latestPayloadRef.current = loadedPayload;
-      // When the cloud copy was empty/invalid, loadData kept the local data. Do
-      // not mark it as already synced so the debounced sync re-pushes it up.
-      const preferLocal = didLastLoadPreferLocal() || data.preferredLocal === true;
-      lastSyncedPayloadRef.current = preferLocal ? '' : serializePayload(loadedPayload);
-      const resolvedId = data.activeProfileId || activeProfileId;
-      const loadLocalStatuses = (profileId) => {
-        const stored = localStorage.getItem(`taskmanager_custom_statuses_${profileId || 'default'}`) || localStorage.getItem('taskmanager_custom_statuses');
-        if (stored) {
-          try {
-            const parsed = JSON.parse(stored);
-            if (Array.isArray(parsed) && parsed.length > 0) {
-              setStatuses(normalizeStatuses(parsed));
-              return;
-            }
-          } catch {
-            // ignore
-          }
-        }
-        setStatuses(normalizeStatuses(STATUS));
-      };
-
-      if (Array.isArray(data.profiles) && data.profiles.length > 0) {
-        setProfiles(data.profiles);
-        const activeProfile = data.profiles.find((p) => p.id === resolvedId);
-        if (activeProfile && Array.isArray(activeProfile.customStatuses)) {
-          setStatuses(normalizeStatuses(activeProfile.customStatuses));
-          localStorage.setItem(`taskmanager_custom_statuses_${activeProfile.id}`, JSON.stringify(activeProfile.customStatuses));
-        } else {
-          loadLocalStatuses(resolvedId);
-        }
-      } else {
-        if (Array.isArray(data.profiles)) {
-          setProfiles(data.profiles);
-        }
-        loadLocalStatuses(resolvedId);
-      }
-      if (data.activeProfileId && data.activeProfileId !== activeProfileId) {
-        setActiveProfileId(data.activeProfileId);
-        localStorage.setItem(ACTIVE_PROFILE_STORAGE_KEY, data.activeProfileId);
-      }
-      setAuthenticated(data.authenticated);
-      setHydratedSession(data.authenticated);
-      if (data.cloudError) {
-        showToast(`Sync D1: ${data.cloudError}`, { type: 'warning', duration: 5500 });
-      }
-      setReady(true);
-    });
-    return () => { cancelled = true; };
-  }, [authVersion, activeProfileId, showToast]);
-
-  useEffect(() => {
     const onPointerDown = (event) => {
       if (!profileMenuRef.current?.contains(event.target)) {
         setShowProfileMenu(false);
@@ -556,137 +415,6 @@ export default function App() {
   const closeExternalApp = useCallback(() => {
     setExternalAppOpen(false);
   }, []);
-
-  const handleLoginSuccess = useCallback(async (credential) => {
-    await loginWithGoogleCredential(credential);
-    try {
-      localStorage.removeItem('taskmanager_session_expired');
-    } catch {
-      // ignore
-    }
-    setSessionExpiredLoggedOut(false);
-    setReady(false);
-    setUiMode(null);
-    setAuthenticated(true);
-    setAuthVersion((version) => version + 1);
-  }, []);
-
-  const handleLogout = async () => {
-    try {
-      await syncNowRef.current({ immediate: true });
-    } catch {
-      // Best-effort flush before ending session.
-    }
-    await logoutSession();
-    setUiMode(null);
-    setAuthenticated(false);
-    setReady(false);
-    setHydratedSession(null);
-    setTasks([]);
-    setBoardNotes([]);
-    setEvents([]);
-    setModal(null);
-    setTaskPreviewId(null);
-    setProfiles([]);
-    setActiveProfileId(null);
-    setSyncState('idle');
-    setShowProfileMenu(false);
-    clearToasts();
-    clearUndoTransaction();
-    try {
-      localStorage.removeItem('taskmanager_session_expired');
-    } catch {
-      // ignore
-    }
-    localStorage.removeItem(ACTIVE_PROFILE_STORAGE_KEY);
-  };
-
-  const forceLogout = useCallback(() => {
-    try {
-      localStorage.setItem('taskmanager_session_expired', '1');
-    } catch {
-      // ignore
-    }
-    setSessionExpiredLoggedOut(true);
-    setUiMode(null);
-    setAuthenticated(false);
-    setReady(false);
-    setHydratedSession(null);
-    setTasks([]);
-    setBoardNotes([]);
-    setEvents([]);
-    setModal(null);
-    setTaskPreviewId(null);
-    setProfiles([]);
-    setActiveProfileId(null);
-    setSyncState('idle');
-    setShowProfileMenu(false);
-    clearToasts();
-    clearUndoTransaction();
-    // Keep ACTIVE_PROFILE_STORAGE_KEY so the last workspace can be restored on re-login.
-  }, [clearToasts]);
-
-  useEffect(() => {
-    if (!authenticated) return undefined;
-    let cancelled = false;
-    const verifyActiveSession = async () => {
-      try {
-        const active = await checkSession();
-        if (!cancelled && !active) {
-          forceLogout();
-        }
-      } catch {
-        // Ignore transient network errors and keep current session state.
-      }
-    };
-    const intervalId = window.setInterval(verifyActiveSession, 60000);
-    const onVisibilityChange = () => {
-      if (document.visibilityState === 'visible') verifyActiveSession();
-    };
-    document.addEventListener('visibilitychange', onVisibilityChange);
-    verifyActiveSession();
-    return () => {
-      cancelled = true;
-      window.clearInterval(intervalId);
-      document.removeEventListener('visibilitychange', onVisibilityChange);
-    };
-  }, [authenticated, forceLogout]);
-
-  useEffect(() => {
-    latestPayloadRef.current = { tasks, boardNotes, events };
-    if (!ready || !authenticated || hydratedSession !== authenticated || !activeProfileId) return undefined;
-    clearSyncDebounce();
-    syncDebounceTimerRef.current = window.setTimeout(() => {
-      void syncNowRef.current();
-    }, 2000);
-    return () => clearSyncDebounce();
-  }, [tasks, boardNotes, events, ready, authenticated, hydratedSession, activeProfileId, clearSyncDebounce]);
-
-  useEffect(() => {
-    if (!authenticated) return undefined;
-
-    const onVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') {
-        void syncNowRef.current({ immediate: true });
-      }
-    };
-    const onBeforeUnload = () => {
-      void syncNowRef.current({ immediate: true });
-    };
-
-    document.addEventListener('visibilitychange', onVisibilityChange);
-    window.addEventListener('beforeunload', onBeforeUnload);
-    return () => {
-      document.removeEventListener('visibilitychange', onVisibilityChange);
-      window.removeEventListener('beforeunload', onBeforeUnload);
-    };
-  }, [authenticated, ready, hydratedSession, activeProfileId]);
-
-  useEffect(() => () => {
-    if (syncFeedbackTimerRef.current) window.clearTimeout(syncFeedbackTimerRef.current);
-    if (boardLayoutTimerRef.current) window.clearTimeout(boardLayoutTimerRef.current);
-    clearSyncDebounce();
-  }, [clearSyncDebounce]);
 
   const previewTaskResolved = taskPreviewId ? tasks.find((t) => t.id === taskPreviewId) : null;
 
@@ -2145,7 +1873,7 @@ export default function App() {
               : syncState === 'error' ? (
                 <>
                   <span>Error al guardar</span>
-                  <button type="button" className="sync-retry-btn" onClick={() => void syncNowRef.current({ immediate: true })}>
+                  <button type="button" className="sync-retry-btn" onClick={() => void syncNow({ immediate: true })}>
                     Reintentar
                   </button>
                 </>
@@ -2624,3 +2352,4 @@ export default function App() {
     </div>
   );
 }
+

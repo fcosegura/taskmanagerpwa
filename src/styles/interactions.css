@@ -1,0 +1,151 @@
+/* ── Phase 3: Kanban Column Add Button, Badges & Inline Subtasks ── */
+.kanban-column-add-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: var(--material-base-border);
+  background: var(--material-elevated-bg);
+  color: var(--color-text-primary);
+  font-size: 16px;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  line-height: 1;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease, transform 0.15s ease;
+  margin-left: auto;
+}
+
+.kanban-column-add-btn:hover {
+  background: var(--color-accent);
+  color: #ffffff;
+  border-color: var(--color-accent);
+}
+
+.kanban-badge {
+  font-size: 11px;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--material-base-bg);
+  color: var(--color-text-secondary);
+  border: var(--material-base-border);
+}
+
+.subtask-progress-pill {
+  transition: background 0.15s ease;
+}
+
+.subtask-progress-pill:hover {
+  background: var(--material-elevated-bg) !important;
+  color: var(--color-text-primary) !important;
+}
+
+/* ── Phase 4: Micro-Interactions, Animations & Completion Feedback ── */
+
+@keyframes taskCheckPulse {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.25);
+    box-shadow: 0 0 12px var(--color-accent);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.task-checkbox-animated {
+  transition: background-color 0.2s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s cubic-bezier(0.16, 1, 0.3, 1), color 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1), transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.task-checkbox-animated:active {
+  animation: taskCheckPulse 0.3s ease;
+}
+
+.task-card,
+.kanban-task-card,
+.today-task-card,
+.board-note {
+  transition:
+    transform 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.task-card:hover,
+.today-task-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--material-elevated-shadow);
+}
+
+.kanban-task-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--material-elevated-shadow);
+}
+
+/* Reduced motion adjustments */
+@media (prefers-reduced-motion: reduce) {
+  .task-card,
+  .kanban-task-card,
+  .today-task-card,
+  .board-note,
+  .sheet-drawer-card,
+  .command-menu-card {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+  }
+}
+
+/* ── Universal Tabular Typography (Manifiesto v4.0) ── */
+.tabular-nums,
+.task-date-pill,
+.event-time-badge,
+.subtask-progress-pill,
+.kanban-badge,
+.time-slot-label,
+.ticket-badge,
+.hero-progress-counter,
+.jira-ticket-tag,
+time {
+  font-variant-numeric: tabular-nums;
+  -moz-font-feature-settings: "tnum";
+  -webkit-font-feature-settings: "tnum";
+  font-feature-settings: "tnum";
+}
+
+/* ── Focused Adaptive Density Mode (A11y Preserved) ── */
+[data-density="compact"] .task-card,
+[data-density="compact"] .today-task-card,
+[data-density="compact"] .kanban-task-card {
+  padding: 8px 12px;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+[data-density="compact"] .task-row-content {
+  gap: 6px;
+}
+
+[data-density="compact"] .board-note {
+  padding: 10px 12px;
+}
+
+[data-density="compact"] .daily-agenda-scroll {
+  font-size: 12px;
+}
+
+/* Preserve 44px min touch targets for buttons and inputs even in compact mode */
+.btn,
+.primary-button,
+.secondary-button,
+.ghost-button,
+.icon-btn,
+.input-field,
+select,
+input {
+  min-height: 44px;
+}
+
