@@ -48,8 +48,13 @@ export default function StatusChangeCommentModal({
             {taskName}
           </div>
         )}
-        <div style={{ fontSize: 13, marginBottom: 14, color: 'var(--color-text-secondary)' }}>
-          {statusLabel(fromStatus)} → <strong style={{ color: 'var(--color-text-primary)' }}>{statusLabel(toStatus)}</strong>
+        <div style={{ marginBottom: 16, fontSize: 14, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span>{statusLabel(fromStatus)}</span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--color-text-secondary)' }}>
+            <line x1="5" y1="12" x2="19" y2="12" />
+            <polyline points="12 5 19 12 12 19" />
+          </svg>
+          <strong style={{ color: 'var(--color-text-primary)' }}>{statusLabel(toStatus)}</strong>
         </div>
         <form onSubmit={handleSubmit}>
           <label htmlFor="status-comment-input" style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 6 }}>
