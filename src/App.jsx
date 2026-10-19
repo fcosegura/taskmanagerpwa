@@ -335,7 +335,9 @@ export default function App() {
     setShowProfileMenu(false);
     clearToasts();
     clearUndoTransaction();
-  }, [setReady, setHydratedSession, setTasks, setBoardNotes, setEvents, setProfiles, setActiveProfileId, setSyncState, clearToasts]);
+  }, [setUiMode, setReady, setHydratedSession, setTasks, setBoardNotes, setEvents,
+    setModal, setTaskPreviewId, setProfiles, setActiveProfileId, setSyncState,
+    setShowProfileMenu, clearToasts]);
 
   const handleSessionExpired = useCallback(() => {
     expireSession();
