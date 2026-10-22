@@ -86,6 +86,7 @@ function isValidNote(note) {
     typeof note.id === 'string' &&
     typeof note.title === 'string' &&
     typeof note.text === 'string' &&
+    (note.noteType === undefined || ['quick', 'extended'].includes(note.noteType)) &&
     (note.x === undefined || typeof note.x === 'number') &&
     (note.y === undefined || typeof note.y === 'number')
   );

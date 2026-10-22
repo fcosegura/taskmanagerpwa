@@ -66,6 +66,7 @@ export const ensureProfilesSchema = createSchemaCache(async (env) => {
   await safeExec("ALTER TABLE profiles ADD COLUMN custom_statuses TEXT");
   await safeExec("ALTER TABLE tasks ADD COLUMN profile_id TEXT");
   await safeExec("ALTER TABLE notes ADD COLUMN profile_id TEXT");
+  await safeExec("ALTER TABLE notes ADD COLUMN note_type TEXT NOT NULL DEFAULT 'quick'");
   await safeExec("ALTER TABLE events ADD COLUMN profile_id TEXT");
   await safeExec("CREATE INDEX IF NOT EXISTS idx_tasks_user_profile ON tasks(user_id, profile_id)");
   await safeExec("CREATE INDEX IF NOT EXISTS idx_notes_user_profile ON notes(user_id, profile_id)");

@@ -585,3 +585,138 @@ test.describe('selector de modo y modo rápido', () => {
     await expect(page.locator('.quick-mode-card')).toBeVisible();
   });
 });
+
+test('notas extendidas: guardar, reabrir, descartar y persistir tras recargar', async ({ page }) => {
+  await enterFullMode(page);
+  await page.locator('.desktop-tabs').getByRole('button', { name: 'Notas', exact: true }).click();
+  await page.getByRole('button', { name: '+ Nota extendida', exact: true }).click();
+  const modal = page.getByRole('dialog', { name: 'Nota extendida', exact: true });
+  await expect(modal).toBeVisible();
+  const content = 'Proyecto de investigación #trabajo.\n'.repeat(400) + 'FIN DE LA NOTA';
+  await modal.getByLabel('Título', { exact: true }).fill('Mi nota extendida');
+  await modal.getByLabel('Contenido', { exact: true }).fill(content);
+  const synced = page.waitForResponse((response) => response.url().includes('/api/sync') && response.request().postData()?.includes('FIN DE LA NOTA') === true);
+  await modal.getByRole('button', { name: 'Guardar', exact: true }).click();
+  await synced;
+  await expect(modal.getByRole('status')).toHaveText('Guardado en la app');
+  const bounds = await page.locator('.extended-note-modal').boundingBox();
+  expect(bounds?.x).toBeGreaterThanOrEqual(0);
+  expect(bounds?.y).toBeGreaterThanOrEqual(0);
+  await page.screenshot({ path: 'test-results/extended-note.png' });
+  await page.setViewportSize({ width: 390, height: 844 });
+  const mobileBounds = await page.locator('.extended-note-modal').boundingBox();
+  expect(mobileBounds?.x).toBeGreaterThanOrEqual(0);
+  expect((mobileBounds?.x || 0) + (mobileBounds?.width || 0)).toBeLessThanOrEqual(390);
+  await page.screenshot({ path: 'test-results/extended-note-mobile.png' });
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await modal.getByRole('button', { name: 'Cerrar', exact: true }).click();
+  const card = page.locator('.board-note').filter({ hasText: 'Mi nota extendida' });
+  await expect(card).not.toContainText('FIN DE LA NOTA');
+  await card.getByRole('button', { name: 'Abrir nota extendida', exact: true }).click();
+  await expect(modal.getByLabel('Contenido', { exact: true })).toHaveValue(content);
+  await modal.getByLabel('Contenido', { exact: true }).fill('Cambios descartados');
+  await page.keyboard.press('Escape');
+  await expect(modal.getByRole('alert')).toBeVisible();
+  await modal.getByRole('button', { name: 'Descartar cambios', exact: true }).click();
+  await expect.poll(async () => page.evaluate(() => Object.values(localStorage).some((value) => value.includes('FIN DE LA NOTA')))).toBe(true);
+  await page.reload();
+  await page.getByRole('button', { name: /Modo completo/i }).click();
+  await page.locator('.desktop-tabs').getByRole('button', { name: 'Notas', exact: true }).click();
+  await card.getByRole('button', { name: 'Abrir nota extendida', exact: true }).click();
+  await expect(modal.getByLabel('Contenido', { exact: true })).toHaveValue(content);
+  await modal.getByRole('button', { name: 'Cerrar', exact: true }).click();
+  await page.screenshot({ path: 'test-results/extended-note-board.png' });
+});
+
+test('notas extendidas: cancelar la creación no deja notas vacías', async ({ page }) => {
+  await enterFullMode(page);
+  await page.locator('.desktop-tabs').getByRole('button', { name: 'Notas', exact: true }).click();
+  const count = await page.locator('.board-note').count();
+  await page.getByRole('button', { name: '+ Nota extendida', exact: true }).click();
+  const modal = page.getByRole('dialog', { name: 'Nota extendida', exact: true });
+  await expect(modal.getByLabel('Título', { exact: true })).toBeFocused();
+  await modal.getByRole('button', { name: 'Cerrar', exact: true }).click();
+  await expect(page.locator('.board-note')).toHaveCount(count);
+  await page.getByRole('button', { name: '+ Nota extendida', exact: true }).click();
+  await modal.getByLabel('Contenido', { exact: true }).fill('Borrador descartado');
+  await page.keyboard.press('Escape');
+  await expect(modal.getByRole('button', { name: 'Seguir editando' })).toBeFocused();
+  await modal.getByRole('button', { name: 'Descartar cambios' }).click();
+  await expect(page.locator('.board-note')).toHaveCount(count);
+});
+
+test('notas extendidas: ampliar una nota rápida conserva contenido e ID y permite guardar con teclado', async ({ page }) => {
+  await enterFullMode(page);
+  await page.locator('.desktop-tabs').getByRole('button', { name: 'Notas', exact: true }).click();
+  await page.getByRole('button', { name: '+ Nueva Nota', exact: true }).click();
+  const card = page.locator('.board-note').first();
+  await card.getByPlaceholder('Título', { exact: true }).fill('Nota rápida ampliada');
+  await card.getByPlaceholder('Escribe tu nota…').fill('Contenido original');
+  const id = await card.getAttribute('data-note-id');
+  await card.getByRole('button', { name: 'Convertir en nota extendida' }).click();
+  await card.getByRole('button', { name: 'Abrir nota extendida', exact: true }).click();
+  const modal = page.getByRole('dialog', { name: 'Nota extendida', exact: true });
+  await expect(modal.getByLabel('Contenido', { exact: true })).toHaveValue('Contenido original');
+  await modal.getByLabel('Contenido', { exact: true }).fill('Contenido ampliado con teclado');
+  const savedToCloud = page.waitForResponse((response) => response.url().includes('/api/sync') && response.request().postData()?.includes('Contenido ampliado con teclado') === true);
+  await page.keyboard.press('Control+s');
+  await savedToCloud;
+  await expect(modal.getByRole('status')).toHaveText('Guardado en la app');
+  await expect(modal.getByText('4 palabras', { exact: false })).toBeVisible();
+  await modal.getByRole('button', { name: 'Cerrar', exact: true }).click();
+  await expect(card).toHaveAttribute('data-note-id', id!);
+  await expect(card).toContainText('Contenido ampliado con teclado');
+  await page.route((url) => url.pathname === '/api/notes/ai', (route) => route.fulfill({
+    contentType: 'application/json', body: JSON.stringify({ meta: [{
+      noteId: id, status: 'ready', tags: ['trabajo', 'oculta'], dismissed: ['tag:oculta'],
+      summary: 'Resumen de la nota ampliada', classification: 'Trabajo',
+    }] }),
+  }));
+  await page.reload();
+  await page.getByRole('button', { name: /Modo completo/i }).click();
+  await page.locator('.desktop-tabs').getByRole('button', { name: 'Notas', exact: true }).click();
+  await card.getByRole('button', { name: 'Abrir nota extendida', exact: true }).click();
+  await expect(modal.getByLabel('Etiquetas de la nota')).toHaveText('#trabajo');
+  await expect(modal.getByText('Resumen de la nota ampliada', { exact: true })).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 600 });
+  await modal.getByLabel('Contenido', { exact: true }).fill('Cambios pendientes');
+  await modal.getByRole('button', { name: 'Cerrar', exact: true }).click();
+  await expect(modal.getByRole('button', { name: 'Seguir editando' })).toBeInViewport();
+  await modal.getByRole('button', { name: 'Seguir editando' }).click();
+  await expect(modal.getByLabel('Contenido', { exact: true })).toBeFocused();
+});
+
+test('notas extendidas: seleccionar tarjeta y relaciones no abre el editor', async ({ page }) => {
+  const notes = [
+    { id: 'extended-a', title: 'Nota A', text: 'Contenido A', noteType: 'extended', x: 24, y: 20 },
+    { id: 'extended-b', title: 'Nota B', text: 'Contenido B', noteType: 'extended', x: 270, y: 20 },
+  ];
+  await page.route((url) => url.pathname === '/api/data', (route) => route.fulfill({
+    contentType: 'application/json', body: JSON.stringify({ tasks: [], boardNotes: notes, events: [],
+      profiles: [{ id: 'e2e-ws-1', name: 'E2E' }], activeProfileId: 'e2e-ws-1' }),
+  }));
+  await page.route((url) => url.pathname === '/api/notes/ai', (route) => route.fulfill({
+    contentType: 'application/json', body: JSON.stringify({ meta: [
+      { noteId: 'extended-a', status: 'ready', relatedIds: ['extended-b'] },
+      { noteId: 'extended-b', status: 'ready', relatedIds: ['extended-a'] },
+    ] }),
+  }));
+  await enterFullMode(page);
+  await page.locator('.desktop-tabs').getByRole('button', { name: 'Notas', exact: true }).click();
+  const cardA = page.locator('[data-note-id="extended-a"]');
+  const cardB = page.locator('[data-note-id="extended-b"]');
+  const modal = page.getByRole('dialog', { name: 'Nota extendida', exact: true });
+  await cardA.getByRole('button', { name: 'Seleccionar nota: Nota A', exact: true }).click();
+  await expect(cardA).toHaveClass(/board-note--selected/);
+  await expect(modal).not.toBeVisible();
+  const related = page.locator('.board-related-panel');
+  await related.getByRole('button', { name: /Nota B/ }).click();
+  await expect(cardB).toHaveClass(/board-note--selected/);
+  await expect(modal).not.toBeVisible();
+  await expect(related.getByRole('button', { name: /Nota A/ })).toBeVisible();
+  await cardA.click({ position: { x: 6, y: 6 } });
+  await expect(cardA).toHaveClass(/board-note--selected/);
+  await expect(modal).not.toBeVisible();
+  await cardA.getByRole('button', { name: 'Abrir nota extendida', exact: true }).click();
+  await expect(modal.getByLabel('Título', { exact: true })).toHaveValue('Nota A');
+});

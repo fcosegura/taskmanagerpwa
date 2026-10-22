@@ -68,3 +68,69 @@ de conflictos offline y de validación de sesión descritos en la revisión requ
 cambios funcionales independientes. Dos excepciones ya aplicadas en el cliente:
 `checkSession` solo considera expirada la sesión ante un 401 (los 5xx son
 transitorios) y el logout local se completa aunque `/api/logout` falle sin red.
+
+## Notas extendidas
+
+El tablero permite crear notas rápidas y extendidas. Las extendidas conservan el
+mismo `title` y `text` cifrados y el mismo pipeline Note AI (etiquetas, resumen,
+relaciones, búsqueda, duplicados, organización y RAG). `noteType` distingue
+`quick` (también para notas anteriores) de `extended`; D1 lo guarda en
+`note_type`, con auto-migración y participación en el hash de sincronización.
+La tarjeta muestra hasta 180 caracteres; `ExtendedNoteModal` permite editar el
+contenido completo, desplazarse, guardar y confirmar el descarte de cambios.
+El guardado usa el flujo local y cloud existente; el aviso del modal confirma el
+guardado en la app, mientras el indicador global informa del estado de sync.
+Los límites de contexto de los modelos Note AI existentes siguen aplicándose;
+el texto persistido no se recorta.
+
+### Revisión de la experiencia de edición
+
+- Las notas extendidas nuevas se incorporan al tablero al guardar por primera
+  vez; cerrar o descartar una creación no deja tarjetas vacías.
+- El editor mantiene visibles las acciones mientras el contenido y el panel de
+  etiquetas/resumen se desplazan. Incluye recuento de palabras y caracteres,
+  Ctrl+S/Command+S y aviso del navegador ante una recarga con cambios pendientes.
+- El descarte coloca el foco en «Seguir editando». El foco inicial de los modales
+  respeta la interacción si el usuario ya ha empezado a escribir.
+- «Ampliar» convierte una nota rápida conservando su ID, contenido y metadata.
+  Los botones de creación comparten tamaños y forma con los del tablero.
+- El tablero se reinicia al cambiar de perfil para aislar el editor abierto.
+
+La selección de tarjetas, resultados y relaciones conserva el panel de notas relacionadas. El editor extendido solo se abre con el botón explícito «Abrir ↗» de la tarjeta.
+
+## Relevancia de Note AI
+
+Las etiquetas de respaldo filtran palabras vacías en español/inglés y priorizan
+hashtags explícitos, entidades y temas del contenido completo.
+Las respuestas parciales del modelo conservan los campos válidos, sin fallar
+cuando faltan listas de entidades. El esquema de análisis/vector se incrementa
+para reanalizar notas existentes al volver a abrir Notas (en lotes).
+
+La búsqueda consulta el texto descifrado del perfil antes de usar vectores:
+las consultas de uno o dos términos significativos exigen coincidencias de
+palabras completas, sin distinguir tildes. Para consultas más largas combina
+coincidencias de texto con resultados semánticos de score mínimo 0.6. Las
+coincidencias textuales se ordenan primero, incluso si la nota aún no tiene
+embedding. El umbral es una regla conservadora, no una calibración medida en
+producción. No se mezclan notas de distintos perfiles.
+
+El grafo, el panel del tablero y la API de relacionadas complementan la metadata
+con solapamiento de términos significativos (Jaccard >= 0.25, top 6 por nota).
+Esto enlaza notas cortas como «Prueba»/«otra prueba» sin depender de la cola o
+Vectorize; un título común por sí solo no basta para enlazar contenido largo
+sin relación. Este solapamiento no se usa como prueba de duplicidad.
+
+
+### Etiquetas de notas largas
+
+La extracción de respaldo ya no bonifica la primera aparición ni añade un
+«Test1» del título al análisis del cuerpo. Usa un vocabulario conservador de
+temas (solo cuando coinciden varias palabras distintas); en los demás casos
+pondera frecuencia, presencia en distintas frases y diversidad de cobertura.
+Es un respaldo basado en reglas, no una comprensión semántica general.
+
+El analizador recibe hasta 8000 caracteres completos. Si el documento excede
+ese presupuesto, recibe ocho fragmentos repartidos desde el inicio hasta el
+final, junto con candidatos calculados sobre todo el texto. No se recorta el
+contenido guardado. La versión de análisis vuelve a incrementarse para
+actualizar etiquetas antiguas por lotes tras desplegar.

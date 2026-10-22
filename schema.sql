@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS notes (
   profile_id TEXT NOT NULL,
   title TEXT,
   text TEXT,
+  note_type TEXT NOT NULL DEFAULT 'quick',
   x REAL,
   y REAL,
   content_hash TEXT,

@@ -119,6 +119,7 @@ function normalizeEvent(event) {
 function normalizeBoardNote(note) {
   return {
     ...note,
+    noteType: note.noteType === 'extended' ? 'extended' : 'quick',
     title: note.title || '',
     text: note.text || '',
     createdAt: note.createdAt || note.created_at || new Date().toISOString(),
@@ -152,6 +153,7 @@ export function isValidBoardNote(note) {
     typeof note.id === 'string' &&
     typeof note.title === 'string' &&
     typeof note.text === 'string' &&
+    (note.noteType === undefined || ['quick', 'extended'].includes(note.noteType)) &&
     (typeof note.createdAt === 'string' || typeof note.created_at === 'string') &&
     (note.x === undefined || typeof note.x === 'number') &&
     (note.y === undefined || typeof note.y === 'number')

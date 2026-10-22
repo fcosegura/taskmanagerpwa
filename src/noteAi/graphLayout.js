@@ -1,9 +1,11 @@
+import { cleanNoteTags } from './contentSignals.js';
+
 /**
  * Deterministic SVG-friendly graph layout for notes + related edges.
  * Pure functions — offline-safe (no AI / network).
  */
 
-import { buildSimilarityClusters, edgesFromRelatedMeta } from './clustering.js';
+import { buildSimilarityClusters, edgesFromNotes } from './clustering.js';
 
 /**
  * Place nodes in a circle within a bounding box.
@@ -75,7 +77,7 @@ export function layoutNoteGraph(noteIds, edges, options = {}) {
 export function buildNoteGraphModel(notes, metaById, layoutOptions) {
   const list = Array.isArray(notes) ? notes.filter((n) => n?.id) : [];
   const noteIds = list.map((n) => n.id);
-  const edges = edgesFromRelatedMeta(metaById || {}, noteIds);
+  const edges = edgesFromNotes(list, metaById || {});
   const { positions, clusters } = layoutNoteGraph(noteIds, edges, layoutOptions);
   const nodes = list.map((n) => {
     const meta = metaById?.[n.id] || {};
@@ -87,7 +89,7 @@ export function buildNoteGraphModel(notes, metaById, layoutOptions) {
       x: positions[n.id]?.x ?? 0,
       y: positions[n.id]?.y ?? 0,
       classification: meta.classification || null,
-      tags: Array.isArray(meta.tags) ? meta.tags : [],
+      tags: cleanNoteTags(meta.tags),
       summary: typeof meta.summary === 'string' ? meta.summary : '',
     };
   });

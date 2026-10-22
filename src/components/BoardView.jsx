@@ -1,5 +1,9 @@
+import { cleanNoteTags } from '../noteAi/contentSignals.js';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Spinner } from './ui/index.jsx';
+import ExtendedNoteModal from './ExtendedNoteModal.jsx';
+import { uid } from '../utils.jsx';
+import './BoardView.css';
 
 function isDismissed(meta, kind, value) {
   const key = `${kind}:${value}`;
@@ -16,6 +20,7 @@ function BoardNoteCard({
   prefs,
   selected,
   onSelect,
+  onOpen,
   onDelete,
   onUpdate,
   onConvertToTask,
@@ -28,7 +33,7 @@ function BoardNoteCard({
   autoFocusTitle = false,
 }) {
   const titleInputRef = useRef(null);
-  const tags = prefs?.autotag !== false ? (meta?.tags || []).filter((t) => !isDismissed(meta, 'tag', t)) : [];
+  const tags = prefs?.autotag !== false ? cleanNoteTags(meta?.tags).filter((t) => !isDismissed(meta, 'tag', t)) : [];
   const summary = prefs?.summary !== false ? (meta?.summary || '') : '';
   const classification = prefs?.classification !== false ? meta?.classification : null;
   const taskSuggestions = prefs?.taskSuggestions !== false
@@ -87,6 +92,7 @@ function BoardNoteCard({
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
         <button
           type="button"
+          onClick={(event) => event.stopPropagation()}
           onPointerDown={onDragHandlePointerDown}
           aria-label="Mover nota"
           title="Mover nota"
@@ -169,6 +175,20 @@ function BoardNoteCard({
         </div>
       </div>
 
+      {note.noteType === 'extended' ? (
+        <>
+          <div className="board-note-preview-heading">
+            <small>Nota extendida</small>
+            <button type="button" className="board-note-open" aria-label="Abrir nota extendida"
+              onClick={(event) => { event.stopPropagation(); onOpen(note.id); }}>Abrir ↗</button>
+          </div>
+          <button type="button" className="board-note-preview" aria-label={`Seleccionar nota: ${note.title || 'Sin título'}`}
+            onClick={(event) => { event.stopPropagation(); onSelect?.(note.id); }}>
+            <strong>{note.title || 'Sin título'}</strong>
+            <span>{Array.from(note.text || '').slice(0, 180).join('')}{Array.from(note.text || '').length > 180 ? '…' : ''}</span>
+          </button>
+        </>
+      ) : <>
       <input
         ref={titleInputRef}
         value={note.title || ''}
@@ -215,6 +235,11 @@ function BoardNoteCard({
           overflowX: 'hidden',
         }}
       />
+
+          {note.noteType !== 'extended' && <button type="button" className="board-note-expand"
+            aria-label="Convertir en nota extendida" title="Ampliar nota"
+            onClick={(event) => { event.stopPropagation(); onUpdate(note.id, { noteType: 'extended' }); }}>Ampliar</button>}
+      </>}
 
       {summary && (
         <div style={{
@@ -363,6 +388,13 @@ export default function BoardView({
   onConvertSuggestion,
   onDismissSuggestion,
 }) {
+  const [editingNoteId, setEditingNoteId] = useState(null);
+  const [newExtendedNote, setNewExtendedNote] = useState(null);
+  const editingNote = notes.find((note) => note.id === editingNoteId) || newExtendedNote;
+  const openNote = (id) => {
+    onSelectNote?.(id);
+    if (notes.find((note) => note.id === id)?.noteType === 'extended') setEditingNoteId(id);
+  };
   const boardRef = useRef(null);
   const boardScrollAnchorRef = useRef(null);
   const knownNoteIdsRef = useRef(new Set());
@@ -475,15 +507,23 @@ export default function BoardView({
     }
   };
 
-  const handleAddNote = () => {
-    onAddNote({
-      id: crypto.randomUUID(),
+  const handleAddNote = (noteType = 'quick') => {
+    const id = uid();
+    const note = {
+      id,
+      noteType,
       title: '',
       text: '',
       createdAt: new Date().toISOString(),
       x: 24,
       y: 20,
-    });
+    };
+    if (noteType === 'extended') {
+      setNewExtendedNote(note);
+      setEditingNoteId(id);
+    } else {
+      onAddNote(note);
+    }
     // Focus/select is handled by the notes-change effect so header + board share one path.
   };
 
@@ -507,6 +547,14 @@ export default function BoardView({
 
   return (
     <div className="board-view" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {editingNote && <ExtendedNoteModal key={editingNote.id} note={editingNote}
+        meta={noteAiMetaById[editingNote.id]} prefs={noteAiPrefs}
+        onSave={(changes) => {
+          if (newExtendedNote) {
+            onAddNote({ ...newExtendedNote, ...changes });
+            setNewExtendedNote(null);
+          } else onUpdateNote(editingNote.id, changes);
+        }} onClose={() => { setEditingNoteId(null); setNewExtendedNote(null); }} />}
       <div ref={boardScrollAnchorRef} className="board-sticky-anchor" aria-hidden="true" />
       <div className="board-toolbar material-base" style={{ display: 'flex', flexDirection: 'column', gap: 10, borderRadius: 'var(--border-radius-xl)', padding: '20px 24px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
@@ -518,7 +566,7 @@ export default function BoardView({
                 : 'La IA organiza tus notas en silencio.'}
             </div>
           </div>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <div className="board-create-actions">
             {showOrganize && (
               <button
                 type="button"
@@ -543,12 +591,12 @@ export default function BoardView({
             )}
             <button
               type="button"
-              className="primary-button"
-              onClick={handleAddNote}
-              style={{ borderRadius: '999px', padding: '8px 16px', fontSize: 13, fontWeight: 700 }}
+              className="primary-button board-create-button"
+              onClick={() => handleAddNote()}
             >
               + Nueva Nota
             </button>
+            <button type="button" className="ghost-button board-create-button" onClick={() => handleAddNote('extended')}>+ Nota extendida</button>
           </div>
         </div>
 
@@ -640,7 +688,7 @@ export default function BoardView({
               type="search"
               value={searchQuery}
               onChange={(e) => onSearchChange?.(e.target.value)}
-              placeholder="Buscar por significado… (ej. tickets de autenticación)"
+              placeholder="Buscar palabras clave o describir una idea…"
               aria-label="Búsqueda semántica de notas"
               style={{
                 flex: 1,
@@ -751,6 +799,7 @@ export default function BoardView({
                 prefs={noteAiPrefs}
                 selected={selectedNoteId === note.id}
                 onSelect={onSelectNote}
+                onOpen={openNote}
                 onDelete={onDeleteNote}
                 onUpdate={onUpdateNote}
                 onConvertToTask={onConvertToTask}
