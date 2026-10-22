@@ -8,7 +8,6 @@ import {
   fetchCloudReadWithRetry,
   loadData,
   saveData,
-  didLastLoadPreferLocal,
 } from '../src/storage.js';
 
 test('isValidTask validates standard task', () => {
@@ -206,7 +205,6 @@ test('loadData conserva local ante nube vacía con perfil explícito (C1)', asyn
     assert.equal(data.tasks.length, 1);
     assert.equal(data.tasks[0].id, 't1');
     assert.equal(data.preferredLocal, true);
-    assert.equal(didLastLoadPreferLocal(), true);
 
     // Kept local data must NOT be treated as synced: the next save pushes it up.
     let syncBody = null;

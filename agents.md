@@ -1,6 +1,7 @@
 # agents.md — Task Manager PWA
 
 > Guía comprensiva del proyecto para agentes de IA. Lee este archivo completo antes de modificar cualquier código.
+> Arquitectura actual tras el refactor autorizado: [docs/architecture.md](docs/architecture.md). Esta referencia actualiza el mapa histórico y los tamaños mostrados abajo.
 
 ---
 
@@ -52,12 +53,33 @@ taskmanagerpwa/
 │
 ├── src/
 │   ├── main.jsx                # Entry point React + registro de Service Worker + detección de updates
-│   ├── App.jsx                 # ⭐ Componente raíz (~101KB). Todo el estado vive aquí.
+│   ├── App.jsx                 # ⭐ Componente raíz: compone useSession/useWorkspace/useCloudSync + navegación, modos y acciones
 │   ├── App.css                 # Estilos específicos de App
-│   ├── index.css               # ⭐ Estilos globales (~83KB). Design system Material Design 3 + tokens.
+│   ├── index.css               # ⭐ Solo @import ordenados de styles/ y de los CSS globales de componentes
 │   ├── ui-cleanup.css          # Estilos adicionales de limpieza UI
-│   ├── worker.js               # ⭐ Cloudflare Worker (~81KB). API + auth + sync + cifrado + queue consumer.
-│   ├── storage.js              # ⭐ Capa de persistencia (localStorage + sync cloud + AI + Note AI + auth client)
+│   ├── worker.js               # ⭐ Entry point del Worker ({ fetch, queue }): bootstrap, auth y despacho a worker/routes/
+│   ├── storage.js              # Fachada de compatibilidad: re-exporta api/ y data/ (el código nuevo importa el módulo directo)
+│   │
+│   ├── api/                    # Clientes HTTP sin estado React
+│   │   ├── auth.js             # login / logout / checkSession (solo 401 = sesión expirada)
+│   │   ├── cloudRead.js        # GET con reintentos para 502/503/504
+│   │   ├── profiles.js         # Crear / borrar / actualizar statuses de workspaces
+│   │   ├── taskAi.js           # parse-task, generate-tasks, daily-status
+│   │   └── noteAi.js           # meta, search, related, dismiss, duplicates, organize, chat
+│   │
+│   ├── data/
+│   │   ├── localStore.js       # Keys de localStorage: payload por perfil, perfil activo, statuses custom, cache Note AI
+│   │   ├── normalize.js        # Normalización/validación de entidades y backups
+│   │   ├── syncOps.js          # Diff incremental (upserts/deletes) y snapshots (puro)
+│   │   └── cloudSync.js        # loadData / saveData / fetchWorkspaceData + snapshots cloud por perfil
+│   │
+│   ├── styles/                 # tokens.css, base.css, navigation.css, interactions.css, feedback.css
+│   │
+│   ├── worker/                 # Módulos del Worker (no se importan desde el frontend)
+│   │   ├── routes/             # auth, data (data + sync), profiles, taskAi, notes: devuelven Response o null
+│   │   ├── repositories/entities.js # Lectura/descifrado y upserts de tasks, notes, events
+│   │   ├── auth.js / schema.js / profiles.js / rateLimits.js / syncValidation.js / taskAi.js
+│   │   └── http.js / entityIds.js / logging.js
 │   ├── constants.js            # Constantes: statuses, prioridades, categorías, normalización
 │   ├── utils.jsx               # Utilidades: IDs, fechas, parsing NLP, linkificación
 │   ├── d1-field-crypto.js      # Cifrado AES-256-GCM + hashing SHA-256 + snapshots (+ buildNoteAiContentHashInput)
@@ -137,7 +159,10 @@ taskmanagerpwa/
 │   │       └── Spinner.jsx     # SVG spinner reutilizable para acciones async
 │   │
 │   ├── hooks/
-│   │   └── useModalDialog.js   # Hook: focus trap, Escape, focus restore, tab cycling
+│   │   ├── useModalDialog.js   # Hook: focus trap, Escape, focus restore, tab cycling
+│   │   ├── useSession.js       # Auth: login/logout/expireSession + useSessionLiveness (60s + visibilitychange)
+│   │   ├── useWorkspace.js     # Datos, perfiles y statuses + resetWorkspace/switchProfile/reloadWorkspace/saveStatuses
+│   │   └── useCloudSync.js     # Debounce, dedup, concurrencia, reconexión, flush en hide/unload + resetSync
 │   │
 │   └── assets/                 # Assets estáticos (importados por Vite)
 │
@@ -181,13 +206,13 @@ taskmanagerpwa/
 │              Frontend (React SPA)                   │
 │  ┌──────────────────────────────────────────────┐  │
 │  │             App.jsx (root)                   │  │
-│  │  Estado centralizado via useState/useRef     │  │
+│  │  useSession → useWorkspace → useCloudSync    │  │
 │  │  React.lazy + Suspense para vistas           │  │
 │  │  Props drilling a todos los componentes      │  │
 │  └──────────┬───────────────────────────────────┘  │
 │             │                                       │
 │  ┌──────────▼───────────────────────────────────┐  │
-│  │           storage.js                         │  │
+│  │      data/ + api/ (storage.js = fachada)     │  │
 │  │  localStorage (fuente de verdad local)       │  │
 │  │  Sync incremental (ops: upserts/deletes)     │  │
 │  │  Auth client (login/logout/checkSession)     │  │
@@ -237,9 +262,9 @@ La app **no usa** React Router ni ningún router. Es un **SPA de una sola ruta**
 
 ### 3.3 State Management
 
-**No se usa ninguna librería de estado** (ni Redux, ni Zustand, ni Context). Todo el estado reside en `App.jsx` mediante `useState`, `useRef`, `useCallback`, `useMemo`.
+**No se usa ninguna librería de estado** (ni Redux, ni Zustand, ni Context). `App.jsx` compone hooks propios: `useSession` gestiona auth, `useWorkspace` gestiona datos/perfiles y `useCloudSync` gestiona sincronización. El estado de navegación, modos e interacción permanece en App.
 
-Estado principal en `App.jsx`:
+Estado principal (en `App.jsx` o en el hook indicado). Los hooks exponen métodos de intención (`resetWorkspace`, `switchProfile`, `invalidateWorkspace`, `reloadWorkspace`, `saveStatuses`, `resetSync`); App no manipula su estado interno (`ready`, `hydratedSession`, `syncState`) con setters directos:
 
 | Estado | Tipo | Descripción |
 |---|---|---|
@@ -248,22 +273,22 @@ Estado principal en `App.jsx`:
 | `events` | `Event[]` | Eventos de calendario del perfil actual |
 | `view` | `string` | Vista activa (`'today'`, `'tasks'`, `'kanban'`, `'calendar'`, `'daily'`, `'board'`, `'graph'`, `'timeline'`) |
 | `uiMode` | `string\|null` | `null` = selector de modo; `'full'` = app completa; `'quick'` = modo rápido (no persistido) |
-| `authenticated` | `null\|boolean` | `null` = verificando, `false` = no auth, `true` = logueado |
-| `authVersion` | `number` | Trigger para recargar datos del cloud |
-| `profiles` | `Profile[]` | Todos los workspaces del usuario |
-| `activeProfileId` | `string` | Perfil/workspace activo |
-| `statuses` | `Status[]` | Statuses del perfil (default + custom) |
+| `authenticated` | `null\|boolean` | (`useSession`) `null` = verificando, `false` = no auth, `true` = logueado |
+| `authVersion` | `number` | (`useSession`) Se incrementa al hacer login y dispara la carga del workspace |
+| `profiles` | `Profile[]` | (`useWorkspace`) Todos los workspaces del usuario |
+| `activeProfileId` | `string` | (`useWorkspace`) Perfil/workspace activo; cambiar con `switchProfile` |
+| `statuses` | `Status[]` | (`useWorkspace`) Statuses del perfil (default + custom); guardar con `saveStatuses` |
 | `filter` / `searchQuery` / `categoryFilter` | `string` | Filtros |
 | `summaryFilter` | `string` | Filtro de resumen |
 | `focusMode` / `focusPriorityLevels` | `boolean` / `string[]` | Modo foco y niveles |
 | `nextFocusAllowedStatuses` | `string[]` | Allowlist de statuses candidatos en la recomendación de foco (localStorage `nextFocusAllowedStatuses`) |
 | `childTaskAllowedStatuses` | `string[]` | Allowlist de statuses ofrecibles como tareas hijas (localStorage `childTaskAllowedStatuses`) |
 | `density` | `string` | Densidad UI: `'comfortable'` o `'compact'` (localStorage `taskmanager_density`) |
-| `syncState` | `string` | `'idle'`, `'saving'`, `'saved'`, `'error'`, `'offline'` |
+| `syncState` | `string` | (`useCloudSync`) `'idle'`, `'saving'`, `'saved'`, `'error'`, `'offline'` |
 | `theme` | `string` | `'light'` o `'dark'` |
-| `isOnline` | `boolean` | Conectividad (`navigator.onLine` + eventos online/offline) |
+| `isOnline` | `boolean` | (`useCloudSync`) Conectividad (`navigator.onLine` + eventos online/offline) |
 | `installPromptEvent` | `Event\|null` | Evento `beforeinstallprompt` para instalar PWA |
-| `sessionExpiredLoggedOut` | `boolean` | Muestra aviso en Login tras logout forzado por sesión expirada |
+| `sessionExpiredLoggedOut` | `boolean` | (`useSession`) Muestra aviso en Login tras logout forzado por sesión expirada |
 | `swUpdateAvailable` | `boolean` | Indica update del SW disponible |
 | `noteAiPrefs` | `object` | Toggles Note AI (localStorage `taskmanager_note_ai_prefs`) |
 | `noteAiMetaById` | `Record<id, meta>` | Metadata IA de notas (`summary`, `tags`, `relatedIds`, `status`, …) |
@@ -277,7 +302,7 @@ Estado principal en `App.jsx`:
 - **Toasts**: `useToasts()` en `App.jsx` → cola de mensajes (`ToastContainer`)
 - **Undo**: `undoManager.js` (singleton, una transacción activa con auto-expire 6s) + `UndoToast`
 
-**Refs críticos** (para evitar re-renders y race conditions):
+**Refs críticos** (viven en `hooks/useCloudSync.js`, no en App; evitan re-renders y race conditions). `useWorkspace` publica `hydration` tras cada carga y `useCloudSync` lo usa para inicializar `latestPayloadRef`/`lastSyncedPayloadRef` (vacío si `preferredLocal`, para re-subir los datos locales):
 
 | Ref | Propósito |
 |---|---|
@@ -567,7 +592,7 @@ Los helpers `safeExec` ignoran únicamente errores esperados de schema repetido 
 
 ### 6.1 Persistencia Local
 
-`storage.js` es la capa de persistencia. Keys en `localStorage`: `taskmanager_v1:<profileId>` (con fallback a `taskmanager_v1`).
+`storage.js` es una fachada de compatibilidad. `data/localStore.js` accede a localStorage; `data/cloudSync.js` coordina lecturas/escrituras cloud; `api/` contiene los clientes HTTP. Keys en `localStorage`: `taskmanager_v1:<profileId>` (con fallback a `taskmanager_v1`).
 
 ```
 Acción del usuario (ej: crear tarea)
@@ -575,9 +600,9 @@ Acción del usuario (ej: crear tarea)
     ▼
 App.jsx (applyTaskUpdate / commitStatusChange)
     │
-    ├──► setState (tasks) — re-render inmediato
+    ├──► setState (tasks, de useWorkspace) — re-render inmediato
     │
-    └──► latestPayloadRef.current actualizado
+    └──► useCloudSync: latestPayloadRef.current actualizado
               │
               ▼ (debounced 2000ms o inmediato en hide/unload)
          syncNowRef.current()
@@ -947,7 +972,7 @@ Pipeline async server-side (Queue / `waitUntil`) disparado por sync de notes.
 
 | Archivo | Propósito | Tamaño |
 |---|---|---|
-| `src/index.css` | Sistema de diseño global (Material Design 3): tokens, variables, dark mode, density, componentes, layouts, responsive | ~83KB |
+| `src/index.css` | Solo `@import` en orden de cascada: `styles/tokens.css`, `styles/base.css`, `DailyAgendaView.css`, `styles/navigation.css`, `CommandMenu.css`, `TaskSheetDrawer.css`, `TodayView.css`, `styles/interactions.css`, `styles/feedback.css`. Esos CSS de componentes son globales: no importarlos desde su `.jsx` | <1KB |
 | `src/App.css` | Estilos específicos del componente App | ~3KB |
 | `src/ui-cleanup.css` | Ajustes adicionales de limpieza visual | ~14KB |
 | `src/components/TimelineView.css` | Estilos del timeline | ~12KB |
@@ -958,7 +983,7 @@ Pipeline async server-side (Queue / `waitUntil`) disparado por sync de notes.
 ### 10.2 Convenciones CSS
 
 - **Vanilla CSS** — No usa Tailwind, SASS, ni CSS-in-JS
-- **Material Design 3**: `index.css` define tokens M3 (color roles, elevation, shape) y los aplica a componentes
+- **Material Design 3**: `styles/tokens.css` define tokens M3 (color roles, elevation, shape); `index.css` importa los módulos CSS en el orden de cascada establecido
 - **Variables CSS** para temas (light/dark)
 - **Dark mode**: clase en root + variables CSS
 - **Densidad**: atributo `data-density="comfortable|compact"` en `.app-shell`
@@ -1179,7 +1204,7 @@ npm run deploy   # = vite build && wrangler deploy
 
 - **JavaScript puro** (no TypeScript). Componentes usan `.jsx`, lógica usa `.js`.
 - **ESModules** (`"type": "module"` en package.json).
-- **App.jsx contiene TODO el estado**. No refactorizar a Context/Redux sin aprobación explícita.
+- **Estado con hooks propios**: App conserva navegación/modos/interacción; `useSession`, `useWorkspace` y `useCloudSync` separan los ciclos de vida. No migrar a Context/Redux sin aprobación explícita.
 - **Props drilling** es el patrón establecido.
 - **React.lazy + Suspense** para code-splitting de vistas.
 - **Vite manual chunks**: `vendor-react`, `vendor-react-dom`, `vendor-chrono`.
@@ -1203,7 +1228,7 @@ npm run deploy   # = vite build && wrangler deploy
 
 ### 17.4 Backend
 
-- Worker como un solo archivo (`src/worker.js`) con `export default { fetch, queue }`.
+- Entry point `src/worker.js` con `export default { fetch, queue }`; rutas y servicios en `src/worker/`, repositorio de entidades en `src/worker/repositories/`.
 - Lógica Note AI en `src/noteAi/` (pipeline importado por el worker); **no** dividir `pipeline.js` sin aprobación.
 - Router manual (switch sobre pathname y method).
 - Queries parametrizadas con `.bind(...)`.
@@ -1225,15 +1250,15 @@ npm run deploy   # = vite build && wrangler deploy
 
 > **⚠️ LEER ANTES DE HACER CUALQUIER CAMBIO**
 
-1. **No cambiar la arquitectura de estado**. El estado centralizado en `App.jsx` con props drilling es intencional. No migrar a Context, Redux, Zustand, etc.
+1. **Conservar props drilling y hooks propios**. El estado se reparte entre App y los hooks de sesión/workspace/sync. No migrar a Context, Redux, Zustand, etc.
 
 2. **No migrar a TypeScript** sin instrucción explícita del usuario.
 
 3. **No agregar dependencias** sin justificación. El proyecto es intencionalmente minimal (`react`, `react-dom`, `chrono-node`).
 
-4. **No dividir `worker.js`** en múltiples archivos sin aprobación. Es un solo archivo por diseño (`fetch` + `queue`). La lógica Note AI vive en `src/noteAi/` importada por el worker.
+4. **Conservar el entry point del Worker** (`fetch` + `queue`) y la separación de rutas, servicios y repositorios en `src/worker/`. La lógica Note AI sigue en `src/noteAi/`.
 
-5. **No dividir `App.jsx`** en múltiples archivos de estado sin aprobación.
+5. **Mantener los límites de los hooks**: sesión en `useSession`, carga/datos de workspace en `useWorkspace`, guardado/reconexión en `useCloudSync`; navegación y modos permanecen en App.
 
 6. **Respetar el sistema de estilos**. No introducir Tailwind, CSS modules, styled-components, etc.
 
@@ -1283,7 +1308,7 @@ npm run deploy   # = vite build && wrangler deploy
 
 29. **Rate limits Note AI**: search/duplicates/organize usan 30/60s (`note-ai:`); RAG chat usa 20/60s (`note-rag:`). Mantener fallbacks determinísticos en `noteAi/fallbacks.js` y `noteAi/rag.js`.
 
-30. **No dividir `noteAi/pipeline.js`** sin aprobación. Es el módulo de pipeline del Worker junto al monolito `worker.js`.
+30. **No dividir `noteAi/pipeline.js`** sin aprobación. Es el módulo de pipeline del Worker, consumido por `worker/routes/notes.js` y por el `queue` de `worker.js`.
 
 31. **Prefs Note AI son gates de UX**: desactivar un toggle oculta UI / salta paths de feature; el analyze de fondo puede seguir en cola de forma no bloqueante según el diseño actual.
 
@@ -1294,3 +1319,4 @@ npm run deploy   # = vite build && wrangler deploy
 34. **Allowlists de status**: filtrar candidatos con `isChildTaskStatusAllowed` / `allowedStatuses` y normalizar contra los statuses válidos del perfil. Las keys de localStorage (`childTaskAllowedStatuses`, `nextFocusAllowedStatuses`) son globales, no por perfil.
 
 35. **Selector de modo**: `ModeSelector` se muestra en cada apertura tras autenticación y `uiMode` es estado **en memoria** (no persistido; recargar vuelve al selector). No mover `uiMode` ni el flujo de modos fuera de `App.jsx`.
+

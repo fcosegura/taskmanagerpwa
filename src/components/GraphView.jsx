@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { buildNoteGraphModel } from '../noteAi/graphLayout.js';
-import { chatNotesRag } from '../storage.js';
+import { chatNotesRag } from '../api/noteAi.js';
 import './GraphView.css';
 
 const VIEWBOX_W = 900;
@@ -344,3 +344,4 @@ export default function GraphView({
     </div>
   );
 }
+

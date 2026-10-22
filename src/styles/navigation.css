@@ -1,0 +1,58 @@
+/* ── Phase 2: Navigation, TodayView, Command Menu & Task Sheet Drawer Styles ── */
+
+/* Sub-view switcher pills in header */
+.header-primary-nav {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.subview-pills {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--material-base-bg);
+  padding: 3px;
+  border-radius: 999px;
+  border: var(--material-base-border);
+}
+
+.subview-pills button {
+  padding: 4px 12px;
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  border-radius: 999px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease, transform 0.2s ease;
+}
+
+.subview-pills button.active {
+  background: var(--color-accent);
+  color: #ffffff;
+  font-weight: 700;
+  box-shadow: 0 2px 8px rgba(23, 107, 135, 0.3);
+}
+
+.command-menu-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+}
+
+.kbd-shortcut {
+  background: rgba(0, 0, 0, 0.08);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 10px;
+  font-weight: 700;
+  font-family: inherit;
+  letter-spacing: 0.05em;
+}
+
+[data-theme="dark"] .kbd-shortcut {
+  background: rgba(255, 255, 255, 0.15);
+}
