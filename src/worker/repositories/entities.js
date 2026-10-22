@@ -149,14 +149,15 @@ export async function prepareNoteUpsert(env, dataKey, profileId, userId, note) {
   const text = typeof note.text === 'string' ? note.text : '';
   const x = note.x || 0;
   const y = note.y || 0;
-  const snap = buildNotePlainSnapshot({ title, text, x, y });
+  const kind = note.kind === 'extended' ? 'extended' : 'quick';
+  const snap = buildNotePlainSnapshot({ title, text, x, y, kind });
   const contentHash = await sha256HexOfUtf8(stableStringify(snap));
   const encTitle = await encryptField(dataKey, title);
   const encText = await encryptField(dataKey, text);
   return env.DB.prepare(
-    "INSERT INTO notes (id, user_id, profile_id, title, text, x, y, content_hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?) " +
+    "INSERT INTO notes (id, user_id, profile_id, title, text, x, y, kind, content_hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) " +
     "ON CONFLICT(id) DO UPDATE SET " +
-    "title = excluded.title, text = excluded.text, x = excluded.x, y = excluded.y, " +
+    "title = excluded.title, text = excluded.text, x = excluded.x, y = excluded.y, kind = excluded.kind, " +
     "content_hash = excluded.content_hash, updated_at = CURRENT_TIMESTAMP " +
     "WHERE notes.user_id = excluded.user_id AND notes.profile_id = excluded.profile_id AND (" +
     "notes.content_hash IS NOT excluded.content_hash OR notes.content_hash IS NULL)"
@@ -168,6 +169,7 @@ export async function prepareNoteUpsert(env, dataKey, profileId, userId, note) {
     encText,
     x,
     y,
+    kind,
     contentHash
   );
 }
@@ -340,6 +342,7 @@ export async function readWorkspaceData(env, dataKey, userId, profileId) {
       text: typeof textDec === 'string' ? textDec : '',
       x: typeof note.x === 'number' ? note.x : 0,
       y: typeof note.y === 'number' ? note.y : 0,
+      ...(note.kind === 'extended' ? { kind: 'extended' } : {}),
       createdAt: note.created_at,
       updatedAt: note.updated_at
     });

@@ -1,10 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Spinner } from './ui/index.jsx';
-
-function isDismissed(meta, kind, value) {
-  const key = `${kind}:${value}`;
-  return Array.isArray(meta?.dismissed) && meta.dismissed.includes(key);
-}
+import ExtendedNoteModal from './ExtendedNoteModal.jsx';
+import { buildNoteAiDisplay } from '../noteAi/display.js';
+import {
+  NOTE_KIND_EXTENDED,
+  buildExtendedNotePreview,
+  countWords,
+  createExtendedNote,
+  isExtendedNote,
+} from '../extendedNotes.js';
 
 const NOTE_CARD_MIN_HEIGHT = 180;
 const BOARD_BOTTOM_PAD = 420;
@@ -21,6 +25,8 @@ function BoardNoteCard({
   onConvertToTask,
   onConvertSuggestion,
   onDismissSuggestion,
+  onOpenExtended,
+  onExpand,
   onDragHandlePointerDown,
   isDragging,
   layoutAnimating = false,
@@ -28,20 +34,9 @@ function BoardNoteCard({
   autoFocusTitle = false,
 }) {
   const titleInputRef = useRef(null);
-  const tags = prefs?.autotag !== false ? (meta?.tags || []).filter((t) => !isDismissed(meta, 'tag', t)) : [];
-  const summary = prefs?.summary !== false ? (meta?.summary || '') : '';
-  const classification = prefs?.classification !== false ? meta?.classification : null;
-  const taskSuggestions = prefs?.taskSuggestions !== false
-    ? (meta?.taskSuggestions || []).filter((t) => !isDismissed(meta, 'task', t))
-    : [];
-  const entities = prefs?.entities !== false ? meta?.entities : null;
-  const entityChips = entities
-    ? [
-        ...(entities.tickets || []).map((v) => ({ kind: 'ticket', v })),
-        ...(entities.urls || []).slice(0, 2).map((v) => ({ kind: 'url', v })),
-        ...(entities.people || []).slice(0, 2).map((v) => ({ kind: 'person', v })),
-      ].filter((e) => !isDismissed(meta, e.kind, e.v))
-    : [];
+  const extended = isExtendedNote(note);
+  const { tags, summary, classification, taskSuggestions, entityChips } = buildNoteAiDisplay(meta, prefs);
+  const extendedPreview = extended ? buildExtendedNotePreview(note.text) : '';
 
   useEffect(() => {
     if (!autoFocusTitle) return undefined;
@@ -56,9 +51,13 @@ function BoardNoteCard({
 
   return (
     <div
-      className={`board-note material-elevated${selected ? ' board-note--selected' : ''}`}
+      className={`board-note material-elevated${selected ? ' board-note--selected' : ''}${extended ? ' board-note--extended' : ''}`}
       data-note-id={note.id}
-      onClick={() => onSelect?.(note.id)}
+      data-note-kind={extended ? NOTE_KIND_EXTENDED : undefined}
+      onClick={() => {
+        onSelect?.(note.id);
+        if (extended) onOpenExtended?.(note.id);
+      }}
       style={{
         position: 'absolute', left: note.x ?? 0, top: note.y ?? 0,
         zIndex: isDragging ? 50 : (selected ? 20 : 10),
@@ -88,6 +87,7 @@ function BoardNoteCard({
         <button
           type="button"
           onPointerDown={onDragHandlePointerDown}
+          onClick={(e) => e.stopPropagation()}
           aria-label="Mover nota"
           title="Mover nota"
           style={{
@@ -111,6 +111,7 @@ function BoardNoteCard({
           {meta?.status === 'pending' && (
             <span style={{ fontSize: 10, color: 'var(--color-text-secondary)', fontWeight: 600 }}>Organizando…</span>
           )}
+          {extended && <span className="board-note__extended-badge">Extendida</span>}
           {classification && (
             <span
               style={{
@@ -150,6 +151,26 @@ function BoardNoteCard({
             </button>
           )}
 
+          {!extended && onExpand && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onExpand(note.id); }}
+              aria-label="Convertir en nota extendida"
+              title="Convertir en nota extendida"
+              style={{
+                border: 'none',
+                background: 'transparent',
+                color: 'var(--color-text-secondary)',
+                cursor: 'pointer',
+                fontSize: 13,
+                lineHeight: 1,
+                padding: 0,
+              }}
+            >
+              ⤢
+            </button>
+          )}
+
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); onDelete(note.id); }}
@@ -169,52 +190,70 @@ function BoardNoteCard({
         </div>
       </div>
 
-      <input
-        ref={titleInputRef}
-        value={note.title || ''}
-        onChange={(e) => onUpdate(note.id, { title: e.target.value })}
-        onClick={(e) => e.stopPropagation()}
-        placeholder="Título"
-        style={{
-          border: 'none',
-          background: 'transparent',
-          fontWeight: 700,
-          fontSize: 14,
-          color: 'var(--color-text-primary)',
-          outline: 'none',
-          width: '100%',
-          maxWidth: '100%',
-          minWidth: 0,
-          boxSizing: 'border-box',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-        }}
-      />
-      <textarea
-        value={note.text || ''}
-        onChange={(e) => onUpdate(note.id, { text: e.target.value })}
-        onClick={(e) => e.stopPropagation()}
-        placeholder="Escribe tu nota…"
-        style={{
-          border: 'none',
-          background: 'transparent',
-          resize: 'none',
-          flex: 1,
-          fontSize: 13,
-          color: 'var(--color-text-primary)',
-          outline: 'none',
-          width: '100%',
-          maxWidth: '100%',
-          minWidth: 0,
-          minHeight: 72,
-          fontFamily: 'inherit',
-          boxSizing: 'border-box',
-          overflowWrap: 'anywhere',
-          wordBreak: 'break-word',
-          whiteSpace: 'pre-wrap',
-          overflowX: 'hidden',
-        }}
-      />
+      {extended ? (
+        <button
+          type="button"
+          className="board-note__extended-preview"
+          aria-label={`Abrir nota extendida: ${note.title?.trim() || 'Sin título'}`}
+        >
+          <span className="board-note__extended-title">{note.title?.trim() || 'Sin título'}</span>
+          <span className="board-note__extended-excerpt">
+            {extendedPreview || 'Nota vacía — haz clic para escribir.'}
+          </span>
+          <span style={{ fontSize: 10, color: 'var(--color-text-secondary)' }}>
+            {countWords(note.text)} palabras · Abrir ↗
+          </span>
+        </button>
+      ) : (
+        <>
+          <input
+            ref={titleInputRef}
+            value={note.title || ''}
+            onChange={(e) => onUpdate(note.id, { title: e.target.value })}
+            onClick={(e) => e.stopPropagation()}
+            placeholder="Título"
+            style={{
+              border: 'none',
+              background: 'transparent',
+              fontWeight: 700,
+              fontSize: 14,
+              color: 'var(--color-text-primary)',
+              outline: 'none',
+              width: '100%',
+              maxWidth: '100%',
+              minWidth: 0,
+              boxSizing: 'border-box',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            }}
+          />
+          <textarea
+            value={note.text || ''}
+            onChange={(e) => onUpdate(note.id, { text: e.target.value })}
+            onClick={(e) => e.stopPropagation()}
+            placeholder="Escribe tu nota…"
+            style={{
+              border: 'none',
+              background: 'transparent',
+              resize: 'none',
+              flex: 1,
+              fontSize: 13,
+              color: 'var(--color-text-primary)',
+              outline: 'none',
+              width: '100%',
+              maxWidth: '100%',
+              minWidth: 0,
+              minHeight: 72,
+              fontFamily: 'inherit',
+              boxSizing: 'border-box',
+              overflowWrap: 'anywhere',
+              wordBreak: 'break-word',
+              whiteSpace: 'pre-wrap',
+              overflowX: 'hidden',
+            }}
+          />
+        </>
+      )}
 
       {summary && (
         <div style={{
@@ -370,6 +409,7 @@ export default function BoardView({
   const [boardWidth, setBoardWidth] = useState(800);
   const [draggedId, setDraggedId] = useState(null);
   const [focusNoteId, setFocusNoteId] = useState(null);
+  const [openExtendedNoteId, setOpenExtendedNoteId] = useState(null);
   const dragCaptureRef = useRef(null);
   const dragOffsetRef = useRef({ x: 0, y: 0 });
   const noteWidth = Math.min(Math.max(boardWidth - 24, 150), 220);
@@ -487,6 +527,20 @@ export default function BoardView({
     // Focus/select is handled by the notes-change effect so header + board share one path.
   };
 
+  const handleAddExtendedNote = () => {
+    const note = createExtendedNote({ id: crypto.randomUUID() });
+    onAddNote(note);
+    setOpenExtendedNoteId(note.id);
+  };
+
+  const handleExpandNote = (noteId) => {
+    onUpdateNote(noteId, { kind: NOTE_KIND_EXTENDED });
+    onSelectNote?.(noteId);
+    setOpenExtendedNoteId(noteId);
+  };
+
+  const openExtendedNote = (notes || []).find((n) => n.id === openExtendedNoteId && isExtendedNote(n)) || null;
+
   const handleOrganizeClick = () => {
     onOrganizeBoard?.({
       noteWidth,
@@ -541,6 +595,23 @@ export default function BoardView({
                 {organizeBusy ? <><Spinner /> Organizando…</> : 'Organizar tablero'}
               </button>
             )}
+            <button
+              type="button"
+              onClick={handleAddExtendedNote}
+              title="Nota larga que se edita en un modal; el tablero muestra un extracto"
+              style={{
+                borderRadius: '999px',
+                padding: '8px 14px',
+                fontSize: 13,
+                fontWeight: 700,
+                border: '1px solid var(--color-border-tertiary)',
+                background: 'var(--color-background-secondary)',
+                color: 'var(--color-text-primary)',
+                cursor: 'pointer',
+              }}
+            >
+              + Nota extendida
+            </button>
             <button
               type="button"
               className="primary-button"
@@ -756,6 +827,8 @@ export default function BoardView({
                 onConvertToTask={onConvertToTask}
                 onConvertSuggestion={onConvertSuggestion}
                 onDismissSuggestion={onDismissSuggestion}
+                onOpenExtended={setOpenExtendedNoteId}
+                onExpand={handleExpandNote}
                 onDragHandlePointerDown={(e) => handlePointerDown(e, displayNote)}
                 isDragging={draggedId === note.id}
                 layoutAnimating={layoutAnimating && draggedId !== note.id}
@@ -843,6 +916,21 @@ export default function BoardView({
           </aside>
         )}
       </div>
+
+      {openExtendedNote && (
+        <ExtendedNoteModal
+          key={openExtendedNote.id}
+          note={openExtendedNote}
+          meta={noteAiMetaById[openExtendedNote.id]}
+          prefs={noteAiPrefs}
+          onSave={onUpdateNote}
+          onClose={() => setOpenExtendedNoteId(null)}
+          onDelete={onDeleteNote}
+          onConvertToTask={onConvertToTask}
+          onConvertSuggestion={onConvertSuggestion}
+          onDismissSuggestion={onDismissSuggestion}
+        />
+      )}
     </div>
   );
 }

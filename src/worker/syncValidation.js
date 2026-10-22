@@ -1,4 +1,5 @@
 import { isPlannedSlotsArrayShape } from '../plannedSlots.js';
+import { isValidNoteKind } from '../extendedNotes.js';
 
 const VALID_PRIORITY = new Set(['low', 'medium', 'high', 'critical']);
 const MAX_SYNC_TASKS = 8000;
@@ -87,7 +88,8 @@ function isValidNote(note) {
     typeof note.title === 'string' &&
     typeof note.text === 'string' &&
     (note.x === undefined || typeof note.x === 'number') &&
-    (note.y === undefined || typeof note.y === 'number')
+    (note.y === undefined || typeof note.y === 'number') &&
+    isValidNoteKind(note.kind)
   );
 }
 

@@ -87,6 +87,7 @@ export const ensureProfilesSchema = createSchemaCache(async (env) => {
   await safeExec("ALTER TABLE events ADD COLUMN recurrenceCount INTEGER");
   await safeExec("ALTER TABLE tasks ADD COLUMN content_hash TEXT");
   await safeExec("ALTER TABLE notes ADD COLUMN content_hash TEXT");
+  await safeExec("ALTER TABLE notes ADD COLUMN kind TEXT DEFAULT 'quick'");
   await safeExec("ALTER TABLE events ADD COLUMN content_hash TEXT");
   await safeExec("ALTER TABLE tasks ADD COLUMN planned_slots TEXT");
   await safeExec("ALTER TABLE tasks ADD COLUMN status_log TEXT");

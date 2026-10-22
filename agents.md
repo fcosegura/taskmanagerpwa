@@ -105,6 +105,7 @@ taskmanagerpwa/
 │   ├── externalAppDrawerLayout.js # Constantes/clamp de ancho del drawer de apps externas
 │   ├── externalAppNotebookMessages.js # Helpers de mensajes/errores postMessage de MyNotebook
 │   ├── taskTrashHelpers.js     # Helpers de papelera (conteo de hijos abiertos al borrar)
+│   ├── extendedNotes.js        # Notas extendidas: kind, extracto para el tablero, conteo de palabras
 │   │
 │   ├── noteAi/                 # ⭐ Organización automática de notas (Phases 1–3)
 │   │   ├── constants.js        # Modelos, prefs defaults, thresholds, rate limits, VECTOR_SCHEMA
@@ -114,6 +115,7 @@ taskmanagerpwa/
 │   │   ├── clustering.js       # Union-Find clusters, duplicados, layout offline del tablero
 │   │   ├── pipeline.js         # ⭐ Core Worker: schema, jobs, meta CRUD, search, duplicates, organize, RAG
 │   │   ├── rag.js              # Prompt/contexto RAG + sanitize + fallback extractivo
+│   │   ├── display.js          # Vista cliente de la meta (tags/resumen/entidades/sugerencias según prefs)
 │   │   └── graphLayout.js      # Layout SVG del grafo desde related edges (offline)
 │   │
 │   ├── core/
@@ -129,6 +131,7 @@ taskmanagerpwa/
 │   │   ├── TimelineView.jsx    # Vista timeline/auditoría cronológica de status
 │   │   ├── DailyAgendaView.jsx # Vista agenda diaria/semanal con time slots (06:00-22:00)
 │   │   ├── BoardView.jsx       # Tablero de notas + UI Note AI (tags, related, search, organize, duplicates)
+│   │   ├── ExtendedNoteModal.jsx # Modal (portal) de edición de notas extendidas + panel Note AI
 │   │   ├── GraphView.jsx       # Grafo de relaciones entre notas + chat RAG contextual (Phase 3)
 │   │   ├── GraphView.css       # Estilos del grafo / panel de chat
 │   │   ├── ModeSelector.jsx    # Selector de modo al abrir la app (completo vs rápido)
@@ -356,6 +359,7 @@ title TEXT,                    -- ⚠ Cifrado
 text TEXT,                     -- ⚠ Cifrado
 x REAL,                        -- Posición X en el board (no cifrado)
 y REAL,                        -- Posición Y en el board (no cifrado)
+kind TEXT DEFAULT 'quick',     -- 'quick' | 'extended' (no cifrado)
 content_hash TEXT,
 created_at DATETIME,
 updated_at DATETIME
@@ -954,7 +958,15 @@ Pipeline async server-side (Queue / `waitUntil`) disparado por sync de notes.
 - **Tareas hijas** (`childTaskStatusPrefs.js`): `isChildTaskStatusAllowed(statusId, allowed)` filtra las tareas existentes ofrecibles como hijas; las ya seleccionadas siempre se muestran.
 - Ambas se editan en `SettingsModal` y se persisten en `localStorage` (keys globales, no por perfil). Se normalizan contra los statuses válidos del perfil.
 
-### 9.13 Modo Rápido vs Modo Completo
+### 9.13 Notas extendidas
+
+- Una nota extendida es una nota del tablero con `kind: 'extended'` (`extendedNotes.js`). Reutiliza `title`/`text`, así que el pipeline Note AI (tags, resumen, entidades, clasificación, sugerencias, embeddings, búsqueda, duplicados, grafo y RAG) funciona sin cambios.
+- En el tablero la tarjeta muestra solo un extracto (`buildExtendedNotePreview`, ~140 caracteres) y el conteo de palabras; al hacer click se abre `ExtendedNoteModal` (portal a `document.body`, `useModalDialog`).
+- El modal edita un borrador local: "Guardar" (o Ctrl/Cmd+S) aplica `onUpdateNote`; cerrar con cambios pendientes pide confirmación (seguir editando / descartar / guardar y cerrar). Incluye panel lateral con la meta Note AI (`noteAi/display.js`), convertir a tarea y eliminar.
+- Creación: botón "+ Nota extendida" del tablero, o "⤢" en una nota rápida para convertirla.
+- Persistencia: columna no cifrada `notes.kind` (auto-migrada). El snapshot de `content_hash` solo incluye `kind` cuando es `'extended'`, para no reescribir las notas rápidas existentes. Sync y backups validan `kind` (`isValidNoteKind`).
+
+### 9.14 Modo Rápido vs Modo Completo
 
 - **Selector siempre al abrir**: tras autenticación se muestra `ModeSelector`; la elección **no se persiste** (vive en `uiMode`), por lo que recargar vuelve a mostrar el selector.
 - **Modo completo**: el shell existente (todas las vistas, modales y drawers). `enterFullMode()` fija `uiMode='full'` preservando la vista actual/por defecto.

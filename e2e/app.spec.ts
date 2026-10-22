@@ -493,6 +493,62 @@ test.describe('Notas AI Fase 3 — Grafo y chat RAG', () => {
   });
 });
 
+test.describe('notas extendidas', () => {
+  test('crea, guarda y reabre una nota extendida desde el tablero', async ({ page }) => {
+    await enterFullMode(page);
+    await page.locator('.desktop-tabs').getByRole('button', { name: 'Notas' }).click();
+    await page.locator('.subview-pills').getByRole('button', { name: 'Tablero' }).click();
+
+    await page.getByRole('button', { name: '+ Nota extendida' }).click();
+    const modal = page.getByRole('dialog', { name: 'Nota extendida' });
+    await expect(modal).toBeVisible();
+
+    const longText = `Inicio de la nota extendida. ${'Detalle importante del proyecto. '.repeat(30)}Fin del texto.`;
+    await modal.getByLabel('Título de la nota extendida').fill('Acta de reunión E2E');
+    await modal.getByLabel('Contenido de la nota extendida').fill(longText);
+    await expect(modal.getByText(/Cambios sin guardar/)).toBeVisible();
+    await modal.getByRole('button', { name: 'Guardar', exact: true }).click();
+    await expect(modal.getByText(/Guardado/)).toBeVisible();
+    await modal.getByRole('button', { name: 'Cerrar nota extendida' }).click();
+    await expect(modal).not.toBeVisible();
+
+    // En el tablero solo se ve un extracto, no el texto completo.
+    const card = page.locator('.board-note[data-note-kind="extended"]', { hasText: 'Acta de reunión E2E' });
+    await expect(card).toBeVisible();
+    await expect(card).toContainText('Inicio de la nota extendida.');
+    await expect(card).not.toContainText('Fin del texto.');
+
+    // Al hacer click se abre el modal con la nota completa.
+    await card.getByRole('button', { name: /Abrir nota extendida/ }).click();
+    await expect(modal).toBeVisible();
+    await expect(modal.getByLabel('Contenido de la nota extendida')).toHaveValue(longText);
+
+    // Cerrar con cambios sin guardar pide confirmación y permite descartar.
+    await modal.getByLabel('Contenido de la nota extendida').fill('borrador descartado');
+    await page.keyboard.press('Escape');
+    await expect(modal.getByText('Tienes cambios sin guardar.')).toBeVisible();
+    await modal.getByRole('button', { name: 'Descartar' }).click();
+    await expect(modal).not.toBeVisible();
+    await card.getByRole('button', { name: /Abrir nota extendida/ }).click();
+    await expect(modal.getByLabel('Contenido de la nota extendida')).toHaveValue(longText);
+  });
+
+  test('convierte una nota rápida en extendida', async ({ page }) => {
+    await enterFullMode(page);
+    await page.locator('.desktop-tabs').getByRole('button', { name: 'Notas' }).click();
+    await page.locator('.subview-pills').getByRole('button', { name: 'Tablero' }).click();
+
+    await page.getByRole('button', { name: '+ Nueva Nota' }).click();
+    const quickCard = page.locator('.board-note').first();
+    await quickCard.getByPlaceholder('Título').fill('Idea para ampliar');
+    await quickCard.getByRole('button', { name: 'Convertir en nota extendida' }).click();
+
+    const modal = page.getByRole('dialog', { name: 'Nota extendida' });
+    await expect(modal).toBeVisible();
+    await expect(modal.getByLabel('Título de la nota extendida')).toHaveValue('Idea para ampliar');
+  });
+});
+
 test.describe('selector de modo y modo rápido', () => {
   test('muestra el selector de modo tras el login y de nuevo al recargar', async ({ page }) => {
     await page.goto('/');

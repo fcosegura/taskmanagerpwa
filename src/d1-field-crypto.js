@@ -144,12 +144,15 @@ export function buildTaskPlainSnapshot(task, taskSchema, taskName, subtasksJson,
 }
 
 export function buildNotePlainSnapshot(note) {
-  return {
+  const snap = {
     text: typeof note.text === 'string' ? note.text : '',
     title: typeof note.title === 'string' ? note.title : '',
     x: Number(note.x) || 0,
     y: Number(note.y) || 0
   };
+  // Solo las notas extendidas añaden `kind`: los hashes de las notas rápidas no cambian.
+  if (note.kind === 'extended') snap.kind = 'extended';
+  return snap;
 }
 
 /** Content-only hash input — position changes must not re-trigger note AI. */

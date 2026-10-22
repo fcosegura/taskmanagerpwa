@@ -42,6 +42,7 @@ CREATE TABLE IF NOT EXISTS notes (
   text TEXT,
   x REAL,
   y REAL,
+  kind TEXT DEFAULT 'quick',
   content_hash TEXT,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP

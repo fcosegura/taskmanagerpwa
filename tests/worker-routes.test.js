@@ -90,6 +90,31 @@ test('Worker preserves encrypted full/delta sync and tenant isolation through ex
   assert.deepEqual(other.tasks, []);
 });
 
+test('Worker persists extended notes kind and keeps them in the Note AI pipeline', async (t) => {
+  const { call, sql, jobs } = createEnvironment(t);
+  const longText = 'Contenido extendido. '.repeat(300);
+  const extended = { id: 'ext-1', kind: 'extended', title: 'Acta', text: longText, x: 5, y: 6 };
+  const quick = { id: 'quick-1', title: 'Rápida', text: 'corta', x: 1, y: 1 };
+  const response = await call('/sync', { profileId: 'user-a:work', payload: { ...empty(), boardNotes: [extended, quick] } });
+  assert.equal(response.status, 200);
+  const row = sql.prepare("SELECT kind, text FROM notes WHERE id = 'user-a:work::ext-1'").get();
+  assert.equal(row.kind, 'extended');
+  assert.match(row.text, /^v1\./);
+  const loaded = await (await call('/data?profileId=user-a%3Awork')).json();
+  const byId = Object.fromEntries(loaded.boardNotes.map((n) => [n.id, n]));
+  assert.equal(byId['ext-1'].kind, 'extended');
+  assert.equal(byId['ext-1'].text, longText);
+  assert.equal('kind' in byId['quick-1'], false);
+  assert.ok(jobs.some(({ body }) => body.type === 'analyze' && body.noteId === 'ext-1'));
+
+  const invalid = await call('/sync', { profileId: 'user-a:work', ops: {
+    tasks: { upserts: [], deletes: [] },
+    notes: { upserts: [{ ...quick, kind: 'gigante' }], deletes: [] },
+    events: { upserts: [], deletes: [] },
+  } });
+  assert.equal(invalid.status, 400);
+});
+
 test('Worker keeps profile CRUD, custom statuses and last-workspace protection', async (t) => {
   const { call } = createEnvironment(t);
   const created = await (await call('/profiles', { name: 'Personal' })).json();

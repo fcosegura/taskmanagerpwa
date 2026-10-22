@@ -2,6 +2,7 @@ import { PRIORITY, normalizeStatuses } from '../constants.js';
 import { isPlannedSlotsArrayShape, normalizePlannedSlots } from '../plannedSlots.js';
 import { isValidStatusLogEntry, normalizeStatusLog } from '../statusLog.js';
 import { isDateOnlyString, isRequiredDateOnlyString, canonicalizeDateOnly } from '../todayViewHelpers.js';
+import { NOTE_KIND_EXTENDED, isValidNoteKind } from '../extendedNotes.js';
 
 /** Guards normalize* calls so a null/non-object array entry is dropped, not fatal. */
 function isPlainObject(value) {
@@ -117,8 +118,10 @@ function normalizeEvent(event) {
 }
 
 function normalizeBoardNote(note) {
+  const { kind, ...rest } = note;
   return {
-    ...note,
+    ...rest,
+    ...(kind === NOTE_KIND_EXTENDED ? { kind: NOTE_KIND_EXTENDED } : {}),
     title: note.title || '',
     text: note.text || '',
     createdAt: note.createdAt || note.created_at || new Date().toISOString(),
@@ -154,7 +157,8 @@ export function isValidBoardNote(note) {
     typeof note.text === 'string' &&
     (typeof note.createdAt === 'string' || typeof note.created_at === 'string') &&
     (note.x === undefined || typeof note.x === 'number') &&
-    (note.y === undefined || typeof note.y === 'number')
+    (note.y === undefined || typeof note.y === 'number') &&
+    isValidNoteKind(note.kind)
   );
 }
 
