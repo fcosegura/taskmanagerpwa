@@ -1,5 +1,6 @@
 import { NOTE_CLASSIFICATIONS } from './constants.js';
-import { cleanNoteTags, noteTokens } from './contentSignals.js';
+import { cleanNoteTags } from './contentSignals.js';
+import { wholeNoteTagCandidates } from './tagging.js';
 
 const URL_RE = /https?:\/\/[^\s<>"']+/gi;
 const JIRA_TICKET_RE = /\b([A-Z][A-Z0-9]+-\d+)\b/g;
@@ -86,18 +87,7 @@ export function extractTagsFallback(title, text) {
   for (const p of entities.platforms.slice(0, 3)) tags.push(p.toLowerCase());
 
   const explicit = (combinedText(title, text).match(/#[\p{L}][\p{L}\p{N}_-]*/gu) || []).map((tag) => tag.slice(1));
-  const words = noteTokens(combinedText(title, text).replace(/https?:\/\/\S+/g, ' '), { minLength: 4 });
-  const titleWords = new Set(noteTokens(title));
-  const freq = new Map();
-  const firstIndex = new Map();
-  words.forEach((word, index) => {
-    freq.set(word, (freq.get(word) || 0) + 1);
-    if (!firstIndex.has(word)) firstIndex.set(word, index);
-  });
-  const top = [...freq].sort((a, b) => {
-    const score = ([word, count]) => count + (titleWords.has(word) ? 2 : 0) + 1 / (1 + firstIndex.get(word));
-    return score(b) - score(a) || a[0].localeCompare(b[0]);
-  }).slice(0, 4).map(([word]) => word);
+  const top = wholeNoteTagCandidates(title, text);
   return cleanNoteTags([...explicit, ...tags, ...top]);
 }
 

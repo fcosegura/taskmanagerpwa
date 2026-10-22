@@ -101,7 +101,7 @@ La selección de tarjetas, resultados y relaciones conserva el panel de notas re
 ## Relevancia de Note AI
 
 Las etiquetas de respaldo filtran palabras vacías en español/inglés y priorizan
-hashtags explícitos, entidades, título y términos destacados del contenido.
+hashtags explícitos, entidades y temas del contenido completo.
 Las respuestas parciales del modelo conservan los campos válidos, sin fallar
 cuando faltan listas de entidades. El esquema de análisis/vector se incrementa
 para reanalizar notas existentes al volver a abrir Notas (en lotes).
@@ -119,3 +119,18 @@ con solapamiento de términos significativos (Jaccard >= 0.25, top 6 por nota).
 Esto enlaza notas cortas como «Prueba»/«otra prueba» sin depender de la cola o
 Vectorize; un título común por sí solo no basta para enlazar contenido largo
 sin relación. Este solapamiento no se usa como prueba de duplicidad.
+
+
+### Etiquetas de notas largas
+
+La extracción de respaldo ya no bonifica la primera aparición ni añade un
+«Test1» del título al análisis del cuerpo. Usa un vocabulario conservador de
+temas (solo cuando coinciden varias palabras distintas); en los demás casos
+pondera frecuencia, presencia en distintas frases y diversidad de cobertura.
+Es un respaldo basado en reglas, no una comprensión semántica general.
+
+El analizador recibe hasta 8000 caracteres completos. Si el documento excede
+ese presupuesto, recibe ocho fragmentos repartidos desde el inicio hasta el
+final, junto con candidatos calculados sobre todo el texto. No se recorta el
+contenido guardado. La versión de análisis vuelve a incrementarse para
+actualizar etiquetas antiguas por lotes tras desplegar.

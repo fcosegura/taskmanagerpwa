@@ -26,7 +26,7 @@ export function cleanNoteTags(tags) {
     if (typeof tag !== 'string') return [];
     const label = tag.trim().replace(/^#+/, '').slice(0, 40);
     const key = normalizeNoteText(label);
-    if (!label || seen.has(key) || !noteTokens(label, { minLength: 2 }).length) return [];
+    if (!label || seen.has(key) || /^(?:test|prueba|nota)[\s_-]*\d+$/u.test(key) || !noteTokens(label, { minLength: 2 }).length) return [];
     seen.add(key);
     return [label];
   }).slice(0, 8);

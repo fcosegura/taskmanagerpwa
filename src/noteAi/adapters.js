@@ -4,6 +4,7 @@ import {
   NOTE_EMBEDDING_MODEL,
 } from './constants.js';
 import { analyzeNoteFallback, sanitizeAnalysisResult } from './fallbacks.js';
+import { sampleNoteForAnalysis, wholeNoteTagCandidates } from './tagging.js';
 import { buildRagPrompt, sanitizeRagAnswer, answerFromNotesFallback } from './rag.js';
 
 /**
@@ -47,7 +48,9 @@ export function createWorkersAiNoteAnalyzer(ai) {
         'Tags: como máximo 5 temas, conceptos o entidades relevantes. Prioriza hashtags explícitos.',
         'No uses palabras de relleno como esta, solo, otra, sobre, todo, poco, paso o pero. No rellenes una cuota de tags.',
         `Título: ${String(title || '').slice(0, 200)}`,
-        `Texto: ${String(text || '').slice(0, 2500)}`,
+        'Evalúa el documento completo: identifica temas globales, no las primeras palabras ni títulos genéricos como Test1.',
+        `Candidatos de todo el contenido (solo pistas; comprueba su pertinencia): ${wholeNoteTagCandidates(title, text).join(', ')}`,
+        `Texto: ${sampleNoteForAnalysis(text)}`,
       ].join('\n');
 
       try {

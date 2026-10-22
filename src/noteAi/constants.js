@@ -45,7 +45,7 @@ export const NOTE_AI_DUPLICATE_MIN_SCORE = 0.88;
 export const NOTE_AI_CLUSTER_MAX_NOTES = 80;
 
 /** Bump for vector or analysis changes: re-analyze existing notes as well as re-embed. */
-export const NOTE_AI_VECTOR_SCHEMA = 3;
+export const NOTE_AI_VECTOR_SCHEMA = 4;
 
 export const NOTE_AI_RATE_WINDOW_SEC = 60;
 export const NOTE_AI_RATE_MAX_PER_WINDOW = 30;

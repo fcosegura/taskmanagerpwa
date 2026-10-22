@@ -1,3 +1,4 @@
+import { sampleNoteForAnalysis } from '../src/noteAi/tagging.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { cleanNoteTags, contentRelatedEdges, lexicalNoteScore } from '../src/noteAi/contentSignals.js';
@@ -44,4 +45,33 @@ test('graph and related notes share deterministic content edges without AI metad
   const graph = buildNoteGraphModel(examples, {});
   assert.ok(graph.clusters.some((ids) => ids.includes('a') && ids.includes('b')));
   assert.equal(graph.edges.length, 1);
+});
+
+
+test('extended note tags cover its themes regardless of paragraph order or generic title', () => {
+  const paragraphs = [
+    'El ritual de empezar una mañana tranquila tiene algo casi hipnótico, sobre todo cuando el resto del mundo parece empeñado en acelerar sin rumbo fijo. Todo comienza con ese rumor familiar del agua al calentarse, un murmullo constante que rompe el silencio denso de las primeras horas. No hace falta mirar el reloj; basta con ver cómo la luz del amanecer se filtra poco a poco por las rendijas de la persiana, proyectando líneas doradas sobre el suelo de madera y anunciando un día despejado.',
+    'Sostener la taza caliente entre las manos es un pequeño ancla a la realidad. El vapor sube en espirales perezosas, trayendo consigo ese aroma tostado e intenso que despierta la mente mucho antes de que el primer sorbo haga su magia. En esos diez minutos de tregua no hay correos electrónicos urgentes que responder, ni listas interminables de pendientes, ni notificaciones parpadeando en la esquina de una pantalla. Solo existe la calma suspendida de quien observa la calle todavía desierta a través de la ventana, donde apenas cruza algún paseante solitario con paso pausado.',
+    'A veces olvidamos que estos momentos diminutos son los que verdaderamente sostienen el ritmo de la rutina. Nos pasamos la vida planificando el siguiente gran paso, ajustando agendas y buscando una eficiencia implacable en cada rincón del día a día, pero la verdadera lucidez suele aparecer justo en estas pausas involuntarias. Una bocanada de aire fresco al abrir el balcón, el sonido lejano de la ciudad que empieza a desperezarse y la sensación de que, al menos por unos instantes, el tiempo no corre en nuestra contra. Es un espacio breve pero suficiente para ordenar los pensamientos y encarar la jornada con serenidad.',
+  ];
+  const tags = extractTagsFallback('Test1', paragraphs.join('\n\n'));
+  assert.ok(tags.includes('calma'));
+  assert.ok(tags.includes('rutina'));
+  assert.ok(tags.includes('reflexión'));
+  assert.ok(!tags.some((tag) => ['test1', 'empezar'].includes(tag)));
+  assert.deepEqual(tags, extractTagsFallback('Otro título', [...paragraphs].reverse().join('\n\n')));
+});
+
+test('analyzer receives complete short notes and samples the middle and end of long notes', async () => {
+  const text = 'A'.repeat(10000) + 'M'.repeat(10000) + 'Z'.repeat(10000);
+  const excerpt = sampleNoteForAnalysis(text);
+  assert.ok(excerpt.length <= 8000);
+  assert.ok(excerpt.includes('MMMM'));
+  assert.ok(excerpt.startsWith('AAAA'));
+  assert.ok(excerpt.endsWith('ZZZZ'));
+  const short = 'Ritual al inicio. ' + 'Texto de la nota. '.repeat(250) + 'Conclusión: calma y serenidad.';
+  let prompt;
+  const ai = { async run(model, options) { prompt = options.messages[1].content; return { response: '{"tags":["calma"]}' }; } };
+  await createWorkersAiNoteAnalyzer(ai).analyze({ title: 'Test1', text: short, prefs: {} });
+  assert.ok(prompt.includes(short));
 });
