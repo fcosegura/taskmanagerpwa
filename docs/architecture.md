@@ -68,3 +68,25 @@ de conflictos offline y de validación de sesión descritos en la revisión requ
 cambios funcionales independientes. Dos excepciones ya aplicadas en el cliente:
 `checkSession` solo considera expirada la sesión ante un 401 (los 5xx son
 transitorios) y el logout local se completa aunque `/api/logout` falle sin red.
+
+## Relevancia de Note AI
+
+Las etiquetas de respaldo filtran palabras vacías en español/inglés y priorizan
+hashtags explícitos, entidades, título y términos destacados del contenido.
+Las respuestas parciales del modelo conservan los campos válidos, sin fallar
+cuando faltan listas de entidades. El esquema de análisis/vector se incrementa
+para reanalizar notas existentes al volver a abrir Notas (en lotes).
+
+La búsqueda consulta el texto descifrado del perfil antes de usar vectores:
+las consultas de uno o dos términos significativos exigen coincidencias de
+palabras completas, sin distinguir tildes. Para consultas más largas combina
+coincidencias de texto con resultados semánticos de score mínimo 0.6. Las
+coincidencias textuales se ordenan primero, incluso si la nota aún no tiene
+embedding. El umbral es una regla conservadora, no una calibración medida en
+producción. No se mezclan notas de distintos perfiles.
+
+El grafo, el panel del tablero y la API de relacionadas complementan la metadata
+con solapamiento de términos significativos (Jaccard >= 0.25, top 6 por nota).
+Esto enlaza notas cortas como «Prueba»/«otra prueba» sin depender de la cola o
+Vectorize; un título común por sí solo no basta para enlazar contenido largo
+sin relación. Este solapamiento no se usa como prueba de duplicidad.

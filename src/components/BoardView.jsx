@@ -736,7 +736,7 @@ export default function BoardView({
               type="search"
               value={searchQuery}
               onChange={(e) => onSearchChange?.(e.target.value)}
-              placeholder="Buscar por significado… (ej. tickets de autenticación)"
+              placeholder="Buscar palabras clave o describir una idea…"
               aria-label="Búsqueda semántica de notas"
               style={{
                 flex: 1,

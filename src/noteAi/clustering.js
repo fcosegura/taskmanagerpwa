@@ -1,3 +1,5 @@
+import { contentRelatedEdges } from './contentSignals.js';
+
 /**
  * Deterministic clustering + board layout for Phase 2.
  * Pure functions — no Worker/AI bindings — so they run client-side (offline) or in the pipeline.
@@ -180,4 +182,15 @@ export function organizeNotesFromMeta(noteIds, metaById, layoutOptions) {
   const clusters = buildSimilarityClusters(noteIds, edges);
   const positions = layoutClusters(clusters, layoutOptions);
   return { clusters, positions, source: 'related_meta' };
+}
+
+/** The board and graph use the same stored + content-derived relationships. */
+export function edgesFromNotes(notes, metaById = {}) {
+  const edges = edgesFromRelatedMeta(metaById, notes.map((note) => note.id));
+  const keys = new Set(edges.map((edge) => JSON.stringify([edge.a, edge.b].sort())));
+  for (const edge of contentRelatedEdges(notes)) {
+    const key = JSON.stringify([edge.a, edge.b].sort());
+    if (!keys.has(key)) { edges.push(edge); keys.add(key); }
+  }
+  return edges;
 }

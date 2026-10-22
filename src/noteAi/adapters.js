@@ -59,6 +59,8 @@ export function createWorkersAiNoteAnalyzer(ai) {
         '"taskSuggestions":["acciones concretas opcionales"]}',
         `Clasificaciones válidas: ${NOTE_CLASSIFICATIONS.join(', ')}.`,
         'Si no hay datos para un campo, usa [] o "".',
+        'Tags: como máximo 5 temas, conceptos o entidades relevantes. Prioriza hashtags explícitos.',
+        'No uses palabras de relleno como esta, solo, otra, sobre, todo, poco, paso o pero. No rellenes una cuota de tags.',
         `Título: ${String(title || '').slice(0, 200)}`,
         `Texto: ${excerptForAnalysis(text)}`,
       ].join('\n');

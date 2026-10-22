@@ -19,7 +19,7 @@ import { countOpenChildTasks } from './taskTrashHelpers.js';
 import { loadNoteAiPrefsFromStorage, saveNoteAiPrefsToStorage } from './noteAi/prefs.js';
 import { loadNextFocusAllowedStatuses, saveNextFocusAllowedStatuses } from './nextFocusStatusPrefs.js';
 import { loadChildTaskAllowedStatuses, saveChildTaskAllowedStatuses } from './childTaskStatusPrefs.js';
-import { organizeNotesFromMeta } from './noteAi/clustering.js';
+import { edgesFromNotes, organizeNotesFromMeta } from './noteAi/clustering.js';
 import { Spinner } from './components/ui/index.jsx';
 import BoardView from './components/BoardView.jsx';
 import TaskModal from './components/TaskModal.jsx';
@@ -1079,13 +1079,9 @@ export default function App() {
       .filter(Boolean)
       .map((n) => ({ noteId: n.id, title: n.title, text: n.text }));
 
-    const forward = noteAiMetaById[selectedBoardNoteId]?.relatedIds || [];
-    const reverse = [];
-    for (const [id, meta] of Object.entries(noteAiMetaById)) {
-      if (id === selectedBoardNoteId) continue;
-      if ((meta?.relatedIds || []).includes(selectedBoardNoteId)) reverse.push(id);
-    }
-    const localIds = [...new Set([...forward, ...reverse])];
+    const localIds = edgesFromNotes(boardNotes, noteAiMetaById)
+      .filter((edge) => edge.a === selectedBoardNoteId || edge.b === selectedBoardNoteId)
+      .map((edge) => edge.a === selectedBoardNoteId ? edge.b : edge.a);
     const localRelated = hydrateLocal(localIds);
 
     if (relatedNotesFetch?.noteId === selectedBoardNoteId) {

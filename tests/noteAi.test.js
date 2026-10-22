@@ -49,14 +49,14 @@ test('analyzeNoteFallback respects prefs off switches', () => {
 test('sanitizeAnalysisResult clamps unknown classification', () => {
   const result = sanitizeAnalysisResult({
     summary: 'x',
-    tags: ['a', 'a', 'b'],
+    tags: ['proyecto', 'proyecto', 'ritual'],
     classification: 'NoExiste',
     entities: { people: ['Ana'], projects: [], tickets: [], urls: [], platforms: [], dates: [] },
     taskSuggestions: ['Hacer X'],
     source: 'ai',
   });
   assert.equal(result.classification, 'Otro');
-  assert.deepEqual(result.tags, ['a', 'b']);
+  assert.deepEqual(result.tags, ['proyecto', 'ritual']);
   assert.equal(result.source, 'ai');
 });
 

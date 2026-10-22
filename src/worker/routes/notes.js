@@ -11,7 +11,7 @@ import { NOTE_AI_RAG_MAX_QUESTION_CHARS } from '../../noteAi/constants.js';
 export async function handleNoteRoutes({ request, path, env, ctx, userId, profileId, dataKey }) {
   if (request.method === 'GET' && path === '/notes/ai') {
     const meta = await listNoteAiMeta(env, dataKey, userId, profileId);
-    // Re-embed notes indexed with the old Vectorize filter scheme (non-blocking).
+    // Refresh notes indexed with older analysis/vector rules (non-blocking).
     await enqueueStaleNoteAiReindex(env, ctx, userId, profileId);
     return json({ meta });
   }

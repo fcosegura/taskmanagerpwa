@@ -173,3 +173,35 @@ test('Worker preserves Note AI route dispatch and disabled-feature responses', a
   const chat = await (await call('/notes/chat', { question: '¿Qué tengo pendiente?', prefs: { ragChat: false } })).json();
   assert.equal(chat.source, 'disabled');
 });
+
+test('note search finds ritual without including unrelated vector hits, and content links work without AI', async (t) => {
+  const { call, env } = createEnvironment(t);
+  const notes = [
+    { id: 'short-a', title: 'Prueba', text: 'Esta ews solo una prueba', x: 1, y: 1 },
+    { id: 'short-b', title: 'prueba 2', text: 'otra prueba', x: 2, y: 2 },
+    { id: 'ritual', title: 'Diario', text: 'El ritual de empezar una mañana tranquila ayuda a descansar.', x: 3, y: 3 },
+  ];
+  assert.equal((await call('/sync', { payload: { ...empty(), boardNotes: notes } })).status, 200);
+  let vectorCalls = 0;
+  env.AI = { async run() { return { data: [[1, 0]] }; } };
+  env.VECTORIZE = { async query() {
+    vectorCalls += 1;
+    return { matches: [
+      { score: 0.35, metadata: { noteId: 'short-a' } },
+      { score: 0.9, metadata: { noteId: 'ritual' } },
+      { score: 0.95, metadata: { noteId: 'foreign-profile-note' } },
+    ] };
+  } };
+  const short = await (await call('/notes/search', { query: 'ritual' })).json();
+  assert.deepEqual(short.results.map((note) => note.noteId), ['ritual']);
+  assert.equal(vectorCalls, 0);
+  const emptySearch = await (await call('/notes/search', { query: 'astronomia' })).json();
+  assert.deepEqual(emptySearch.results, []);
+  const semantic = await (await call('/notes/search', { query: 'rutina matinal relajante' })).json();
+  assert.deepEqual(semantic.results.map((note) => note.noteId), ['ritual']);
+  assert.equal(semantic.results[0].match, 'semantic');
+  delete env.VECTORIZE;
+  const related = await (await call('/notes/short-a/related')).json();
+  assert.ok(related.related.some((note) => note.noteId === 'short-b'));
+  assert.ok(!related.related.some((note) => note.noteId === 'ritual'));
+});

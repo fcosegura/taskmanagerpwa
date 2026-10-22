@@ -1,3 +1,5 @@
+import { cleanNoteTags } from './contentSignals.js';
+
 // Vista derivada (cliente) de la metadata Note AI de una nota, respetando prefs y
 // sugerencias descartadas. Compartida por la tarjeta del tablero y el modal de nota extendida.
 
@@ -8,7 +10,7 @@ export function isNoteAiSuggestionDismissed(meta, kind, value) {
 
 export function buildNoteAiDisplay(meta, prefs) {
   const tags = prefs?.autotag !== false
-    ? (meta?.tags || []).filter((t) => !isNoteAiSuggestionDismissed(meta, 'tag', t))
+    ? cleanNoteTags(meta?.tags).filter((t) => !isNoteAiSuggestionDismissed(meta, 'tag', t))
     : [];
   const summary = prefs?.summary !== false ? (meta?.summary || '') : '';
   const classification = prefs?.classification !== false ? (meta?.classification || null) : null;
