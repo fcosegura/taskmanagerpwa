@@ -2,15 +2,18 @@ import assert from 'node:assert/strict';
 import { test, describe } from 'node:test';
 import { readFileSync } from 'node:fs';
 import {
+  EXTENDED_NOTE_MAX_CHARS,
   NOTE_KIND_EXTENDED,
   buildExtendedNotePreview,
   countWords,
   createExtendedNote,
   isExtendedNote,
+  isNoteContentEmpty,
   isValidNoteKind,
   normalizeNoteKind,
 } from '../src/extendedNotes.js';
 import { buildNoteAiDisplay } from '../src/noteAi/display.js';
+import { excerptForAnalysis } from '../src/noteAi/adapters.js';
 import { isValidBoardNote, normalizeDataPayload } from '../src/data/normalize.js';
 import { buildNotePlainSnapshot } from '../src/d1-field-crypto.js';
 
@@ -47,6 +50,18 @@ describe('extendedNotes helpers', () => {
     assert.equal(countWords('  uno dos\ntres  '), 3);
   });
 
+  test('detects empty content', () => {
+    assert.equal(isNoteContentEmpty({ title: '  ', text: '\n' }), true);
+    assert.equal(isNoteContentEmpty(null), true);
+    assert.equal(isNoteContentEmpty({ title: 'x', text: '' }), false);
+    assert.equal(isNoteContentEmpty({ title: '', text: 'y' }), false);
+  });
+
+  test('caps extended note size well below the D1 row limit', () => {
+    // Peor caso UTF-8 (3 bytes/char) + base64 del cifrado sigue < 1 MB.
+    assert.ok(EXTENDED_NOTE_MAX_CHARS * 3 * (4 / 3) < 1_000_000);
+  });
+
   test('creates an empty extended note', () => {
     const note = createExtendedNote({ id: 'n1', now: new Date('2026-10-22T10:00:00Z') });
     assert.deepEqual(note, {
@@ -75,6 +90,22 @@ describe('extended notes persistence', () => {
     assert.deepEqual(buildNotePlainSnapshot(base), buildNotePlainSnapshot({ ...base, kind: 'quick' }));
     assert.equal(buildNotePlainSnapshot({ ...base, kind: 'extended' }).kind, 'extended');
     assert.equal('kind' in buildNotePlainSnapshot(base), false);
+  });
+});
+
+describe('excerptForAnalysis', () => {
+  test('keeps short text intact', () => {
+    assert.equal(excerptForAnalysis('hola'), 'hola');
+    assert.equal(excerptForAnalysis(undefined), '');
+  });
+
+  test('keeps head and tail of long notes within the budget', () => {
+    const text = `INICIO ${'a'.repeat(5000)} CONCLUSIÓN FINAL`;
+    const excerpt = excerptForAnalysis(text);
+    assert.ok(excerpt.length <= 2500);
+    assert.ok(excerpt.startsWith('INICIO'));
+    assert.ok(excerpt.endsWith('CONCLUSIÓN FINAL'));
+    assert.match(excerpt, /\[…\]/);
   });
 });
 
@@ -126,5 +157,8 @@ describe('extended note UI wiring', () => {
     assert.doesNotMatch(modalSource, /<dialog/);
     assert.match(modalSource, /Tienes cambios sin guardar/);
     assert.match(modalSource, /event\.key\.toLowerCase\(\) === 's'/);
+    assert.match(modalSource, /beforeunload/);
+    assert.match(modalSource, /maxLength=\{EXTENDED_NOTE_MAX_CHARS\}/);
+    assert.match(modalSource, /backdropPointerDownRef\.current && e\.target === e\.currentTarget/);
   });
 });

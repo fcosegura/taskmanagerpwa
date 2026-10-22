@@ -963,7 +963,10 @@ Pipeline async server-side (Queue / `waitUntil`) disparado por sync de notes.
 - Una nota extendida es una nota del tablero con `kind: 'extended'` (`extendedNotes.js`). Reutiliza `title`/`text`, así que el pipeline Note AI (tags, resumen, entidades, clasificación, sugerencias, embeddings, búsqueda, duplicados, grafo y RAG) funciona sin cambios.
 - En el tablero la tarjeta muestra solo un extracto (`buildExtendedNotePreview`, ~140 caracteres) y el conteo de palabras; al hacer click se abre `ExtendedNoteModal` (portal a `document.body`, `useModalDialog`).
 - El modal edita un borrador local: "Guardar" (o Ctrl/Cmd+S) aplica `onUpdateNote`; cerrar con cambios pendientes pide confirmación (seguir editando / descartar / guardar y cerrar). Incluye panel lateral con la meta Note AI (`noteAi/display.js`), convertir a tarea y eliminar.
-- Creación: botón "+ Nota extendida" del tablero, o "⤢" en una nota rápida para convertirla.
+- Creación: botón "+ Nota extendida" del tablero, o "⤢" en una nota rápida para convertirla. Desde el modal, "Pasar a nota rápida" revierte (`kind` se elimina).
+- Una nota extendida nueva que se cierra sin título ni texto se descarta sin undo (`discardBoardNote` en App). El modal avisa con `beforeunload` si hay cambios sin guardar, no se cierra al soltar una selección de texto sobre el fondo y limita el texto a `EXTENDED_NOTE_MAX_CHARS` (100.000) para no superar el tamaño de fila de D1 y romper el batch de sync.
+- Seleccionar una nota extendida desde búsqueda semántica, relacionadas o duplicados abre su modal.
+- El analizador Note AI usa `excerptForAnalysis` (`noteAi/adapters.js`): para textos > 2.500 caracteres envía inicio + final, de modo que tags/resumen reflejan también las conclusiones de las notas largas.
 - Persistencia: columna no cifrada `notes.kind` (auto-migrada). El snapshot de `content_hash` solo incluye `kind` cuando es `'extended'`, para no reescribir las notas rápidas existentes. Sync y backups validan `kind` (`isValidNoteKind`).
 
 ### 9.14 Modo Rápido vs Modo Completo

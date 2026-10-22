@@ -945,6 +945,8 @@ export default function App() {
       });
     }
   };
+  // Sin undo: solo se usa para notas recién creadas que se cierran vacías.
+  const discardBoardNote = (id) => setBoardNotes((p) => p.filter((note) => note.id !== id));
   const updateBoardNote = (id, changes) => setBoardNotes((p) => p.map((note) => note.id === id ? { ...note, ...changes } : note));
   const handleConvertNoteToTask = (note) => {
     const taskTitle = (note?.title || '').trim();
@@ -2146,6 +2148,7 @@ export default function App() {
                   onAddNote={addBoardNote}
                   onUpdateNote={updateBoardNote}
                   onDeleteNote={deleteBoardNote}
+                  onDiscardNote={discardBoardNote}
                   onConvertToTask={handleConvertNoteToTask}
                   onConvertSuggestion={handleConvertNoteSuggestionToTask}
                   onDismissSuggestion={handleDismissNoteAiSuggestion}

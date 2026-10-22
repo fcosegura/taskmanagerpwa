@@ -8,6 +8,7 @@ import {
   countWords,
   createExtendedNote,
   isExtendedNote,
+  isNoteContentEmpty,
 } from '../extendedNotes.js';
 
 const NOTE_CARD_MIN_HEIGHT = 180;
@@ -398,6 +399,7 @@ export default function BoardView({
   onAddNote,
   onUpdateNote,
   onDeleteNote,
+  onDiscardNote,
   onConvertToTask,
   onConvertSuggestion,
   onDismissSuggestion,
@@ -410,6 +412,7 @@ export default function BoardView({
   const [draggedId, setDraggedId] = useState(null);
   const [focusNoteId, setFocusNoteId] = useState(null);
   const [openExtendedNoteId, setOpenExtendedNoteId] = useState(null);
+  const newExtendedNoteIdRef = useRef(null);
   const dragCaptureRef = useRef(null);
   const dragOffsetRef = useRef({ x: 0, y: 0 });
   const noteWidth = Math.min(Math.max(boardWidth - 24, 150), 220);
@@ -530,7 +533,29 @@ export default function BoardView({
   const handleAddExtendedNote = () => {
     const note = createExtendedNote({ id: crypto.randomUUID() });
     onAddNote(note);
+    newExtendedNoteIdRef.current = note.id;
     setOpenExtendedNoteId(note.id);
+  };
+
+  const handleCloseExtendedNote = (finalContent) => {
+    const noteId = openExtendedNoteId;
+    // Una nota extendida recién creada que se cierra sin contenido no deja tarjeta vacía.
+    if (finalContent && noteId && newExtendedNoteIdRef.current === noteId && isNoteContentEmpty(finalContent)) {
+      onDiscardNote?.(noteId);
+    }
+    newExtendedNoteIdRef.current = null;
+    setOpenExtendedNoteId(null);
+  };
+
+  const handleConvertToQuickNote = (noteId, content) => {
+    onUpdateNote(noteId, { ...content, kind: undefined });
+    setFocusNoteId(noteId);
+  };
+
+  // Seleccionar una nota desde búsqueda/relacionadas/duplicados abre directamente las extendidas.
+  const handleFocusNote = (noteId) => {
+    onSelectNote?.(noteId);
+    if ((notes || []).some((n) => n.id === noteId && isExtendedNote(n))) setOpenExtendedNoteId(noteId);
   };
 
   const handleExpandNote = (noteId) => {
@@ -653,7 +678,7 @@ export default function BoardView({
                     <button
                       key={n.noteId}
                       type="button"
-                      onClick={() => onSelectNote?.(n.noteId)}
+                      onClick={() => handleFocusNote(n.noteId)}
                       style={{
                         border: selectedNoteId === n.noteId ? '1px solid var(--color-accent)' : '1px solid var(--color-border-tertiary)',
                         borderRadius: 8,
@@ -760,7 +785,7 @@ export default function BoardView({
               <button
                 key={r.noteId}
                 type="button"
-                onClick={() => onSelectNote?.(r.noteId)}
+                onClick={() => handleFocusNote(r.noteId)}
                 style={{
                   textAlign: 'left',
                   border: '1px solid var(--color-border-tertiary)',
@@ -871,7 +896,7 @@ export default function BoardView({
                   <button
                     key={r.noteId}
                     type="button"
-                    onClick={() => onSelectNote?.(r.noteId)}
+                    onClick={() => handleFocusNote(r.noteId)}
                     style={{
                       textAlign: 'left',
                       border: '1px solid var(--color-border-tertiary)',
@@ -924,9 +949,10 @@ export default function BoardView({
           meta={noteAiMetaById[openExtendedNote.id]}
           prefs={noteAiPrefs}
           onSave={onUpdateNote}
-          onClose={() => setOpenExtendedNoteId(null)}
+          onClose={handleCloseExtendedNote}
           onDelete={onDeleteNote}
           onConvertToTask={onConvertToTask}
+          onConvertToQuick={handleConvertToQuickNote}
           onConvertSuggestion={onConvertSuggestion}
           onDismissSuggestion={onDismissSuggestion}
         />

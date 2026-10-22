@@ -214,6 +214,11 @@
   color: var(--color-text-secondary);
 }
 
+.extended-note-modal__limit {
+  color: var(--color-danger, #dc2626);
+  font-weight: 700;
+}
+
 .extended-note-modal__footer-actions {
   display: flex;
   gap: 8px;

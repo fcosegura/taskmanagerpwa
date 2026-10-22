@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useModalDialog } from '../hooks/useModalDialog.js';
 import { buildNoteAiDisplay } from '../noteAi/display.js';
-import { countWords } from '../extendedNotes.js';
+import { EXTENDED_NOTE_MAX_CHARS, countWords } from '../extendedNotes.js';
 import './ExtendedNoteModal.css';
 
 export default function ExtendedNoteModal({
@@ -13,10 +13,12 @@ export default function ExtendedNoteModal({
   onClose,
   onDelete,
   onConvertToTask,
+  onConvertToQuick,
   onConvertSuggestion,
   onDismissSuggestion,
 }) {
   const titleInputRef = useRef(null);
+  const backdropPointerDownRef = useRef(false);
   const [draft, setDraft] = useState(() => ({ title: note.title || '', text: note.text || '' }));
   const [confirmingClose, setConfirmingClose] = useState(false);
   const [savedAt, setSavedAt] = useState(null);
@@ -30,15 +32,29 @@ export default function ExtendedNoteModal({
     setConfirmingClose(false);
   };
 
+  // onClose recibe el contenido que queda persistido (o null si la nota ya no existe),
+  // para que el tablero pueda descartar una nota nueva que se cierra vacía.
+  const persisted = { title: note.title || '', text: note.text || '' };
+
   const requestClose = () => {
     if (dirty) {
       setConfirmingClose(true);
       return;
     }
-    onClose();
+    onClose(persisted);
   };
 
   const dialogRef = useModalDialog({ isOpen: true, onClose: requestClose, initialFocusRef: titleInputRef });
+
+  useEffect(() => {
+    if (!dirty) return undefined;
+    const warnBeforeUnload = (event) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', warnBeforeUnload);
+    return () => window.removeEventListener('beforeunload', warnBeforeUnload);
+  }, [dirty]);
 
   useEffect(() => {
     if (!savedAt) return undefined;
@@ -54,6 +70,7 @@ export default function ExtendedNoteModal({
   };
 
   const words = countWords(draft.text);
+  const nearLimit = draft.text.length >= EXTENDED_NOTE_MAX_CHARS * 0.9;
   const statusLabel = dirty
     ? 'Cambios sin guardar'
     : savedAt
@@ -64,7 +81,15 @@ export default function ExtendedNoteModal({
 
   // Portal: el canvas del tablero crea su propio contexto de apilamiento.
   return createPortal(
-    <div className="modal-backdrop extended-note-backdrop" onClick={(e) => e.target === e.currentTarget && requestClose()}>
+    <div
+      className="modal-backdrop extended-note-backdrop"
+      // Solo cierra si el click empezó en el fondo: seleccionar texto arrastrando fuera no debe cerrar.
+      onMouseDown={(e) => { backdropPointerDownRef.current = e.target === e.currentTarget; }}
+      onClick={(e) => {
+        if (backdropPointerDownRef.current && e.target === e.currentTarget) requestClose();
+        backdropPointerDownRef.current = false;
+      }}
+    >
       <div
         ref={dialogRef}
         className="liquid-glass-modal extended-note-modal"
@@ -98,6 +123,7 @@ export default function ExtendedNoteModal({
             className="extended-note-modal__text"
             value={draft.text}
             onChange={(e) => setDraft((prev) => ({ ...prev, text: e.target.value }))}
+            maxLength={EXTENDED_NOTE_MAX_CHARS}
             placeholder="Escribe tu nota extendida…"
             aria-label="Contenido de la nota extendida"
           />
@@ -163,13 +189,13 @@ export default function ExtendedNoteModal({
               <button type="button" className="extended-note-modal__ghost" onClick={() => setConfirmingClose(false)}>
                 Seguir editando
               </button>
-              <button type="button" className="extended-note-modal__ghost" onClick={onClose}>
+              <button type="button" className="extended-note-modal__ghost" onClick={() => onClose(persisted)}>
                 Descartar
               </button>
               <button
                 type="button"
                 className="primary-button extended-note-modal__primary"
-                onClick={() => { onSave(note.id, { title: draft.title, text: draft.text }); onClose(); }}
+                onClick={() => { onSave(note.id, { title: draft.title, text: draft.text }); onClose(draft); }}
               >
                 Guardar y cerrar
               </button>
@@ -178,23 +204,39 @@ export default function ExtendedNoteModal({
         ) : (
           <footer className="extended-note-modal__footer">
             <span className="extended-note-modal__meta" aria-live="polite">
-              {words} palabra{words === 1 ? '' : 's'} · {draft.text.length} caracteres · {statusLabel}
+              {words} palabra{words === 1 ? '' : 's'} ·{' '}
+              <span className={nearLimit ? 'extended-note-modal__limit' : undefined}>
+                {nearLimit
+                  ? `${draft.text.length.toLocaleString('es-ES')} / ${EXTENDED_NOTE_MAX_CHARS.toLocaleString('es-ES')} caracteres`
+                  : `${draft.text.length.toLocaleString('es-ES')} caracteres`}
+              </span>
+              {' '}· {statusLabel}
             </span>
             <div className="extended-note-modal__footer-actions">
               <button
                 type="button"
                 className="extended-note-modal__ghost extended-note-modal__danger"
-                onClick={() => { onDelete?.(note.id); onClose(); }}
+                onClick={() => { onDelete?.(note.id); onClose(null); }}
               >
                 Eliminar
               </button>
+              {onConvertToQuick && (
+                <button
+                  type="button"
+                  className="extended-note-modal__ghost"
+                  title="Mostrar la nota completa y editable directamente en el tablero"
+                  onClick={() => { onConvertToQuick(note.id, { title: draft.title, text: draft.text }); onClose(null); }}
+                >
+                  Pasar a nota rápida
+                </button>
+              )}
               {onConvertToTask && (
                 <button
                   type="button"
                   className="extended-note-modal__ghost"
                   disabled={!draft.title.trim()}
                   title={draft.title.trim() ? 'Convertir a tarea' : 'Se requiere un título para convertirla en tarea'}
-                  onClick={() => { onConvertToTask({ ...note, ...draft }); onClose(); }}
+                  onClick={() => { onConvertToTask({ ...note, ...draft }); onClose(null); }}
                 >
                   ⚡ Tarea
                 </button>

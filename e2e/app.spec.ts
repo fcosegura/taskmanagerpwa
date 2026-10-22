@@ -547,6 +547,31 @@ test.describe('notas extendidas', () => {
     await expect(modal).toBeVisible();
     await expect(modal.getByLabel('Título de la nota extendida')).toHaveValue('Idea para ampliar');
   });
+
+  test('descarta una nota extendida nueva vacía y permite volver a nota rápida', async ({ page }) => {
+    await enterFullMode(page);
+    await page.locator('.desktop-tabs').getByRole('button', { name: 'Notas' }).click();
+    await page.locator('.subview-pills').getByRole('button', { name: 'Tablero' }).click();
+    const modal = page.getByRole('dialog', { name: 'Nota extendida' });
+
+    // Cerrar sin escribir no deja una tarjeta vacía.
+    await page.getByRole('button', { name: '+ Nota extendida' }).click();
+    await expect(modal).toBeVisible();
+    await modal.getByRole('button', { name: 'Cerrar nota extendida' }).click();
+    await expect(modal).not.toBeVisible();
+    await expect(page.locator('.board-note')).toHaveCount(0);
+
+    // Con contenido se conserva y puede pasar a nota rápida editable en el tablero.
+    await page.getByRole('button', { name: '+ Nota extendida' }).click();
+    await modal.getByLabel('Título de la nota extendida').fill('Volver a rápida');
+    await modal.getByLabel('Contenido de la nota extendida').fill('Texto completo visible');
+    await modal.getByRole('button', { name: 'Pasar a nota rápida' }).click();
+    await expect(modal).not.toBeVisible();
+    const card = page.locator('.board-note').first();
+    await expect(card).not.toHaveAttribute('data-note-kind', 'extended');
+    await expect(card.getByPlaceholder('Título')).toHaveValue('Volver a rápida');
+    await expect(card.getByPlaceholder('Escribe tu nota…')).toHaveValue('Texto completo visible');
+  });
 });
 
 test.describe('selector de modo y modo rápido', () => {

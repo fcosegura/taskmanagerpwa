@@ -5,6 +5,9 @@
 export const NOTE_KIND_QUICK = 'quick';
 export const NOTE_KIND_EXTENDED = 'extended';
 export const EXTENDED_NOTE_PREVIEW_CHARS = 140;
+// Mantiene cada fila de D1 (texto cifrado en base64) muy por debajo del límite de tamaño:
+// una nota mayor rompería el batch de sync completo.
+export const EXTENDED_NOTE_MAX_CHARS = 100000;
 
 export function isExtendedNote(note) {
   return note?.kind === NOTE_KIND_EXTENDED;
@@ -32,6 +35,10 @@ export function buildExtendedNotePreview(text, maxChars = EXTENDED_NOTE_PREVIEW_
 export function countWords(text) {
   const flat = String(text || '').trim();
   return flat ? flat.split(/\s+/).length : 0;
+}
+
+export function isNoteContentEmpty(content) {
+  return !String(content?.title || '').trim() && !String(content?.text || '').trim();
 }
 
 export function createExtendedNote({ id, x = 24, y = 20, now = new Date() } = {}) {

@@ -10,6 +10,21 @@ import { buildRagPrompt, sanitizeRagAnswer, answerFromNotesFallback } from './ra
  * Adapter layer: swap model implementations without touching pipeline/business logic.
  */
 
+const ANALYZER_TEXT_MAX_CHARS = 2500;
+const ANALYZER_TAIL_CHARS = 700;
+
+/**
+ * Notas largas (p. ej. extendidas): el analizador ve el inicio y el final en lugar de
+ * cortar en seco, para que tags/resumen/sugerencias reflejen conclusiones finales.
+ */
+export function excerptForAnalysis(text, maxChars = ANALYZER_TEXT_MAX_CHARS, tailChars = ANALYZER_TAIL_CHARS) {
+  const value = String(text || '');
+  if (value.length <= maxChars) return value;
+  const separator = '\n[…]\n';
+  const headChars = Math.max(maxChars - tailChars - separator.length, 0);
+  return `${value.slice(0, headChars).trimEnd()}${separator}${value.slice(-tailChars).trimStart()}`;
+}
+
 export function createWorkersAiEmbeddingProvider(ai) {
   return {
     id: NOTE_EMBEDDING_MODEL,
@@ -45,7 +60,7 @@ export function createWorkersAiNoteAnalyzer(ai) {
         `Clasificaciones válidas: ${NOTE_CLASSIFICATIONS.join(', ')}.`,
         'Si no hay datos para un campo, usa [] o "".',
         `Título: ${String(title || '').slice(0, 200)}`,
-        `Texto: ${String(text || '').slice(0, 2500)}`,
+        `Texto: ${excerptForAnalysis(text)}`,
       ].join('\n');
 
       try {
