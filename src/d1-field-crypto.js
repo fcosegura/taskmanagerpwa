@@ -145,6 +145,7 @@ export function buildTaskPlainSnapshot(task, taskSchema, taskName, subtasksJson,
 
 export function buildNotePlainSnapshot(note) {
   return {
+    noteType: note.noteType === 'extended' ? 'extended' : 'quick',
     text: typeof note.text === 'string' ? note.text : '',
     title: typeof note.title === 'string' ? note.title : '',
     x: Number(note.x) || 0,

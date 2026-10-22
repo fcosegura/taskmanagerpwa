@@ -148,3 +148,21 @@ test('Worker preserves Note AI route dispatch and disabled-feature responses', a
   const chat = await (await call('/notes/chat', { question: '¿Qué tengo pendiente?', prefs: { ragChat: false } })).json();
   assert.equal(chat.source, 'disabled');
 });
+
+test('extended notes retain full encrypted content and type through full and delta sync', async (t) => {
+  const { call, sql, jobs } = createEnvironment(t);
+  const note = { id: 'extended-1', noteType: 'extended', title: 'Investigación', text: 'Texto largo con #proyecto y detalles.\n'.repeat(500), x: 20, y: 30 };
+  assert.equal((await call('/sync', { payload: { ...empty(), boardNotes: [note] } })).status, 200);
+  const loaded = await (await call('/data')).json();
+  assert.equal(loaded.boardNotes[0].noteType, 'extended');
+  assert.equal(loaded.boardNotes[0].text, note.text);
+  const stored = sql.prepare('SELECT text, note_type, content_hash FROM notes').get();
+  assert.equal(stored.note_type, 'extended');
+  assert.ok(stored.text.startsWith('v1.'));
+  assert.ok(jobs.some(({ body }) => body.type === 'analyze' && body.noteId === note.id));
+  const updated = { ...note, text: note.text + 'Final actualizado' };
+  const ops = { tasks: { upserts: [], deletes: [] }, events: { upserts: [], deletes: [] }, notes: { upserts: [updated], deletes: [] } };
+  assert.equal((await call('/sync', { ops })).status, 200);
+  assert.equal((await (await call('/data')).json()).boardNotes[0].text, updated.text);
+  assert.notEqual(sql.prepare('SELECT content_hash FROM notes').get().content_hash, stored.content_hash);
+});

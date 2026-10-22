@@ -68,3 +68,17 @@ de conflictos offline y de validación de sesión descritos en la revisión requ
 cambios funcionales independientes. Dos excepciones ya aplicadas en el cliente:
 `checkSession` solo considera expirada la sesión ante un 401 (los 5xx son
 transitorios) y el logout local se completa aunque `/api/logout` falle sin red.
+
+## Notas extendidas
+
+El tablero permite crear notas rápidas y extendidas. Las extendidas conservan el
+mismo `title` y `text` cifrados y el mismo pipeline Note AI (etiquetas, resumen,
+relaciones, búsqueda, duplicados, organización y RAG). `noteType` distingue
+`quick` (también para notas anteriores) de `extended`; D1 lo guarda en
+`note_type`, con auto-migración y participación en el hash de sincronización.
+La tarjeta muestra hasta 180 caracteres; `ExtendedNoteModal` permite editar el
+contenido completo, desplazarse, guardar y confirmar el descarte de cambios.
+El guardado usa el flujo local y cloud existente; el aviso del modal confirma el
+guardado en la app, mientras el indicador global informa del estado de sync.
+Los límites de contexto de los modelos Note AI existentes siguen aplicándose;
+el texto persistido no se recorta.

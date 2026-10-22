@@ -1,0 +1,27 @@
+.extended-note-overlay {
+  position: fixed; inset: 0; z-index: 10000;
+  display: flex; align-items: center; justify-content: center;
+  padding: 16px; box-sizing: border-box;
+  background: rgba(15, 23, 42, 0.5); backdrop-filter: blur(5px);
+}
+.extended-note-modal {
+  padding: 24px; border-radius: var(--border-radius-lg); color: var(--color-text-primary);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.3);
+  width: min(820px, calc(100vw - 24px));
+  max-width: 820px;
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+.extended-note-modal form { display: flex; flex-direction: column; min-height: 0; gap: 16px; }
+.extended-note-scroll { display: grid; gap: 10px; min-height: 0; }
+.extended-note-scroll input, .extended-note-scroll textarea {
+  width: 100%; box-sizing: border-box; padding: 12px;
+  border: 1px solid var(--color-border-tertiary); border-radius: 10px;
+  background: var(--color-background-secondary); color: var(--color-text-primary); font: inherit;
+}
+.extended-note-scroll textarea { height: clamp(220px, 48dvh, 560px); resize: vertical; line-height: 1.65; overflow-y: auto; }
+.extended-note-modal footer { display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
+.extended-note-modal footer span { margin-right: auto; font-size: 12px; }
+.extended-note-confirm { padding: 12px; border: 1px solid var(--color-border-tertiary); border-radius: 10px; }
+.extended-note-confirm button { margin: 4px; }

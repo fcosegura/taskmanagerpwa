@@ -54,12 +54,14 @@ export async function installApiMocks(page: Page): Promise<void> {
     [IMPORTED_PROFILE_ID, [{ id: 'imported-task', name: 'Tarea importada E2E', status: 'custom_imported', priority: 'medium', subtasks: [] }]],
   ]);
 
+  const notesByProfile = new Map<string, { id: string }[]>();
+
   const profilesList = () => [...profiles.values()].map((profile) => ({ ...profile }));
 
   const workspaceData = (profileId: string) =>
     json({
       tasks: tasksByProfile.get(profileId) ?? [],
-      boardNotes: [],
+      boardNotes: notesByProfile.get(profileId) ?? [],
       events: [],
       profiles: profilesList(),
       activeProfileId: profileId,
@@ -94,6 +96,17 @@ export async function installApiMocks(page: Page): Promise<void> {
   await page.route((url) => url.pathname === '/api/sync', (route) => {
     if (route.request().method() !== 'POST') {
       return route.continue();
+    }
+    const body = route.request().postDataJSON();
+    const profileId = body?.profileId || E2E_PROFILE_ID;
+    if (Array.isArray(body?.payload?.boardNotes)) {
+      notesByProfile.set(profileId, body.payload.boardNotes);
+    } else if (body?.ops?.notes) {
+      const group = body.ops.notes;
+      const notes = new Map((notesByProfile.get(profileId) || []).map((note) => [note.id, note]));
+      for (const id of group.deletes || []) notes.delete(id);
+      for (const note of group.upserts || []) notes.set(note.id, note);
+      notesByProfile.set(profileId, [...notes.values()]);
     }
     return respondOk(route);
   });
@@ -142,6 +155,7 @@ export async function installApiMocks(page: Page): Promise<void> {
     if (typeof requestBody?.profileId === 'string') {
       profiles.delete(requestBody.profileId);
       tasksByProfile.delete(requestBody.profileId);
+      notesByProfile.delete(requestBody.profileId);
     }
     return route.fulfill({
       status: 200,
