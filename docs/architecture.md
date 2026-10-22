@@ -82,3 +82,16 @@ El guardado usa el flujo local y cloud existente; el aviso del modal confirma el
 guardado en la app, mientras el indicador global informa del estado de sync.
 Los límites de contexto de los modelos Note AI existentes siguen aplicándose;
 el texto persistido no se recorta.
+
+### Revisión de la experiencia de edición
+
+- Las notas extendidas nuevas se incorporan al tablero al guardar por primera
+  vez; cerrar o descartar una creación no deja tarjetas vacías.
+- El editor mantiene visibles las acciones mientras el contenido y el panel de
+  etiquetas/resumen se desplazan. Incluye recuento de palabras y caracteres,
+  Ctrl+S/Command+S y aviso del navegador ante una recarga con cambios pendientes.
+- El descarte coloca el foco en «Seguir editando». El foco inicial de los modales
+  respeta la interacción si el usuario ya ha empezado a escribir.
+- «Ampliar» convierte una nota rápida conservando su ID, contenido y metadata.
+  Los botones de creación comparten tamaños y forma con los del tablero.
+- El tablero se reinicia al cambiar de perfil para aislar el editor abierto.

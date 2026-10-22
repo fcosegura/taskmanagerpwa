@@ -1,0 +1,33 @@
+.board-create-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.board-create-actions .board-create-button {
+  border-radius: 999px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 700;
+  min-height: 44px;
+  white-space: nowrap;
+}
+.board-note-preview {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  padding: 4px 0;
+  text-align: left;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-primary);
+  font: inherit;
+  cursor: pointer;
+}
+.board-note-preview small { font-size: 10px; font-weight: 650; color: var(--color-accent); }
+.board-note-preview strong { font-size: 14px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.board-note-preview > span { font-size: 13px; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.board-note-preview:focus-visible, .board-note-expand:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 3px; border-radius: 6px; }
+.board-note-expand { align-self: flex-start; border: 0; background: transparent; color: var(--color-accent); font-size: 11px; font-weight: 650; padding: 4px 0; cursor: pointer; }
+@media (max-width: 520px) {
+  .board-create-actions { width: 100%; }
+  .board-create-actions .board-create-button { flex: 1; }
+}

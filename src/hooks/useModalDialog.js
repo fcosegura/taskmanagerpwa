@@ -36,6 +36,8 @@ export function useModalDialog({
 
     // 2. Mover foco al abrir (initialFocusRef o primer elemento enfocable o contenedor del diálogo)
     const focusTimer = setTimeout(() => {
+      // Do not steal focus if the user already started interacting with the dialog.
+      if (dialogRef.current?.contains(document.activeElement)) return;
       const targetFocus = initialFocusRefInternal.current?.current;
       if (targetFocus && typeof targetFocus.focus === 'function') {
         targetFocus.focus();

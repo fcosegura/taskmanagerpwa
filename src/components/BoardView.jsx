@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Spinner } from './ui/index.jsx';
 import ExtendedNoteModal from './ExtendedNoteModal.jsx';
 import { uid } from '../utils.jsx';
+import './BoardView.css';
 
 function isDismissed(meta, kind, value) {
   const key = `${kind}:${value}`;
@@ -174,8 +175,7 @@ function BoardNoteCard({
       </div>
 
       {note.noteType === 'extended' ? (
-        <button type="button" className="ghost-button" onClick={(e) => { e.stopPropagation(); onOpen(note.id); }}
-          style={{ textAlign: 'left', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', display: 'grid', gap: 10, width: '100%' }}>
+        <button type="button" className="board-note-preview" onClick={(e) => { e.stopPropagation(); onOpen(note.id); }}>
           <small>Nota extendida · Abrir</small>
           <strong>{note.title || 'Sin título'}</strong>
           <span>{Array.from(note.text || '').slice(0, 180).join('')}{Array.from(note.text || '').length > 180 ? '…' : ''}</span>
@@ -228,6 +228,9 @@ function BoardNoteCard({
         }}
       />
 
+          {note.noteType !== 'extended' && <button type="button" className="board-note-expand"
+            aria-label="Convertir en nota extendida" title="Ampliar nota"
+            onClick={(event) => { event.stopPropagation(); onUpdate(note.id, { noteType: 'extended' }); }}>Ampliar</button>}
       </>}
 
       {summary && (
@@ -378,7 +381,8 @@ export default function BoardView({
   onDismissSuggestion,
 }) {
   const [editingNoteId, setEditingNoteId] = useState(null);
-  const editingNote = notes.find((note) => note.id === editingNoteId);
+  const [newExtendedNote, setNewExtendedNote] = useState(null);
+  const editingNote = notes.find((note) => note.id === editingNoteId) || newExtendedNote;
   const openNote = (id) => {
     onSelectNote?.(id);
     if (notes.find((note) => note.id === id)?.noteType === 'extended') setEditingNoteId(id);
@@ -403,7 +407,6 @@ export default function BoardView({
     });
     ro.observe(el);
     return () => ro.disconnect();
-
   }, []);
 
   const bringNoteIntoFocus = (noteId, noteY = 20) => {
@@ -498,7 +501,7 @@ export default function BoardView({
 
   const handleAddNote = (noteType = 'quick') => {
     const id = uid();
-    onAddNote({
+    const note = {
       id,
       noteType,
       title: '',
@@ -506,8 +509,13 @@ export default function BoardView({
       createdAt: new Date().toISOString(),
       x: 24,
       y: 20,
-    });
-    if (noteType === 'extended') setEditingNoteId(id);
+    };
+    if (noteType === 'extended') {
+      setNewExtendedNote(note);
+      setEditingNoteId(id);
+    } else {
+      onAddNote(note);
+    }
     // Focus/select is handled by the notes-change effect so header + board share one path.
   };
 
@@ -533,7 +541,12 @@ export default function BoardView({
     <div className="board-view" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {editingNote && <ExtendedNoteModal key={editingNote.id} note={editingNote}
         meta={noteAiMetaById[editingNote.id]} prefs={noteAiPrefs}
-        onSave={(changes) => onUpdateNote(editingNote.id, changes)} onClose={() => setEditingNoteId(null)} />}
+        onSave={(changes) => {
+          if (newExtendedNote) {
+            onAddNote({ ...newExtendedNote, ...changes });
+            setNewExtendedNote(null);
+          } else onUpdateNote(editingNote.id, changes);
+        }} onClose={() => { setEditingNoteId(null); setNewExtendedNote(null); }} />}
       <div ref={boardScrollAnchorRef} className="board-sticky-anchor" aria-hidden="true" />
       <div className="board-toolbar material-base" style={{ display: 'flex', flexDirection: 'column', gap: 10, borderRadius: 'var(--border-radius-xl)', padding: '20px 24px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
@@ -545,7 +558,7 @@ export default function BoardView({
                 : 'La IA organiza tus notas en silencio.'}
             </div>
           </div>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <div className="board-create-actions">
             {showOrganize && (
               <button
                 type="button"
@@ -570,13 +583,12 @@ export default function BoardView({
             )}
             <button
               type="button"
-              className="primary-button"
+              className="primary-button board-create-button"
               onClick={() => handleAddNote()}
-              style={{ borderRadius: '999px', padding: '8px 16px', fontSize: 13, fontWeight: 700 }}
             >
               + Nueva Nota
             </button>
-            <button type="button" className="ghost-button" onClick={() => handleAddNote('extended')}>+ Nota extendida</button>
+            <button type="button" className="ghost-button board-create-button" onClick={() => handleAddNote('extended')}>+ Nota extendida</button>
           </div>
         </div>
 

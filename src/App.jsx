@@ -2126,6 +2126,7 @@ export default function App() {
                     onSelectNote={setSelectedBoardNoteId}
                   />
               : <BoardView
+                  key={activeProfileId}
                   notes={boardNotes}
                   noteAiMetaById={noteAiMetaById}
                   noteAiPrefs={noteAiPrefs}
