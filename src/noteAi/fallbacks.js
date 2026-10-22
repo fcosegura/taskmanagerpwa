@@ -1,4 +1,5 @@
 import { NOTE_CLASSIFICATIONS } from './constants.js';
+import { cleanNoteTags, noteTokens } from './contentSignals.js';
 
 const URL_RE = /https?:\/\/[^\s<>"']+/gi;
 const JIRA_TICKET_RE = /\b([A-Z][A-Z0-9]+-\d+)\b/g;
@@ -15,19 +16,14 @@ const CLASSIFICATION_HINTS = [
   { id: 'Referencia', words: ['referencia', 'link', 'enlace', 'anotar', 'guardar', 'snippet'] },
 ];
 
-const STOPWORDS = new Set([
-  'de', 'la', 'el', 'en', 'y', 'a', 'los', 'las', 'un', 'una', 'para', 'por', 'con', 'del', 'que',
-  'the', 'and', 'or', 'to', 'of', 'in', 'on', 'for', 'is', 'are', 'this', 'that', 'with',
-]);
-
 function combinedText(title, text) {
   return `${title || ''}\n${text || ''}`.trim();
 }
 
-function uniqueStrings(items, max = 12) {
+function uniqueStrings(items = [], max = 12) {
   const out = [];
   const seen = new Set();
-  for (const item of items) {
+  for (const item of Array.isArray(items) ? items : []) {
     const v = typeof item === 'string' ? item.trim() : '';
     if (!v) continue;
     const key = v.toLowerCase();
@@ -89,15 +85,20 @@ export function extractTagsFallback(title, text) {
   if (entities.dates.length) tags.push('fechas');
   for (const p of entities.platforms.slice(0, 3)) tags.push(p.toLowerCase());
 
-  const words = combinedText(title, text)
-    .toLowerCase()
-    .replace(/https?:\/\/\S+/g, ' ')
-    .split(/[^a-záéíóúüñ0-9#+-]+/i)
-    .filter((w) => w.length >= 4 && !STOPWORDS.has(w));
+  const explicit = (combinedText(title, text).match(/#[\p{L}][\p{L}\p{N}_-]*/gu) || []).map((tag) => tag.slice(1));
+  const words = noteTokens(combinedText(title, text).replace(/https?:\/\/\S+/g, ' '), { minLength: 4 });
+  const titleWords = new Set(noteTokens(title));
   const freq = new Map();
-  for (const w of words) freq.set(w, (freq.get(w) || 0) + 1);
-  const top = [...freq.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([w]) => w);
-  return uniqueStrings([...tags, ...top], 8);
+  const firstIndex = new Map();
+  words.forEach((word, index) => {
+    freq.set(word, (freq.get(word) || 0) + 1);
+    if (!firstIndex.has(word)) firstIndex.set(word, index);
+  });
+  const top = [...freq].sort((a, b) => {
+    const score = ([word, count]) => count + (titleWords.has(word) ? 2 : 0) + 1 / (1 + firstIndex.get(word));
+    return score(b) - score(a) || a[0].localeCompare(b[0]);
+  }).slice(0, 4).map(([word]) => word);
+  return cleanNoteTags([...explicit, ...tags, ...top]);
 }
 
 export function summarizeNoteFallback(title, text) {
@@ -176,7 +177,7 @@ export function sanitizeAnalysisResult(raw, prefs = {}) {
   }
 
   const summary = typeof raw.summary === 'string' ? raw.summary.trim().slice(0, 400) : '';
-  const tags = uniqueStrings(Array.isArray(raw.tags) ? raw.tags : [], 10).map((t) => t.slice(0, 40));
+  const tags = cleanNoteTags(raw.tags);
   const taskSuggestions = uniqueStrings(Array.isArray(raw.taskSuggestions) ? raw.taskSuggestions : [], 5)
     .map((t) => t.slice(0, 160));
 

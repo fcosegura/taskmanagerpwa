@@ -1,3 +1,4 @@
+import { cleanNoteTags, contentRelatedEdges, lexicalNoteScore, noteTokens } from './contentSignals.js';
 import {
   NOTE_AI_RELATED_MIN_SCORE,
   NOTE_AI_RELATED_TOP_K,
@@ -140,6 +141,22 @@ async function loadNotePlain(env, dataKey, userId, profileId, noteId) {
   return { id: noteId, title, text };
 }
 
+/** Decrypt only the authenticated profile; search must not depend on vector freshness. */
+async function loadProfileNotesPlain(env, dataKey, userId, profileId) {
+  const { results } = await env.DB.prepare(
+    'SELECT id, title, text FROM notes WHERE user_id = ? AND profile_id = ?'
+  ).bind(userId, profileId).all();
+  const notes = [];
+  for (const row of results || []) {
+    notes.push({
+      id: unscopedNoteId(profileId, row.id),
+      title: (await decryptField(dataKey, row.title)) || '',
+      text: (await decryptField(dataKey, row.text)) || '',
+    });
+  }
+  return notes;
+}
+
 async function saveAnalysis(env, dataKey, {
   userId, profileId, noteId, contentHash, analysis, relatedIds, status = 'ready', errorMessage = null,
 }) {
@@ -202,7 +219,7 @@ async function decryptMetaRow(dataKey, row, profileId) {
     status: row.status || 'pending',
     contentHash: row.content_hash || null,
     summary: (await decryptField(dataKey, row.summary)) || '',
-    tags: await parseJson(row.tags, []),
+    tags: cleanNoteTags(await parseJson(row.tags, [])),
     entities: await parseJson(row.entities, {
       people: [], projects: [], tickets: [], urls: [], platforms: [], dates: [],
     }),
@@ -418,7 +435,10 @@ export async function getRelatedNotesForNote(env, dataKey, userId, profileId, no
     console.error('[noteAi] live related query failed', err?.message || err);
   }
 
-  const relatedIds = mergeRelatedNoteIds(noteId, forwardIds, allMeta, vectorIds);
+  const contentIds = contentRelatedEdges(await loadProfileNotesPlain(env, dataKey, userId, profileId))
+    .filter((edge) => edge.a === noteId || edge.b === noteId)
+    .map((edge) => edge.a === noteId ? edge.b : edge.a);
+  const relatedIds = mergeRelatedNoteIds(noteId, forwardIds, allMeta, [...contentIds, ...vectorIds]);
   const related = await hydrateRelatedNotes(env, dataKey, userId, profileId, relatedIds);
   return {
     noteId,
@@ -449,89 +469,60 @@ export async function semanticSearchNotes(env, dataKey, userId, profileId, query
   const q = typeof queryText === 'string' ? queryText.trim() : '';
   if (!q) return { results: [], source: 'empty' };
 
-  const services = createNoteAiServices(env);
-  try {
-    if (!env?.VECTORIZE?.query) {
-      throw new Error('VECTORIZE binding missing');
-    }
-    const [embedding] = await services.embeddings.embed([q.slice(0, 2000)]);
-    const ns = await vectorNamespace(userId, profileId);
-    const query = await services.vectors.query(embedding, {
-      topK: NOTE_AI_SEARCH_TOP_K,
-      returnMetadata: 'all',
-      namespace: ns,
-    });
-    const matches = (query?.matches || [])
-      .filter((m) => (m.score ?? 0) >= NOTE_AI_SEARCH_MIN_SCORE)
-      .slice(0, NOTE_AI_SEARCH_TOP_K);
+  const notes = await loadProfileNotesPlain(env, dataKey, userId, profileId);
+  const byId = new Map(notes.map((note) => [note.id, note]));
+  const scored = new Map();
+  for (const note of notes) {
+    const score = lexicalNoteScore(q, note);
+    if (score > 0) scored.set(note.id, { note, score, match: 'text' });
+  }
 
-    const results = [];
-    for (const m of matches) {
-      const noteId = m.metadata?.noteId;
-      if (!noteId) continue;
-      const note = await loadNotePlain(env, dataKey, userId, profileId, noteId);
-      if (!note) continue;
-      const meta = await getNoteAiMeta(env, dataKey, userId, profileId, noteId);
-      results.push({
-        noteId,
-        score: m.score,
-        title: note.title,
-        text: note.text,
-        summary: meta?.summary || '',
-        tags: meta?.tags || [],
-        classification: meta?.classification || null,
+  // Short queries express a concrete term (e.g. "ritual"). Do not add loosely
+  // related vector hits. Natural-language questions can still retrieve synonyms.
+  let vectorAvailable = false;
+  if (noteTokens(q, { minLength: 2 }).length > 2 && env?.VECTORIZE?.query) {
+    try {
+      const services = createNoteAiServices(env);
+      const [embedding] = await services.embeddings.embed([q.slice(0, 2000)]);
+      if (!embedding) throw new Error('Empty query embedding');
+      const ns = await vectorNamespace(userId, profileId);
+      const query = await services.vectors.query(embedding, {
+        topK: NOTE_AI_SEARCH_TOP_K, returnMetadata: 'all', namespace: ns,
       });
-    }
-    if (results.length > 0) {
-      return { results, source: 'vector', matchCount: matches.length };
-    }
-    // Empty vector hits: still try keyword fallback below.
-    throw new Error('no_vector_matches');
-  } catch (err) {
-    if (err?.message !== 'no_vector_matches') {
+      vectorAvailable = true;
+      for (const match of query?.matches || []) {
+        const score = Number(match.score);
+        const id = match.metadata?.noteId;
+        if (!Number.isFinite(score) || score < NOTE_AI_SEARCH_MIN_SCORE || scored.has(id)) continue;
+        const note = byId.get(id);
+        if (note) scored.set(id, { note, score, match: 'semantic' });
+      }
+    } catch (err) {
       console.error('[noteAi] semantic search failed', err?.message || err);
     }
-    // Keyword fallback: any token match (not only full phrase).
-    const { results: rows } = await env.DB.prepare(
-      'SELECT id, title, text FROM notes WHERE user_id = ? AND profile_id = ? LIMIT 200'
-    ).bind(userId, profileId).all();
-    const tokens = q.toLowerCase().split(/[^a-záéíóúüñ0-9#+-]+/i).filter((t) => t.length >= 3);
-    const needles = tokens.length ? tokens : [q.toLowerCase()];
-    const scored = [];
-    for (const row of rows || []) {
-      const title = (await decryptField(dataKey, row.title)) || '';
-      const text = (await decryptField(dataKey, row.text)) || '';
-      const hay = `${title}\n${text}`.toLowerCase();
-      let hits = 0;
-      for (const n of needles) {
-        if (hay.includes(n)) hits += 1;
-      }
-      if (hits === 0) continue;
-      scored.push({
-        noteId: unscopedNoteId(profileId, row.id),
-        score: hits / needles.length,
-        title,
-        text,
-        summary: '',
-        tags: [],
-        classification: null,
-      });
-    }
-    scored.sort((a, b) => b.score - a.score);
-    return {
-      results: scored.slice(0, NOTE_AI_SEARCH_TOP_K),
-      source: 'keyword_fallback',
-    };
   }
+
+  const ranked = [...scored.values()].sort((a, b) =>
+    Number(b.match === 'text') - Number(a.match === 'text') || b.score - a.score || a.note.id.localeCompare(b.note.id));
+  const results = [];
+  for (const hit of ranked.slice(0, NOTE_AI_SEARCH_TOP_K)) {
+    const meta = await getNoteAiMeta(env, dataKey, userId, profileId, hit.note.id);
+    results.push({
+      noteId: hit.note.id, score: hit.score, match: hit.match,
+      title: hit.note.title, text: hit.note.text,
+      summary: meta?.summary || '', tags: meta?.tags || [], classification: meta?.classification || null,
+    });
+  }
+  return { results, source: vectorAvailable ? 'hybrid' : 'keyword_fallback' };
 }
 
 /**
- * Re-queue notes whose vectors still use the old id/filter scheme.
+ * Re-queue notes whose analysis or vectors use older rules.
  */
 export async function enqueueStaleNoteAiReindex(env, ctx, userId, profileId) {
   await ensureNoteAiSchema(env);
   const { results: noteRows } = await env.DB.prepare(
-    'SELECT id FROM notes WHERE user_id = ? AND profile_id = ? LIMIT 200'
+    'SELECT id FROM notes WHERE user_id = ? AND profile_id = ?'
   ).bind(userId, profileId).all();
   const { results: metaRows } = await env.DB.prepare(
     'SELECT note_id, vector_schema FROM note_ai_meta WHERE user_id = ? AND profile_id = ?'

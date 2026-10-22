@@ -1,3 +1,4 @@
+import { cleanNoteTags } from '../noteAi/contentSignals.js';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Spinner } from './ui/index.jsx';
 import ExtendedNoteModal from './ExtendedNoteModal.jsx';
@@ -32,7 +33,7 @@ function BoardNoteCard({
   autoFocusTitle = false,
 }) {
   const titleInputRef = useRef(null);
-  const tags = prefs?.autotag !== false ? (meta?.tags || []).filter((t) => !isDismissed(meta, 'tag', t)) : [];
+  const tags = prefs?.autotag !== false ? cleanNoteTags(meta?.tags).filter((t) => !isDismissed(meta, 'tag', t)) : [];
   const summary = prefs?.summary !== false ? (meta?.summary || '') : '';
   const classification = prefs?.classification !== false ? meta?.classification : null;
   const taskSuggestions = prefs?.taskSuggestions !== false
@@ -687,7 +688,7 @@ export default function BoardView({
               type="search"
               value={searchQuery}
               onChange={(e) => onSearchChange?.(e.target.value)}
-              placeholder="Buscar por significado… (ej. tickets de autenticación)"
+              placeholder="Buscar palabras clave o describir una idea…"
               aria-label="Búsqueda semántica de notas"
               style={{
                 flex: 1,

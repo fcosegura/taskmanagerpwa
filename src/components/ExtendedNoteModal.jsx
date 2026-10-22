@@ -1,3 +1,4 @@
+import { cleanNoteTags } from '../noteAi/contentSignals.js';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Button } from './ui/index.jsx';
@@ -48,7 +49,7 @@ export default function ExtendedNoteModal({ note, meta, prefs, onSave, onClose }
     setConfirmClose(false);
   };
   const tags = prefs?.autotag !== false
-    ? (meta?.tags || []).filter((tag) => !meta?.dismissed?.includes(`tag:${tag}`)) : [];
+    ? cleanNoteTags(meta?.tags).filter((tag) => !meta?.dismissed?.includes(`tag:${tag}`)) : [];
   const summary = prefs?.summary !== false ? meta?.summary : '';
   const classification = prefs?.classification !== false ? meta?.classification : '';
 
