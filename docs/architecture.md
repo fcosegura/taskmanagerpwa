@@ -95,3 +95,6 @@ el texto persistido no se recorta.
 - «Ampliar» convierte una nota rápida conservando su ID, contenido y metadata.
   Los botones de creación comparten tamaños y forma con los del tablero.
 - El tablero se reinicia al cambiar de perfil para aislar el editor abierto.
+
+La selección de tarjetas, resultados y relaciones conserva el panel de notas relacionadas. El editor extendido solo se abre con el botón explícito «Abrir ↗» de la tarjeta.
+

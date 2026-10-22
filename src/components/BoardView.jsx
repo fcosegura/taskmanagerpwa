@@ -175,11 +175,18 @@ function BoardNoteCard({
       </div>
 
       {note.noteType === 'extended' ? (
-        <button type="button" className="board-note-preview" onClick={(e) => { e.stopPropagation(); onOpen(note.id); }}>
-          <small>Nota extendida · Abrir</small>
-          <strong>{note.title || 'Sin título'}</strong>
-          <span>{Array.from(note.text || '').slice(0, 180).join('')}{Array.from(note.text || '').length > 180 ? '…' : ''}</span>
-        </button>
+        <>
+          <div className="board-note-preview-heading">
+            <small>Nota extendida</small>
+            <button type="button" className="board-note-open" aria-label="Abrir nota extendida"
+              onClick={(event) => { event.stopPropagation(); onOpen(note.id); }}>Abrir ↗</button>
+          </div>
+          <button type="button" className="board-note-preview" aria-label={`Seleccionar nota: ${note.title || 'Sin título'}`}
+            onClick={(event) => { event.stopPropagation(); onSelect?.(note.id); }}>
+            <strong>{note.title || 'Sin título'}</strong>
+            <span>{Array.from(note.text || '').slice(0, 180).join('')}{Array.from(note.text || '').length > 180 ? '…' : ''}</span>
+          </button>
+        </>
       ) : <>
       <input
         ref={titleInputRef}
@@ -622,7 +629,7 @@ export default function BoardView({
                     <button
                       key={n.noteId}
                       type="button"
-                      onClick={() => openNote(n.noteId)}
+                      onClick={() => onSelectNote?.(n.noteId)}
                       style={{
                         border: selectedNoteId === n.noteId ? '1px solid var(--color-accent)' : '1px solid var(--color-border-tertiary)',
                         borderRadius: 8,
@@ -729,7 +736,7 @@ export default function BoardView({
               <button
                 key={r.noteId}
                 type="button"
-                onClick={() => openNote(r.noteId)}
+                onClick={() => onSelectNote?.(r.noteId)}
                 style={{
                   textAlign: 'left',
                   border: '1px solid var(--color-border-tertiary)',
@@ -790,7 +797,7 @@ export default function BoardView({
                 meta={noteAiMetaById[note.id]}
                 prefs={noteAiPrefs}
                 selected={selectedNoteId === note.id}
-                onSelect={openNote}
+                onSelect={onSelectNote}
                 onOpen={openNote}
                 onDelete={onDeleteNote}
                 onUpdate={onUpdateNote}
@@ -839,7 +846,7 @@ export default function BoardView({
                   <button
                     key={r.noteId}
                     type="button"
-                    onClick={() => openNote(r.noteId)}
+                    onClick={() => onSelectNote?.(r.noteId)}
                     style={{
                       textAlign: 'left',
                       border: '1px solid var(--color-border-tertiary)',
