@@ -73,7 +73,7 @@
 
 .sidebar-search-input {
   width: 100%;
-  padding: 10px 12px 10px 34px;
+  padding: 10px 32px 10px 34px;
   border-radius: 99px;
   border: 1px solid var(--color-border-secondary);
   background: var(--color-background-secondary);
@@ -285,13 +285,40 @@
 
 .timeline-search-input {
   width: 100%;
-  padding: 8px 12px 8px 32px;
+  padding: 8px 32px 8px 32px;
   border-radius: 99px;
   border: 1px solid var(--color-border-secondary);
   background: var(--color-background-secondary);
   color: var(--color-text-primary);
   font-size: 12px;
   outline: none;
+}
+
+.timeline-search-clear {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  padding: 0;
+  line-height: 1;
+  opacity: 0.6;
+  transition: opacity 0.2s, background-color 0.2s;
+}
+
+.timeline-search-clear:hover {
+  opacity: 1;
+  background-color: var(--color-background-primary);
 }
 
 .timeline-search-input:focus {
