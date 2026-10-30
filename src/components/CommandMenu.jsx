@@ -118,7 +118,7 @@ export default function CommandMenu({
         onKeyDown={handleKeyDown}
       >
         <span id="command-menu-heading" className="sr-only" style={{ display: 'none' }}>Menú de Comandos</span>
-        <div className="command-menu-header">
+        <div className="command-menu-header" style={{ position: 'relative' }}>
           <span className="search-icon" aria-hidden="true">🔍</span>
           <input
             ref={inputRef}
@@ -131,6 +131,39 @@ export default function CommandMenu({
               setSelectedIndex(0);
             }}
           />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => {
+                setSearchQuery('');
+                setSelectedIndex(0);
+                inputRef.current?.focus();
+              }}
+              onPointerDown={(e) => e.preventDefault()}
+              aria-label="Limpiar búsqueda"
+              style={{
+                position: 'absolute',
+                right: '48px', // Positioned left of the ESC shortcut
+                top: '50%',
+                transform: 'translateY(-50%)',
+                background: 'transparent',
+                border: 'none',
+                color: 'var(--color-text-secondary)',
+                cursor: 'pointer',
+                fontSize: 16,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: 4,
+                borderRadius: '50%',
+                opacity: 0.6
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.opacity = 1)}
+              onMouseLeave={(e) => (e.currentTarget.style.opacity = 0.6)}
+            >
+              ×
+            </button>
+          )}
           <kbd className="kbd-shortcut">ESC</kbd>
         </div>
 
