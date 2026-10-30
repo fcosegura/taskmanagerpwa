@@ -131,6 +131,35 @@ export default function CommandMenu({
               setSelectedIndex(0);
             }}
           />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => {
+                setSearchQuery('');
+                setSelectedIndex(0);
+                inputRef.current?.focus();
+              }}
+              onPointerDown={(e) => e.preventDefault()}
+              aria-label="Limpiar búsqueda"
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: 'var(--color-text-secondary)',
+                cursor: 'pointer',
+                fontSize: 18,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '4px 8px',
+                borderRadius: '50%',
+                opacity: 0.6
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.opacity = 1)}
+              onMouseLeave={(e) => (e.currentTarget.style.opacity = 0.6)}
+            >
+              ×
+            </button>
+          )}
           <kbd className="kbd-shortcut">ESC</kbd>
         </div>
 

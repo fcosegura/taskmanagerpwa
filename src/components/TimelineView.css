@@ -73,7 +73,7 @@
 
 .sidebar-search-input {
   width: 100%;
-  padding: 10px 12px 10px 34px;
+  padding: 10px 36px 10px 34px;
   border-radius: 99px;
   border: 1px solid var(--color-border-secondary);
   background: var(--color-background-secondary);
@@ -285,7 +285,7 @@
 
 .timeline-search-input {
   width: 100%;
-  padding: 8px 12px 8px 32px;
+  padding: 8px 36px 8px 32px;
   border-radius: 99px;
   border: 1px solid var(--color-border-secondary);
   background: var(--color-background-secondary);
