@@ -170,7 +170,10 @@ export default function QuickModeView({
               </span>
             </div>
           ) : (
-            <div className="quick-mode-empty">Sin foco pendiente. ¡Todo al día!</div>
+            <div className="empty-state-card" style={{ padding: '16px', gap: '8px', background: 'var(--color-background-secondary)', borderRadius: 'var(--border-radius-md)' }}>
+              <span className="empty-icon" aria-hidden="true" style={{ fontSize: '24px' }}>🎯</span>
+              <p style={{ margin: 0, fontSize: 13, color: 'var(--color-text-secondary)' }}>Sin foco pendiente. ¡Todo al día!</p>
+            </div>
           )}
         </section>
 
@@ -232,7 +235,10 @@ export default function QuickModeView({
         <section className="quick-mode-section">
           <h2 className="quick-mode-section-title">Tareas de hoy ({todayTasks.length})</h2>
           {todayTasks.length === 0 ? (
-            <div className="quick-mode-empty">Sin tareas para hoy.</div>
+            <div className="empty-state-card" style={{ padding: '16px', gap: '8px', background: 'var(--color-background-secondary)', borderRadius: 'var(--border-radius-md)' }}>
+              <span className="empty-icon" aria-hidden="true" style={{ fontSize: '24px' }}>📝</span>
+              <p style={{ margin: 0, fontSize: 13, color: 'var(--color-text-secondary)' }}>Sin tareas para hoy.</p>
+            </div>
           ) : (
             <div className="today-tasks-list">{todayTasks.map((task) => renderTaskCard(task))}</div>
           )}
@@ -250,7 +256,10 @@ export default function QuickModeView({
         <section className="quick-mode-section">
           <h2 className="quick-mode-section-title">Próximas tareas ({upcomingTasks.length})</h2>
           {upcomingTaskGroups.length === 0 ? (
-            <div className="quick-mode-empty">No hay tareas en los próximos días laborables.</div>
+            <div className="empty-state-card" style={{ padding: '16px', gap: '8px', background: 'var(--color-background-secondary)', borderRadius: 'var(--border-radius-md)' }}>
+              <span className="empty-icon" aria-hidden="true" style={{ fontSize: '24px' }}>📅</span>
+              <p style={{ margin: 0, fontSize: 13, color: 'var(--color-text-secondary)' }}>No hay tareas en los próximos días laborables.</p>
+            </div>
           ) : (
             <div className="upcoming-task-groups">
               {upcomingTaskGroups.map(([dateStr, tasksForDate]) => (
@@ -266,7 +275,10 @@ export default function QuickModeView({
         <section className="quick-mode-section">
           <h2 className="quick-mode-section-title">Agenda y eventos</h2>
           {todayEvents.length === 0 ? (
-            <div className="quick-mode-empty">Sin eventos hoy.</div>
+            <div className="empty-state-card" style={{ padding: '16px', gap: '8px', background: 'var(--color-background-secondary)', borderRadius: 'var(--border-radius-md)' }}>
+              <span className="empty-icon" aria-hidden="true" style={{ fontSize: '24px' }}>🗓️</span>
+              <p style={{ margin: 0, fontSize: 13, color: 'var(--color-text-secondary)' }}>Sin eventos hoy.</p>
+            </div>
           ) : (
             <div className="today-events-list">
               {todayEvents.map((evt, idx) => {
