@@ -247,6 +247,17 @@ export default function TimelineView({
               value={sidebarSearch}
               onChange={(e) => setSidebarSearch(e.target.value)}
             />
+            {sidebarSearch && (
+              <button
+                type="button"
+                className="timeline-search-clear"
+                onClick={() => setSidebarSearch('')}
+                onPointerDown={(e) => e.preventDefault()}
+                aria-label="Limpiar búsqueda"
+              >
+                ×
+              </button>
+            )}
           </div>
 
           <div className="sidebar-actions">
@@ -405,6 +416,17 @@ export default function TimelineView({
                 value={timelineSearch}
                 onChange={(e) => setTimelineSearch(e.target.value)}
               />
+              {timelineSearch && (
+                <button
+                  type="button"
+                  className="timeline-search-clear"
+                  onClick={() => setTimelineSearch('')}
+                  onPointerDown={(e) => e.preventDefault()}
+                  aria-label="Limpiar búsqueda"
+                >
+                  ×
+                </button>
+              )}
             </div>
             
             <select
