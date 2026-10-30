@@ -3907,3 +3907,93 @@ input {
 @keyframes ui-spin {
   100% { transform: rotate(360deg); }
 }
+
+/* ── Inline Style Refactors for Micro-UX ── */
+.priority-rail {
+  width: 4px;
+  min-height: 36px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+.priority-rail-btn {
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  transition: transform 0.2s ease, filter 0.2s ease;
+}
+.priority-rail-btn:hover {
+  transform: scaleY(1.1);
+  filter: brightness(1.2);
+}
+.priority-rail-btn:active {
+  transform: scaleY(0.95);
+}
+
+.subtask-progress-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: var(--material-base-border);
+  background: var(--material-base-bg);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+.subtask-progress-pill:hover {
+  background: var(--color-surface-container-highest);
+  color: var(--color-text-primary);
+}
+.subtask-progress-pill:active {
+  transform: scale(0.96);
+}
+
+.task-edit-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: var(--material-base-border);
+  background: var(--material-base-bg);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  transition: background-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+.task-edit-btn:hover {
+  background: var(--color-surface-container-highest);
+  color: var(--color-text-primary);
+}
+.task-edit-btn:active {
+  transform: scale(0.9);
+}
+
+.task-checkbox-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: var(--material-base-border);
+  background: var(--material-base-bg);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+}
+.task-checkbox-btn.is-done {
+  background: var(--color-background-success);
+  color: var(--color-text-success);
+  border-color: var(--color-border-success);
+}
+.task-checkbox-animated:hover:not(.is-done) {
+  border-color: var(--color-accent);
+  background: rgba(23, 107, 135, 0.08);
+}
+.task-checkbox-animated:hover.is-done {
+  filter: brightness(0.95);
+}

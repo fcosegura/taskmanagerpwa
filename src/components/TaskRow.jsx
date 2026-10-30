@@ -80,16 +80,15 @@ export default function TaskRow({
         {onOpenPriorityPicker ? (
           <button
             type="button"
-            className="priority-rail"
+            className="priority-rail priority-rail-btn"
             aria-label={`Cambiar prioridad, actualmente ${p.label}`}
             onClick={openPriority}
             style={{
-              width: 4, minHeight: 36, borderRadius: 4, background: `var(${p.tv})`, flexShrink: 0,
-              border: 'none', padding: 0, cursor: 'pointer',
+              background: `var(${p.tv})`,
             }}
           />
         ) : (
-          <div className="priority-rail" style={{ width: 4, minHeight: 36, borderRadius: 4, background: `var(${p.tv})`, flexShrink: 0 }} />
+          <div className="priority-rail" style={{ background: `var(${p.tv})` }} />
         )}
 
         {(hasParentTask || hasChildTasks) && (
@@ -231,19 +230,6 @@ export default function TaskRow({
                 setShowInlineSubtasks((prev) => !prev);
               }}
               title="Ver sub-tareas"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-                padding: '3px 8px',
-                borderRadius: 999,
-                border: 'var(--material-base-border)',
-                background: 'var(--material-base-bg)',
-                fontSize: 11,
-                fontWeight: 600,
-                color: 'var(--color-text-secondary)',
-                cursor: 'pointer'
-              }}
             >
               <span>{completedSubtasks}/{totalSubtasks} sub-tareas</span>
               <svg
@@ -269,15 +255,10 @@ export default function TaskRow({
           {onEditClick ? (
             <button
               type="button"
+              className="task-edit-btn"
               onClick={openEdit}
               aria-label="Editar tarea"
               title="Editar tarea"
-              style={{
-                width: 28, height: 28, borderRadius: 999, border: 'var(--material-base-border)',
-                background: 'var(--material-base-bg)', color: 'var(--color-text-secondary)',
-                cursor: 'pointer', padding: 0,
-                display: 'grid', placeItems: 'center', flexShrink: 0,
-              }}
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                 <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
@@ -288,18 +269,15 @@ export default function TaskRow({
 
           <button
             type="button"
-            className="task-checkbox-animated"
+            className={`task-checkbox-animated task-checkbox-btn ${isDone ? 'is-done' : ''}`}
             onClick={(e) => { e.stopPropagation(); onToggleDone?.(task.id); }}
             aria-label={isDone ? 'Marcar como no completada' : 'Marcar como completada'}
-            style={{
-              width: 28, height: 28, borderRadius: 999, border: 'var(--material-base-border)',
-              background: isDone ? 'var(--color-background-success)' : 'var(--material-base-bg)',
-              color: isDone ? 'var(--color-text-success)' : 'var(--color-text-secondary)',
-              cursor: 'pointer', fontSize: 12, fontWeight: 700,
-              display: 'grid', placeItems: 'center',
-            }}
           >
-            {isDone ? '✓' : '○'}
+            {isDone ? (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            ) : null}
           </button>
 
           {onOpenPriorityPicker ? (
