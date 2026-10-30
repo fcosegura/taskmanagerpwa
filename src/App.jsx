@@ -1731,8 +1731,26 @@ export default function App() {
               aria-haspopup="menu"
               aria-expanded={showProfileMenu}
               aria-label={`Cambiar workspace. Actual: ${activeProfileName}`}
+              style={{ display: 'flex', alignItems: 'center', gap: '4px' }}
             >
               {profileGlyph}
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                style={{
+                  transform: showProfileMenu ? 'rotate(180deg)' : 'rotate(0deg)',
+                  transition: 'transform 0.2s ease',
+                  marginTop: '2px'
+                }}
+              >
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
             </button>
             {showProfileMenu && (
               <div className="workspace-menu" role="menu">
@@ -1872,8 +1890,26 @@ export default function App() {
               onClick={() => setShowActionsMenu((openMenu) => !openMenu)}
               aria-haspopup="menu"
               aria-expanded={showActionsMenu}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
             >
               Acciones
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                style={{
+                  transform: showActionsMenu ? 'rotate(180deg)' : 'rotate(0deg)',
+                  transition: 'transform 0.2s ease',
+                  marginTop: '1px'
+                }}
+              >
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
             </button>
             {showActionsMenu && (
               <div className="header-actions-menu" role="menu">
