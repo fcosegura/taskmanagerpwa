@@ -247,6 +247,35 @@ export default function TimelineView({
               value={sidebarSearch}
               onChange={(e) => setSidebarSearch(e.target.value)}
             />
+            {sidebarSearch && (
+              <button
+                type="button"
+                onClick={() => setSidebarSearch('')}
+                onPointerDown={(e) => e.preventDefault()}
+                aria-label="Limpiar búsqueda"
+                style={{
+                  position: 'absolute',
+                  right: 12,
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'var(--color-text-secondary)',
+                  cursor: 'pointer',
+                  fontSize: 16,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: 4,
+                  borderRadius: '50%',
+                  opacity: 0.6
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.opacity = 1)}
+                onMouseLeave={(e) => (e.currentTarget.style.opacity = 0.6)}
+              >
+                ×
+              </button>
+            )}
           </div>
 
           <div className="sidebar-actions">
@@ -405,6 +434,35 @@ export default function TimelineView({
                 value={timelineSearch}
                 onChange={(e) => setTimelineSearch(e.target.value)}
               />
+              {timelineSearch && (
+                <button
+                  type="button"
+                  onClick={() => setTimelineSearch('')}
+                  onPointerDown={(e) => e.preventDefault()}
+                  aria-label="Limpiar búsqueda"
+                  style={{
+                    position: 'absolute',
+                    right: 12,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'transparent',
+                    border: 'none',
+                    color: 'var(--color-text-secondary)',
+                    cursor: 'pointer',
+                    fontSize: 16,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: 4,
+                    borderRadius: '50%',
+                    opacity: 0.6
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.opacity = 1)}
+                  onMouseLeave={(e) => (e.currentTarget.style.opacity = 0.6)}
+                >
+                  ×
+                </button>
+              )}
             </div>
             
             <select

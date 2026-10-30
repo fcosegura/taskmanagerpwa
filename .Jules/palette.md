@@ -23,3 +23,6 @@
 ## 2024-10-01 - Kanban Toggle Animated Chevron
 **Learning:** Animated SVG chevrons significantly improve visual polish and affordance over basic text symbols (like "Mostrar todo / Colapsar") without overcomplicating the layout.
 **Action:** Use CSS transition `transform: rotate(...)` on an inline `<svg>` for UI toggle elements to add micro-interactions that feel delightful and smooth.
+## 2026-09-28 - [Input Focus Preservation]
+**Learning:** When adding clear buttons (`×`) to inputs, clicking the button typically causes the input to lose focus. Using `onPointerDown={(e) => e.preventDefault()}` on the clear button intercepts the event before focus is lost, maintaining the user's workflow seamlessly.
+**Action:** Always apply this focus-preservation pattern when building "clear text" buttons for search fields or inputs to keep the interaction feeling smooth and professional.
