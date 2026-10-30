@@ -203,15 +203,6 @@
   width: 100%;
 }
 
-.quick-mode-empty {
-  padding: 14px 16px;
-  border: 1px dashed var(--color-border-secondary);
-  border-radius: var(--border-radius-md, 6px);
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-sm, 13px);
-  text-align: center;
-}
-
 .quick-mode-focus-card {
   align-items: flex-start;
 }

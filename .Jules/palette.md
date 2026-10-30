@@ -23,3 +23,4 @@
 ## 2024-10-01 - Kanban Toggle Animated Chevron
 **Learning:** Animated SVG chevrons significantly improve visual polish and affordance over basic text symbols (like "Mostrar todo / Colapsar") without overcomplicating the layout.
 **Action:** Use CSS transition `transform: rotate(...)` on an inline `<svg>` for UI toggle elements to add micro-interactions that feel delightful and smooth.
+## 2024-05-18 - [Empty State UI Formatting] **Learning:** Hardcoded simple text nodes inside distinct 'empty' CSS classes (like .quick-mode-empty) lack visual polish. Utilizing the global .empty-state-card alongside an .empty-icon containing an emoji creates a more structured, delightful, and consistent UX without expanding CSS. **Action:** Prefer replacing simple custom text empty state strings with the empty-state-card layout where appropriate.
